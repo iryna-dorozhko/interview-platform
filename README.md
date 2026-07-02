@@ -51,6 +51,7 @@ npm run build
 ### DB Bootstrap (PostgreSQL)
 
 1. Скопіюй змінні середовища: `cp .env.example .env`.
+   Значення в `.env.example` наведені лише для локальної розробки.
 2. Підійми PostgreSQL: `docker compose up -d postgres`.
 3. Перевір стан контейнера: `docker compose ps`.
 4. Для зупинки сервісу: `docker compose stop postgres`.
