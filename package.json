@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "npm run --workspaces --parallel dev",
     "build": "npm run --workspaces build",
-    "lint": "npm run --workspaces lint"
+    "lint": "npm run --workspaces lint",
+    "ci:bootstrap": "npm run lint && npm run build"
   }
 }
