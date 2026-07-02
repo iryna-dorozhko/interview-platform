@@ -9,14 +9,18 @@
     "test": "node --test",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
+    "predb:migrate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "predb:seed": "prisma generate",
     "db:seed": "prisma db seed"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "pg": "^8.22.0",
     "prisma": "^7.8.0"
   }
 }
