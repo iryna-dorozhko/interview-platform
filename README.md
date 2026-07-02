@@ -48,13 +48,22 @@ npm run build
 
 Кореневі команди оркеструють виконання скриптів в обох воркспейсах.
 
-### DB Bootstrap (PostgreSQL)
+### Database Quick Start (Day 1)
 
-1. Скопіюй змінні середовища: `cp .env.example .env`.
-   Значення в `.env.example` наведені лише для локальної розробки.
-2. Підійми PostgreSQL: `docker compose up -d postgres`.
-3. Перевір стан контейнера: `docker compose ps`.
-4. Для зупинки сервісу: `docker compose stop postgres`.
+Виконай кроки послідовно:
+
+```bash
+cp .env.example .env
+cp backend/.env.example backend/.env
+docker compose up -d postgres
+npm install
+npm --workspace backend run db:generate
+npm --workspace backend run db:migrate -- --name init_interview_mvp
+npm --workspace backend run db:seed
+```
+
+Після `db:seed` очікуваний тестовий користувач:
+- `hr@test.com` / `123456`
 
 ---
 
