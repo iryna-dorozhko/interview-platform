@@ -6,8 +6,8 @@
     "backend"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --parallel",
-    "build": "npm run build --workspaces",
-    "lint": "npm run lint --workspaces"
+    "dev": "npm run --workspaces --parallel dev",
+    "build": "npm run --workspaces build",
+    "lint": "npm run --workspaces lint"
   }
 }
