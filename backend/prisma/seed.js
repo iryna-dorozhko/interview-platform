@@ -2,7 +2,7 @@ require("dotenv/config");
 const { PrismaClient, UserRole } = require("@prisma/client");
 const { PrismaPg } = require("@prisma/adapter-pg");
 const { Pool } = require("pg");
-const crypto = require("node:crypto");
+const { seedHrUser } = require("../src/seed/hr-user");
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -12,25 +12,7 @@ const adapter = new PrismaPg(new Pool({ connectionString: databaseUrl }));
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const email = "hr@test.com";
-  const passwordHash = crypto
-    .createHash("sha256")
-    .update("123456")
-    .digest("hex");
-
-  await prisma.user.upsert({
-    where: { email },
-    update: {
-      passwordHash,
-      role: UserRole.HR,
-    },
-    create: {
-      email,
-      passwordHash,
-      role: UserRole.HR,
-    },
-  });
-
+  const { email } = await seedHrUser(prisma, { UserRole });
   console.log(`Seeded HR user: ${email}`);
 }
 
