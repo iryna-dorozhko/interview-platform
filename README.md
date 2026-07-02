@@ -31,6 +31,30 @@
 - [ ] Збірка: `npm run build` проходить
 - [ ] README: встановлення залежностей, `.env.example`, команди запуску dev і міграцій
 
+## Day 1 Bootstrap Structure
+
+Проєкт використовує `npm workspaces` з двома пакетами:
+
+- `frontend` — клієнтський застосунок;
+- `backend` — серверний застосунок.
+
+### Запуск
+
+```bash
+npm install
+npm run dev
+npm run build
+```
+
+Кореневі команди оркеструють виконання скриптів в обох воркспейсах.
+
+### DB Bootstrap (PostgreSQL)
+
+1. Скопіюй змінні середовища: `cp .env.example .env`.
+2. Підійми PostgreSQL: `docker compose up -d postgres`.
+3. Перевір стан контейнера: `docker compose ps`.
+4. Для зупинки сервісу: `docker compose stop postgres`.
+
 ---
 
 ## День 2 — Підключення AI
