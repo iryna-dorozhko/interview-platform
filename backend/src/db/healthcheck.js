@@ -5,8 +5,12 @@ async function checkDatabaseHealth(client) {
     databaseClient = new PrismaClient();
   }
 
-  await databaseClient.$queryRaw`SELECT 1`;
-  return { ok: true };
+  try {
+    await databaseClient.$queryRaw`SELECT 1`;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: String(error?.message || error) };
+  }
 }
 
 module.exports = {
