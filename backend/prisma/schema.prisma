@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  HR
+  CANDIDATE
+}
+
+enum InterviewStatus {
+  DRAFT
+  AWAITING_CANDIDATE
+  READY
+  LIVE
+  ENDED
+}
+
+enum LiveAuthorType {
+  HUMAN_HR
+  HUMAN_CANDIDATE
+  AGENT_ARBITER
+  AGENT_COMPANY
+  AGENT_CANDIDATE
+}
+
+enum PrepHrAuthorType {
+  HUMAN_HR
+  AGENT_COMPANY
+}
+
+enum PrepCandidateAuthorType {
+  HUMAN_CANDIDATE
+  AGENT_CANDIDATE
+}
+
+enum Recommendation {
+  HIRE
+  MAYBE
+  REJECT
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  passwordHash   String
+  role           UserRole
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  interviewsAsHr Interview[] @relation("HrInterviews")
+  interviewsAsCd Interview[] @relation("CandidateInterviews")
+}
+
+model Interview {
+  id               String               @id @default(cuid())
+  hrUserId         String
+  candidateUserId  String?
+  joinCode         String               @unique
+  status           InterviewStatus      @default(DRAFT)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  hrUser           User                 @relation("HrInterviews", fields: [hrUserId], references: [id])
+  candidateUser    User?                @relation("CandidateInterviews", fields: [candidateUserId], references: [id])
+  companyProfile   CompanyProfile?
+  candidateProfile CandidateProfile?
+  prepSessionHr    PrepSessionHr?
+  prepSessionCd    PrepSessionCandidate?
+  liveSession      LiveSession?
+  finalReport      FinalReport?
+
+  @@index([hrUserId, createdAt(sort: Desc)])
+  @@index([candidateUserId])
+}
+
+model CompanyProfile {
+  id           String    @id @default(cuid())
+  interviewId  String    @unique
+  role         String
+  requirements Json
+  culture      Json
+  expectations Json
+  confirmedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  interview    Interview @relation(fields: [interviewId], references: [id])
+}
+
+model CandidateProfile {
+  id          String    @id @default(cuid())
+  interviewId String    @unique
+  experience  Json
+  skills      Json
+  goals       Json
+  summary     String
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  interview   Interview @relation(fields: [interviewId], references: [id])
+}
+
+model PrepSessionHr {
+  id          String          @id @default(cuid())
+  interviewId String          @unique
+  isClosed    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  interview   Interview       @relation(fields: [interviewId], references: [id])
+  messages    PrepMessageHr[]
+}
+
+model PrepMessageHr {
+  id         String           @id @default(cuid())
+  sessionId  String
+  authorType PrepHrAuthorType
+  content    String
+  createdAt  DateTime         @default(now())
+  session    PrepSessionHr    @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, createdAt])
+}
+
+model PrepSessionCandidate {
+  id          String                  @id @default(cuid())
+  interviewId String                  @unique
+  isClosed    Boolean                 @default(false)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  interview   Interview               @relation(fields: [interviewId], references: [id])
+  messages    PrepMessageCandidate[]
+}
+
+model PrepMessageCandidate {
+  id         String                  @id @default(cuid())
+  sessionId  String
+  authorType PrepCandidateAuthorType
+  content    String
+  createdAt  DateTime                @default(now())
+  session    PrepSessionCandidate    @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, createdAt])
+}
+
+model LiveSession {
+  id          String        @id @default(cuid())
+  interviewId String        @unique
+  startedAt   DateTime      @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  interview   Interview     @relation(fields: [interviewId], references: [id])
+  messages    LiveMessage[]
+}
+
+model LiveMessage {
+  id         String         @id @default(cuid())
+  sessionId  String
+  authorType LiveAuthorType
+  content    String
+  createdAt  DateTime       @default(now())
+  session    LiveSession    @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, createdAt])
+}
+
+model FinalReport {
+  id             String         @id @default(cuid())
+  interviewId    String         @unique
+  reportMarkdown String
+  recommendation Recommendation
+  matchScore     Int
+  strengths      Json
+  risks          Json
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  interview      Interview      @relation(fields: [interviewId], references: [id])
+}
