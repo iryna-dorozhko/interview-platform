@@ -65,6 +65,9 @@ npm --workspace backend run db:seed
 Після `db:seed` очікуваний тестовий користувач:
 - `hr@test.com` / `123456`
 
+> `db:migrate` і `db:seed` потребують доступного PostgreSQL (локально або в Docker).
+> Якщо Docker daemon вимкнений, контейнер Postgres не піднято, або користувач/БД недоступні, Prisma поверне `P1010` чи connection errors.
+
 ---
 
 ## День 2 — Підключення AI

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 const defaultDatabaseUrl =
   "postgresql://postgres:postgres@localhost:5432/interview_platform?schema=public";
