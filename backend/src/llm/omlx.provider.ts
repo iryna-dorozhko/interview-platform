@@ -6,6 +6,7 @@ const REQUEST_TIMEOUT_MS = 120_000;
 type OmlxConfig = {
   baseUrl: string;
   model: string;
+  apiKey?: string;
 };
 
 type ChatCompletionResponse = {
@@ -23,9 +24,16 @@ export function createOmlxProvider(config: OmlxConfig): LlmProvider {
 
       let response: Response;
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (config.apiKey) {
+          headers.Authorization = `Bearer ${config.apiKey}`;
+        }
+
         response = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             model: config.model,
             messages,

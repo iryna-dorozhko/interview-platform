@@ -14,6 +14,7 @@ export interface LlmEnvConfig {
   provider: "omlx" | "gemini";
   omlxBaseUrl: string;
   omlxModel: string;
+  omlxApiKey?: string;
   geminiApiKey?: string;
   geminiModel: string;
 }

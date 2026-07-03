@@ -17,6 +17,7 @@ export function readLlmEnvConfig(env: EnvSource = process.env): LlmEnvConfig {
     provider: providerRaw as LlmEnvConfig["provider"],
     omlxBaseUrl: env.OMLX_BASE_URL ?? "http://127.0.0.1:8000",
     omlxModel: env.OMLX_MODEL ?? "Qwen2.5-7B-Instruct-4bit",
+    omlxApiKey: env.OMLX_API_KEY,
     geminiApiKey: env.GEMINI_API_KEY,
     geminiModel: env.GEMINI_MODEL ?? "gemini-2.0-flash",
   };
@@ -39,5 +40,6 @@ export function createLlmProvider(env: EnvSource = process.env): LlmProvider {
   return createOmlxProvider({
     baseUrl: config.omlxBaseUrl,
     model: config.omlxModel,
+    apiKey: config.omlxApiKey,
   });
 }

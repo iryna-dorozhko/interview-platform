@@ -128,7 +128,10 @@ omlx serve --port 8000
 LLM_PROVIDER=omlx
 OMLX_BASE_URL=http://127.0.0.1:8000
 OMLX_MODEL=Qwen2.5-7B-Instruct-4bit
+OMLX_API_KEY=your-omlx-api-key
 ```
+
+> Якщо в omlx увімкнено auth (`API key authentication: enabled` у логах), ключ береться з `~/.omlx/settings.json` → `auth.api_key`.
 
 Для Gemini:
 

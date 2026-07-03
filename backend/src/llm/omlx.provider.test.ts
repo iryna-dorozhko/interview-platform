@@ -47,6 +47,30 @@ test("createOmlxProvider throws LlmEmptyResponseError when content missing", asy
   );
 });
 
+test("createOmlxProvider sends Authorization header when apiKey configured", async () => {
+  let authHeader: string | null = null;
+
+  global.fetch = async (_url, init) => {
+    const headers = init?.headers as Record<string, string> | undefined;
+    authHeader = headers?.Authorization ?? null;
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: "ok" } }],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  };
+
+  const provider = createOmlxProvider({
+    baseUrl: "http://127.0.0.1:8000",
+    model: "Qwen2.5-7B-Instruct-4bit",
+    apiKey: "secret-key",
+  });
+
+  await provider.complete([{ role: "user", content: "Hi" }]);
+  assert.equal(authHeader, "Bearer secret-key");
+});
+
 test("createOmlxProvider throws LlmUnavailableError on connection failure", async () => {
   global.fetch = async () => {
     throw Object.assign(new Error("fetch failed"), { cause: { code: "ECONNREFUSED" } });
