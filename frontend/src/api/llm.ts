@@ -1,3 +1,5 @@
+import { fetchWithAuth } from "./client";
+
 export type ChatRole = "user" | "assistant";
 
 export type UiMessage = {
@@ -16,9 +18,8 @@ type LlmErrorBody = {
 };
 
 export async function sendChat(messages: UiMessage[]): Promise<LlmCompleteResponse> {
-  const response = await fetch("/api/llm/complete", {
+  const response = await fetchWithAuth("/api/llm/complete", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
   });
 
