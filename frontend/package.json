@@ -2,9 +2,21 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "echo \"frontend dev placeholder\"",
-    "build": "echo \"frontend build placeholder\"",
-    "lint": "echo \"frontend lint placeholder\""
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "lint": "vue-tsc --noEmit -p tsconfig.app.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/tsconfig": "^0.7.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vue-tsc": "^2.2.0"
   }
 }

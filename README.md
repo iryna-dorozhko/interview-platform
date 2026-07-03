@@ -26,10 +26,10 @@
 - Додаєш тестового HR у базу (через seed)
 
 **Definition of Done:**
-- [ ] Демонстрація: `npm run dev` піднімає frontend і backend; `prisma migrate` + `seed` проходять без помилок
-- [ ] Сценарій: відкрити обидва сервіси в браузері; перевірити підключення до PostgreSQL; HR `hr@test.com` є в базі після seed
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: встановлення залежностей, `.env.example`, команди запуску dev і міграцій
+- [x] Демонстрація: `npm run dev` піднімає frontend і backend; `prisma migrate` + `seed` проходять без помилок
+- [x] Сценарій: відкрити обидва сервіси в браузері; перевірити підключення до PostgreSQL; HR `hr@test.com` є в базі після seed
+- [x] Збірка: `npm run build` проходить
+- [x] README: встановлення залежностей, `.env.example`, команди запуску dev і міграцій
 
 ## Day 1 Bootstrap Structure
 
@@ -47,6 +47,35 @@ npm run build
 ```
 
 Кореневі команди оркеструють виконання скриптів в обох воркспейсах.
+
+### Runtime Verification (Day 1)
+
+Після підготовки бази (`Database Quick Start` нижче):
+
+```bash
+npm run dev
+```
+
+Сервіси:
+- Frontend: [http://localhost:5173](http://localhost:5173)
+- Backend API: [http://localhost:3000/api/health](http://localhost:3000/api/health)
+
+Очікуваний результат у браузері (frontend):
+- Backend API: **OK**
+- PostgreSQL: **OK**
+- Seed HR (`hr@test.com`): **OK**
+
+Альтернативна перевірка:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+Очікувана відповідь:
+
+```json
+{"ok":true,"database":{"ok":true},"seed":{"ok":true,"email":"hr@test.com"}}
+```
 
 ### Database Quick Start (Day 1)
 
