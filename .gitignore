@@ -1,7 +1,62 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
-config/
-.config/
+build/
+*.tsbuildinfo
+
+# Environment & secrets
 .env
 .env.*
 !.env.example
+
+# Local config
+config/
+.config/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Database (local dev)
+*.db
+*.db-journal
+
+# IDE / editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package manager caches
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Tooling caches (also live under node_modules, listed for IDE clarity)
+.vite/
+.vue-global-types/
+.cache/
+.turbo/
+
+# Prisma generated client (hoisted to root node_modules)
+node_modules/.prisma/

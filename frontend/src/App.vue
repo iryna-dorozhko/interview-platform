@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { fetchHealth, type HealthResponse } from "./api/health";
+import ChatPanel from "./components/ChatPanel.vue";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -33,36 +34,40 @@ onMounted(async () => {
 <template>
   <main class="page">
     <h1>Interview Platform</h1>
-    <p class="subtitle">Day 1 — статус системи</p>
+    <p class="subtitle">Day 2 — статус системи та чат з AI</p>
 
     <p v-if="loadState === 'loading'">Завантаження…</p>
     <p v-else-if="loadState === 'error'" class="fail">{{ errorMessage }}</p>
 
-    <ul v-else class="status-list">
-      <li>
-        <span>Backend API</span>
-        <strong :class="statusClass(health?.ok)">{{ statusLabel(health?.ok) }}</strong>
-      </li>
-      <li>
-        <span>PostgreSQL</span>
-        <strong :class="statusClass(health?.database.ok)">
-          {{ statusLabel(health?.database.ok) }}
-        </strong>
-      </li>
-      <li>
-        <span>Seed HR ({{ health?.seed.email }})</span>
-        <strong :class="statusClass(health?.seed.ok)">
-          {{ statusLabel(health?.seed.ok) }}
-        </strong>
-      </li>
-    </ul>
+    <template v-else>
+      <ul class="status-list">
+        <li>
+          <span>Backend API</span>
+          <strong :class="statusClass(health?.ok)">{{ statusLabel(health?.ok) }}</strong>
+        </li>
+        <li>
+          <span>PostgreSQL</span>
+          <strong :class="statusClass(health?.database.ok)">
+            {{ statusLabel(health?.database.ok) }}
+          </strong>
+        </li>
+        <li>
+          <span>Seed HR ({{ health?.seed.email }})</span>
+          <strong :class="statusClass(health?.seed.ok)">
+            {{ statusLabel(health?.seed.ok) }}
+          </strong>
+        </li>
+      </ul>
+
+      <ChatPanel />
+    </template>
   </main>
 </template>
 
 <style scoped>
 .page {
   font-family: system-ui, sans-serif;
-  max-width: 32rem;
+  max-width: 40rem;
   margin: 2rem auto;
   padding: 0 1rem;
 }
