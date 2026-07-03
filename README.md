@@ -106,13 +106,14 @@ npm --workspace backend run db:seed
 **Що робиш:**
 - Запускаєш omlx: `omlx serve --port 8000` (модель `Qwen2.5-7B-Instruct-4bit` у `~/.omlx/models`)
 - Backend викликає `POST /api/llm/complete` через плагінований `LlmProvider`
-- Перевірка: curl або `npm run llm:test --workspace backend`
+- На фронтенді — чат з AI на головній сторінці
+- Перевірка: UI, curl або `npm run llm:test --workspace backend`
 
 **Definition of Done:**
-- [ ] Демонстрація: тестовий endpoint або скрипт повертає текст від LLM
-- [ ] Сценарій: curl/Postman на LLM endpoint — осмислена відповідь українською або англійською
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: env-змінні, запуск omlx, приклад curl
+- [x] Демонстрація: тестовий endpoint або скрипт повертає текст від LLM
+- [x] Сценарій: curl/Postman на LLM endpoint — осмислена відповідь українською або англійською
+- [x] Збірка: `npm run build` проходить
+- [x] README: env-змінні, запуск omlx, приклад curl
 
 ### LLM Quick Start (Day 2)
 
@@ -161,6 +162,14 @@ curl -X POST http://localhost:3000/api/llm/complete \
 npm run llm:test --workspace backend
 npm run llm:test --workspace backend -- --message "Hello"
 ```
+
+**5. Перевірка UI (чат):**
+
+```bash
+npm run dev
+```
+
+Відкрий [http://localhost:5173](http://localhost:5173) — блок «Чат з AI» під статусом системи.
 
 ---
 
