@@ -13,7 +13,8 @@
     "predb:migrate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "predb:seed": "prisma generate",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "llm:test": "tsx scripts/llm-test.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
