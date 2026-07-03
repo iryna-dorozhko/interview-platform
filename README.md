@@ -186,10 +186,58 @@ HR може все робити сам, без кандидата.
 - Захист HR-сторінок: без логіну не пустити
 
 **Definition of Done:**
-- [ ] Демонстрація: HR логіниться через UI і потрапляє в кабінет
-- [ ] Сценарій: `hr@test.com` / `123456` → JWT; без токена HR-маршрути повертають 401 або редірект на логін
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: тестові акаунти HR, як увійти, формат `Authorization: Bearer`
+- [x] Демонстрація: HR логіниться через UI і потрапляє в кабінет
+- [x] Сценарій: `hr@test.com` / `123456` → JWT; без токена HR-маршрути повертають 401 або редірект на логін
+- [x] Збірка: `npm run build` проходить
+- [x] README: тестові акаунти HR, як увійти, формат `Authorization: Bearer`
+
+### Auth Quick Start (Day 3)
+
+**1. Env** (`backend/.env`):
+
+```
+JWT_SECRET=dev-secret-min-8-chars
+```
+
+> Мінімум 8 символів; без `JWT_SECRET` backend не стартує.
+
+**2. Логін через UI:**
+
+```bash
+npm run dev
+```
+
+Відкрий [http://localhost:5173](http://localhost:5173) → редірект на `/login`.
+
+Тестовий акаунт: `hr@test.com` / `123456`
+
+Після входу — головна сторінка з чатом AI; сесія зберігається в `localStorage` (`auth_token`).
+
+**3. Логін через curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"hr@test.com","password":"123456"}'
+```
+
+Очікувана відповідь:
+
+```json
+{"token":"...","user":{"id":"...","email":"hr@test.com","role":"HR"}}
+```
+
+**4. Захищений запит (LLM з Bearer token):**
+
+```bash
+TOKEN="<token-from-login>"
+curl -X POST http://localhost:3000/api/llm/complete \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"message":"Привіт"}'
+```
+
+Без токена → `401 Unauthorized`.
 
 ---
 
