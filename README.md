@@ -101,18 +101,63 @@ npm --workspace backend run db:seed
 
 ## День 2 — Підключення AI
 
-**Задача:** навчити сервер розмовляти з локальною моделлю.
+**Задача:** навчити сервер розмовляти з локальною моделлю (omlx) або Gemini.
 
 **Що робиш:**
-- Встановлюєш Ollama, качаєш модель (наприклад qwen2.5:7b)
-- Пишеш простий шар: «надіслати текст → отримати відповідь»
-- Робиш тестовий endpoint або скрипт перевірки
+- Запускаєш omlx: `omlx serve --port 8000` (модель `Qwen2.5-7B-Instruct-4bit` у `~/.omlx/models`)
+- Backend викликає `POST /api/llm/complete` через плагінований `LlmProvider`
+- Перевірка: curl або `npm run llm:test --workspace backend`
 
 **Definition of Done:**
-- [ ] Демонстрація: тестовий endpoint або скрипт повертає текст від Ollama
-- [ ] Сценарій: curl/Postman на LLM endpoint — отримуєш осмислену відповідь українською або англійською
+- [ ] Демонстрація: тестовий endpoint або скрипт повертає текст від LLM
+- [ ] Сценарій: curl/Postman на LLM endpoint — осмислена відповідь українською або англійською
 - [ ] Збірка: `npm run build` проходить
-- [ ] README: як встановити Ollama, яку модель качати, змінні `OLLAMA_BASE_URL` і `OLLAMA_MODEL`
+- [ ] README: env-змінні, запуск omlx, приклад curl
+
+### LLM Quick Start (Day 2)
+
+**1. Запустити omlx (окремий термінал):**
+
+```bash
+omlx serve --port 8000
+```
+
+**2. Налаштувати env** (`backend/.env`):
+
+```
+LLM_PROVIDER=omlx
+OMLX_BASE_URL=http://127.0.0.1:8000
+OMLX_MODEL=Qwen2.5-7B-Instruct-4bit
+```
+
+Для Gemini:
+
+```
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your-key-here
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+**3. Перевірка endpoint:**
+
+```bash
+curl -X POST http://localhost:3000/api/llm/complete \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Привіт! Скажи одне речення українською."}'
+```
+
+Очікувана відповідь:
+
+```json
+{"text":"...","provider":"omlx"}
+```
+
+**4. Перевірка CLI:**
+
+```bash
+npm run llm:test --workspace backend
+npm run llm:test --workspace backend -- --message "Hello"
+```
 
 ---
 
