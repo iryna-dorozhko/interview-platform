@@ -11,10 +11,13 @@ export interface LlmProvider {
 }
 
 export interface LlmEnvConfig {
-  provider: "omlx" | "gemini";
+  provider: "omlx" | "gemini" | "openai";
   omlxBaseUrl: string;
   omlxModel: string;
   omlxApiKey?: string;
   geminiApiKey?: string;
   geminiModel: string;
+  openaiApiKey?: string;
+  openaiModel: string;
+  openaiBaseUrl: string;
 }

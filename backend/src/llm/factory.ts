@@ -1,10 +1,11 @@
 import { createGeminiProvider } from "./gemini.provider";
 import { createOmlxProvider } from "./omlx.provider";
+import { createOpenAiProvider } from "./openai.provider";
 import type { LlmEnvConfig, LlmProvider } from "./types";
 
 type EnvSource = Record<string, string | undefined>;
 
-const ALLOWED_PROVIDERS = ["omlx", "gemini"] as const;
+const ALLOWED_PROVIDERS = ["omlx", "gemini", "openai"] as const;
 
 export function readLlmEnvConfig(env: EnvSource = process.env): LlmEnvConfig {
   const providerRaw = (env.LLM_PROVIDER ?? "omlx").toLowerCase();
@@ -20,6 +21,9 @@ export function readLlmEnvConfig(env: EnvSource = process.env): LlmEnvConfig {
     omlxApiKey: env.OMLX_API_KEY,
     geminiApiKey: env.GEMINI_API_KEY,
     geminiModel: env.GEMINI_MODEL ?? "gemini-2.0-flash",
+    openaiApiKey: env.OPENAI_API_KEY,
+    openaiModel: env.OPENAI_MODEL ?? "gpt-4o-mini",
+    openaiBaseUrl: env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
   };
 }
 
@@ -34,6 +38,18 @@ export function createLlmProvider(env: EnvSource = process.env): LlmProvider {
     return createGeminiProvider({
       apiKey: config.geminiApiKey,
       model: config.geminiModel,
+    });
+  }
+
+  if (config.provider === "openai") {
+    if (!config.openaiApiKey) {
+      throw new Error("OPENAI_API_KEY is required when LLM_PROVIDER=openai");
+    }
+
+    return createOpenAiProvider({
+      baseUrl: config.openaiBaseUrl,
+      model: config.openaiModel,
+      apiKey: config.openaiApiKey,
     });
   }
 

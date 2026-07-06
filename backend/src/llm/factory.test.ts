@@ -48,12 +48,33 @@ test("createLlmProvider returns gemini provider when configured", () => {
   assert.equal(provider.name, "gemini");
 });
 
+test("createLlmProvider throws when openai selected without API key", () => {
+  assert.throws(
+    () =>
+      createLlmProvider({
+        LLM_PROVIDER: "openai",
+        OPENAI_API_KEY: undefined,
+      }),
+    /OPENAI_API_KEY is required/
+  );
+});
+
+test("createLlmProvider returns openai provider when configured", () => {
+  const provider = createLlmProvider({
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "sk-test",
+    OPENAI_MODEL: "gpt-4o-mini",
+  });
+
+  assert.equal(provider.name, "openai");
+});
+
 test("createLlmProvider throws on unknown provider", () => {
   assert.throws(
     () =>
       createLlmProvider({
         LLM_PROVIDER: "ollama",
       }),
-    /LLM_PROVIDER must be one of: omlx, gemini/
+    /LLM_PROVIDER must be one of: omlx, gemini, openai/
   );
 });

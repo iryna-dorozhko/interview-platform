@@ -32,7 +32,12 @@ export async function sendChat(messages: UiMessage[]): Promise<LlmCompleteRespon
     }
 
     if (response.status === 503) {
-      throw new Error("Модель недоступна. Запусти `omlx serve`.");
+      const detail = body.detail ?? body.error;
+      throw new Error(
+        detail
+          ? `Модель недоступна: ${detail}`
+          : "Модель недоступна. Перевір LLM_PROVIDER у backend/.env."
+      );
     }
 
     const detail = body.detail ?? body.error;
