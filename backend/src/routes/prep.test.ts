@@ -392,3 +392,46 @@ test("POST /prep/:interviewId/message works with valid token through requireAuth
     });
   }
 });
+
+test("POST /prep/:interviewId/message returns 500 when persisting agent reply fails", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+  });
+  const originalCreate = fakePrisma.prepMessageHr.create;
+  fakePrisma.prepMessageHr.create = (async ({ data }: { data: { authorType: string } }) => {
+    if (data.authorType === "AGENT_COMPANY") {
+      throw new Error("db write failed");
+    }
+    return originalCreate({ data } as never);
+  }) as typeof originalCreate;
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return "Привіт!\nREADY:false";
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.equal(body.error, "Internal error");
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
+});

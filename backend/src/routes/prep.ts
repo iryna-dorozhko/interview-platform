@@ -68,15 +68,9 @@ export function createPrepRouter(
       return;
     }
 
+    let rawReply: string;
     try {
-      const rawReply = await provider.complete(llmMessages);
-      const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply);
-
-      await prisma.prepMessageHr.create({
-        data: { sessionId: session.id, authorType: "AGENT_COMPANY", content: agentMessage },
-      });
-
-      res.status(200).json({ message: agentMessage, readyForConfirmation });
+      rawReply = await provider.complete(llmMessages);
     } catch (error) {
       if (error instanceof LlmUnavailableError) {
         console.error(`[prep:${provider.name}] unavailable:`, error.message);
@@ -93,7 +87,23 @@ export function createPrepRouter(
       const detail = error instanceof Error ? error.message : String(error);
       console.error(`[prep:${provider.name}] unexpected error:`, detail);
       res.status(503).json({ error: "LLM unavailable", detail });
+      return;
     }
+
+    const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply);
+
+    try {
+      await prisma.prepMessageHr.create({
+        data: { sessionId: session.id, authorType: "AGENT_COMPANY", content: agentMessage },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[prep] failed to persist agent reply:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({ message: agentMessage, readyForConfirmation });
   });
 
   return router;
