@@ -1,0 +1,100 @@
+import { Router, type Request, type Response } from "express";
+import type { PrismaClient } from "@prisma/client";
+import { buildCompanyAgentMessages, parseAgentReply } from "../agents/company-agent";
+import { LlmError, LlmUnavailableError } from "../llm/errors";
+import type { LlmProvider } from "../llm/types";
+
+type MessageBody = {
+  message?: unknown;
+};
+
+export function createPrepRouter(
+  getPrisma: () => PrismaClient,
+  getProvider: () => LlmProvider
+): Router {
+  const router = Router();
+
+  router.post("/prep/:interviewId/message", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const body = (req.body ?? {}) as MessageBody;
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const session = await prisma.prepSessionHr.upsert({
+      where: { interviewId },
+      update: {},
+      create: { interviewId },
+    });
+
+    if (session.isClosed) {
+      res.status(409).json({ error: "Prep session closed" });
+      return;
+    }
+
+    if (message) {
+      await prisma.prepMessageHr.create({
+        data: { sessionId: session.id, authorType: "HUMAN_HR", content: message },
+      });
+    }
+
+    const history = await prisma.prepMessageHr.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const llmMessages = buildCompanyAgentMessages(
+      history.map((item) => ({ authorType: item.authorType, content: item.content }))
+    );
+
+    let provider: LlmProvider;
+    try {
+      provider = getProvider();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[prep] provider init failed:", detail);
+      res.status(503).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    try {
+      const rawReply = await provider.complete(llmMessages);
+      const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply);
+
+      await prisma.prepMessageHr.create({
+        data: { sessionId: session.id, authorType: "AGENT_COMPANY", content: agentMessage },
+      });
+
+      res.status(200).json({ message: agentMessage, readyForConfirmation });
+    } catch (error) {
+      if (error instanceof LlmUnavailableError) {
+        console.error(`[prep:${provider.name}] unavailable:`, error.message);
+        res.status(503).json({ error: "LLM unavailable", detail: error.message });
+        return;
+      }
+
+      if (error instanceof LlmError && error.code === "empty_response") {
+        console.error(`[prep:${provider.name}] empty response`);
+        res.status(502).json({ error: "LLM unavailable", detail: error.message });
+        return;
+      }
+
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[prep:${provider.name}] unexpected error:`, detail);
+      res.status(503).json({ error: "LLM unavailable", detail });
+    }
+  });
+
+  return router;
+}
