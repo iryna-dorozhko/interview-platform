@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { fetchHealth, type HealthResponse } from "../api/health";
+import { fetchMyInterviews } from "../api/interviews";
 import ChatPanel from "../components/ChatPanel.vue";
 import { useAuthStore } from "../stores/auth";
 
@@ -26,6 +27,22 @@ function statusClass(ok: boolean | undefined): string {
 function logout(): void {
   auth.logout();
   router.push({ name: "login" });
+}
+
+const prepNavError = ref<string | null>(null);
+
+async function goToCompanyPrep(): Promise<void> {
+  prepNavError.value = null;
+  try {
+    const interviews = await fetchMyInterviews();
+    if (interviews.length === 0) {
+      prepNavError.value = "Спочатку створіть співбесіду.";
+      return;
+    }
+    router.push({ name: "company-prep", params: { interviewId: interviews[0].id } });
+  } catch {
+    prepNavError.value = "Не вдалося завантажити список співбесід.";
+  }
 }
 
 onMounted(async () => {
@@ -74,6 +91,11 @@ onMounted(async () => {
           </strong>
         </li>
       </ul>
+      <div class="prep-nav">
+        <button type="button" class="btn-primary" @click="goToCompanyPrep">Анкета компанії</button>
+        <p v-if="prepNavError" class="fail">{{ prepNavError }}</p>
+      </div>
+
       <ChatPanel />
     </template>
   </main>
@@ -110,4 +132,17 @@ onMounted(async () => {
 .ok { color: #0a7a2f; }
 .fail { color: #b00020; }
 .pending { color: #666; }
+.prep-nav {
+  margin: 1rem 0;
+}
+.btn-primary {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: #2563eb;
+  color: #fff;
+}
 </style>
