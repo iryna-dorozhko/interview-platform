@@ -101,7 +101,7 @@ npm --workspace backend run db:seed
 
 ## День 2 — Підключення AI
 
-**Задача:** навчити сервер розмовляти з локальною моделлю (omlx), Gemini або OpenAI.
+**Задача:** навчити сервер розмовляти з локальною моделлю (omlx) або Gemini.
 
 **Що робиш:**
 - Запускаєш omlx: `omlx serve --port 8000` (модель `Qwen2.5-7B-Instruct-4bit` у `~/.omlx/models`)
@@ -140,14 +140,6 @@ OMLX_API_KEY=your-omlx-api-key
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your-key-here
 GEMINI_MODEL=gemini-2.0-flash
-```
-
-Для OpenAI:
-
-```
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini
 ```
 
 **3. Перевірка endpoint:**
@@ -260,7 +252,7 @@ curl -X POST http://localhost:3000/api/llm/complete \
 
 **Definition of Done:**
 - [x] Демонстрація: через Postman/curl HR веде діалог з Company Agent (мінімум 3 обміни)
-- [x] Сценарій: повідомлення зберігаються в `ChatSession` + `Message`; відповіді агента релевантні темі вакансії
+- [x] Сценарій: повідомлення зберігаються в `PrepSessionHr` + `PrepMessageHr`; відповіді агента релевантні темі вакансії
 - [x] Збірка: `npm run build` проходить
 - [x] README: endpoint `POST /prep/:interviewId/message`, приклад запиту/відповіді
 
