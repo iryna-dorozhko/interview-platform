@@ -16,10 +16,25 @@ type FakeMessage = {
   content: string;
   createdAt: Date;
 };
+type FakeProfile = {
+  id: string;
+  interviewId: string;
+  role: string;
+  requirements: string[];
+  culture: string[];
+  expectations: string[];
+};
 
-function makeFakePrisma(seed: { interviews?: FakeInterview[]; sessions?: FakeSession[] } = {}) {
+function makeFakePrisma(
+  seed: {
+    interviews?: FakeInterview[];
+    sessions?: FakeSession[];
+    profiles?: FakeProfile[];
+  } = {}
+) {
   const interviews = seed.interviews ?? [];
   const sessions = seed.sessions ?? [];
+  const profiles = seed.profiles ?? [];
   const messages: FakeMessage[] = [];
   let counter = 0;
 
@@ -29,6 +44,8 @@ function makeFakePrisma(seed: { interviews?: FakeInterview[]; sessions?: FakeSes
         interviews.find((item) => item.id === where.id) ?? null,
     },
     prepSessionHr: {
+      findUnique: async ({ where }: { where: { interviewId: string } }) =>
+        sessions.find((item) => item.interviewId === where.interviewId) ?? null,
       upsert: async ({
         where,
         create,
@@ -59,8 +76,13 @@ function makeFakePrisma(seed: { interviews?: FakeInterview[]; sessions?: FakeSes
           .filter((item) => item.sessionId === where.sessionId)
           .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
     },
+    companyProfile: {
+      findUnique: async ({ where }: { where: { interviewId: string } }) =>
+        profiles.find((item) => item.interviewId === where.interviewId) ?? null,
+    },
     __sessions: sessions,
     __messages: messages,
+    __profiles: profiles,
   };
 }
 
@@ -70,6 +92,135 @@ function withUser(user: AuthUser) {
     next();
   };
 }
+
+test("GET /prep/:interviewId returns empty state when no session exists yet", async () => {
+  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_1" }] });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body, { messages: [], isClosed: false, profile: null });
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /prep/:interviewId returns messages and isClosed when session exists", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push(
+    { id: "m1", sessionId: "session_1", authorType: "AGENT_COMPANY", content: "Привіт!", createdAt: new Date(1) }
+  );
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.isClosed, false);
+    assert.equal(body.profile, null);
+    assert.equal(body.messages.length, 1);
+    assert.equal(body.messages[0].content, "Привіт!");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /prep/:interviewId returns profile when session is closed", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        role: "QA Engineer",
+        requirements: ["3+ роки"],
+        culture: ["не вказано"],
+        expectations: ["не вказано"],
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.isClosed, true);
+    assert.equal(body.profile.role, "QA Engineer");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /prep/:interviewId returns 404 when interview does not exist", async () => {
+  const fakePrisma = makeFakePrisma();
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/missing`);
+    assert.equal(response.status, 404);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /prep/:interviewId returns 403 when interview belongs to another HR", async () => {
+  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_other" }] });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    assert.equal(response.status, 403);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
 
 test("POST /prep/:interviewId/message creates session and both messages on first turn", async () => {
   const fakePrisma = makeFakePrisma({

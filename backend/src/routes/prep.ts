@@ -14,6 +14,55 @@ export function createPrepRouter(
 ): Router {
   const router = Router();
 
+  router.get("/prep/:interviewId", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const session = await prisma.prepSessionHr.findUnique({ where: { interviewId } });
+    if (!session) {
+      res.status(200).json({ messages: [], isClosed: false, profile: null });
+      return;
+    }
+
+    const messages = await prisma.prepMessageHr.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const profile = session.isClosed
+      ? await prisma.companyProfile.findUnique({ where: { interviewId } })
+      : null;
+
+    res.status(200).json({
+      messages: messages.map((item) => ({
+        id: item.id,
+        authorType: item.authorType,
+        content: item.content,
+        createdAt: item.createdAt,
+      })),
+      isClosed: session.isClosed,
+      profile: profile
+        ? {
+            role: profile.role,
+            requirements: profile.requirements,
+            culture: profile.culture,
+            expectations: profile.expectations,
+          }
+        : null,
+    });
+  });
+
   router.post("/prep/:interviewId/message", async (req: Request, res: Response) => {
     const { interviewId } = req.params;
     const body = (req.body ?? {}) as MessageBody;
