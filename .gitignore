@@ -60,3 +60,6 @@ Thumbs.db
 
 # Prisma generated client (hoisted to root node_modules)
 node_modules/.prisma/
+
+# Superpowers brainstorming companion (local mockups/state)
+.superpowers/
