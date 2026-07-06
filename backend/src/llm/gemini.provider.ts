@@ -7,6 +7,29 @@ type GeminiConfig = {
   model: string;
 };
 
+const HISTORY_START_PLACEHOLDER = "(start)";
+
+type GeminiTurn = { role: "user" | "model"; parts: [{ text: string }] };
+
+/**
+ * Gemini requires chat history passed to startChat() to begin with a "user"
+ * turn. Our agents can legitimately speak first (e.g. greeting before any
+ * user message exists), which would otherwise start the history with
+ * "model" — prepend a synthetic user turn so the request is well-formed.
+ */
+export function buildGeminiHistory(chatMessagesExcludingLast: ChatMessage[]): GeminiTurn[] {
+  const historyTurns: GeminiTurn[] = chatMessagesExcludingLast.map((message) => ({
+    role: message.role === "assistant" ? "model" : "user",
+    parts: [{ text: message.content }],
+  }));
+
+  if (historyTurns.length > 0 && historyTurns[0].role === "model") {
+    return [{ role: "user", parts: [{ text: HISTORY_START_PLACEHOLDER }] }, ...historyTurns];
+  }
+
+  return historyTurns;
+}
+
 export function createGeminiProvider(config: GeminiConfig): LlmProvider {
   return {
     name: "gemini",
@@ -38,10 +61,7 @@ export function createGeminiProvider(config: GeminiConfig): LlmProvider {
         ...(systemInstruction ? { systemInstruction } : {}),
       });
 
-      const history = chatMessages.slice(0, -1).map((message) => ({
-        role: message.role === "assistant" ? "model" : "user",
-        parts: [{ text: message.content }],
-      }));
+      const history = buildGeminiHistory(chatMessages.slice(0, -1));
 
       const chat = model.startChat({ history });
       const result = await chat.sendMessage(lastMessage.content);

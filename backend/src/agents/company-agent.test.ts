@@ -84,10 +84,30 @@ test("buildCompanyAgentMessages prepends system prompt and maps author types", (
   assert.deepEqual(messages[2], { role: "assistant", content: "Яка це посада?" });
 });
 
-test("buildCompanyAgentMessages returns only system prompt for empty history", () => {
+test("buildCompanyAgentMessages appends a placeholder user turn for empty history", () => {
   const messages = buildCompanyAgentMessages([]);
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].role, "system");
+  assert.equal(messages.length, 2);
+  assert.deepEqual(messages[0], { role: "system", content: COMPANY_AGENT_SYSTEM_PROMPT_UK });
+  assert.deepEqual(messages[1], { role: "user", content: "(порожнє повідомлення)" });
+});
+
+test("buildCompanyAgentMessages appends a placeholder user turn when history ends with the agent", () => {
+  const history = [
+    { authorType: "HUMAN_HR" as const, content: "Привіт" },
+    { authorType: "AGENT_COMPANY" as const, content: "Яка це посада?" },
+  ];
+  const messages = buildCompanyAgentMessages(history);
+
+  assert.equal(messages.length, 4);
+  assert.deepEqual(messages[3], { role: "user", content: "(порожнє повідомлення)" });
+});
+
+test("buildCompanyAgentMessages does not append a placeholder when history already ends with the user", () => {
+  const history = [{ authorType: "HUMAN_HR" as const, content: "Привіт" }];
+  const messages = buildCompanyAgentMessages(history);
+
+  assert.equal(messages.length, 2);
+  assert.deepEqual(messages[1], { role: "user", content: "Привіт" });
 });
 
 test("parseProfileExtraction parses plain JSON", () => {

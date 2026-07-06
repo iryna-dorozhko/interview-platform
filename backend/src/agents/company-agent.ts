@@ -29,6 +29,8 @@ export function parseAgentReply(rawText: string): ParsedAgentReply {
   return { message, readyForConfirmation };
 }
 
+const EMPTY_TURN_PLACEHOLDER = "(порожнє повідомлення)";
+
 export function buildCompanyAgentMessages(history: PrepHistoryItem[]): ChatMessage[] {
   const systemMessage: ChatMessage = {
     role: "system",
@@ -39,6 +41,14 @@ export function buildCompanyAgentMessages(history: PrepHistoryItem[]): ChatMessa
     role: item.authorType === "HUMAN_HR" ? "user" : "assistant",
     content: item.content,
   }));
+
+  // Some providers (e.g. Gemini) require the last message to be from the user.
+  // On a fresh session (or if the agent somehow has the last word), append a
+  // placeholder user turn so the agent can still greet first, per its system prompt.
+  const lastMessage = historyMessages[historyMessages.length - 1];
+  if (!lastMessage || lastMessage.role !== "user") {
+    historyMessages.push({ role: "user", content: EMPTY_TURN_PLACEHOLDER });
+  }
 
   return [systemMessage, ...historyMessages];
 }
