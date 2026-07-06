@@ -8,6 +8,7 @@ import { createLlmProvider } from "./llm/factory";
 import { createAuthRouter } from "./routes/auth";
 import { createHealthRouter } from "./routes/health";
 import { createLlmRouter } from "./routes/llm";
+import { createPrepRouter } from "./routes/prep";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -25,6 +26,7 @@ getJwtConfig();
 app.use("/api", createHealthRouter(() => prisma));
 app.use("/api", createAuthRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
+app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
 
 app.listen(port, () => {
   console.log(`backend listening on http://localhost:${port}`);
