@@ -273,5 +273,37 @@ export function createPrepRouter(
     res.status(200).json({ message: agentMessage, readyForConfirmation });
   });
 
+  router.delete("/prep/:interviewId", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    try {
+      const session = await prisma.prepSessionHr.findUnique({ where: { interviewId } });
+      if (session) {
+        await prisma.prepMessageHr.deleteMany({ where: { sessionId: session.id } });
+        await prisma.prepSessionHr.delete({ where: { id: session.id } });
+      }
+      await prisma.companyProfile.deleteMany({ where: { interviewId } });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[prep:delete] failed to reset prep chat:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({ ok: true });
+  });
+
   return router;
 }
