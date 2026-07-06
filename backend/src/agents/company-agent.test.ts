@@ -38,6 +38,34 @@ test("parseAgentReply handles marker with no preceding newline", () => {
   assert.equal(result.readyForConfirmation, false);
 });
 
+test("parseAgentReply handles marker wrapped in square brackets with no preceding newline", () => {
+  const raw = "Добрий день! Розкажіть про вакансію. [READY:false]";
+  const result = parseAgentReply(raw);
+  assert.equal(result.message, "Добрий день! Розкажіть про вакансію.");
+  assert.equal(result.readyForConfirmation, false);
+});
+
+test("parseAgentReply handles marker wrapped in square brackets after newline, readyForConfirmation=true", () => {
+  const raw = "Дякую, цього достатньо.\n[READY:true]";
+  const result = parseAgentReply(raw);
+  assert.equal(result.message, "Дякую, цього достатньо.");
+  assert.equal(result.readyForConfirmation, true);
+});
+
+test("parseAgentReply handles marker wrapped in parentheses", () => {
+  const raw = "Ще одне питання. (READY:false)";
+  const result = parseAgentReply(raw);
+  assert.equal(result.message, "Ще одне питання.");
+  assert.equal(result.readyForConfirmation, false);
+});
+
+test("parseAgentReply handles bracketed marker followed by trailing period", () => {
+  const raw = "Дякую за відповідь. [READY:true].";
+  const result = parseAgentReply(raw);
+  assert.equal(result.message, "Дякую за відповідь.");
+  assert.equal(result.readyForConfirmation, true);
+});
+
 test("buildCompanyAgentMessages prepends system prompt and maps author types", () => {
   const history = [
     { authorType: "HUMAN_HR" as const, content: "Привіт" },

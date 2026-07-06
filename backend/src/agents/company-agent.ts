@@ -13,7 +13,7 @@ export interface ParsedAgentReply {
   readyForConfirmation: boolean;
 }
 
-const READY_MARKER_PATTERN = /\n?READY:(true|false)\s*$/i;
+const READY_MARKER_PATTERN = /\n?[[(]?\s*READY:\s*(true|false)\s*[\])]?[.!]?\s*$/i;
 
 export function parseAgentReply(rawText: string): ParsedAgentReply {
   const trimmed = rawText.trim();
