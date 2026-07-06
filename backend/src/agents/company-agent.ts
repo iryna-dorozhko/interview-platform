@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../llm/types";
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-agent.uk";
+import { PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/company-profile-extraction.uk";
 
 export type PrepAuthorType = "HUMAN_HR" | "AGENT_COMPANY";
 
@@ -40,4 +41,69 @@ export function buildCompanyAgentMessages(history: PrepHistoryItem[]): ChatMessa
   }));
 
   return [systemMessage, ...historyMessages];
+}
+
+export interface ExtractedProfile {
+  role: string;
+  requirements: string[];
+  culture: string[];
+  expectations: string[];
+}
+
+export class ProfileExtractionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProfileExtractionError";
+  }
+}
+
+function stripCodeFences(text: string): string {
+  const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return match ? match[1] : text;
+}
+
+function toStringArray(value: unknown, field: string): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ProfileExtractionError(`missing or invalid field: ${field}`);
+  }
+  return value.map((item) => String(item));
+}
+
+export function parseProfileExtraction(rawText: string): ExtractedProfile {
+  const withoutFences = stripCodeFences(rawText.trim());
+
+  let data: unknown;
+  try {
+    data = JSON.parse(withoutFences);
+  } catch {
+    throw new ProfileExtractionError("LLM returned invalid JSON for profile extraction");
+  }
+
+  if (typeof data !== "object" || data === null) {
+    throw new ProfileExtractionError("LLM response is not a JSON object");
+  }
+
+  const { role, requirements, culture, expectations } = data as Record<string, unknown>;
+
+  if (typeof role !== "string" || !role.trim()) {
+    throw new ProfileExtractionError("missing or invalid field: role");
+  }
+
+  return {
+    role: role.trim(),
+    requirements: toStringArray(requirements, "requirements"),
+    culture: toStringArray(culture, "culture"),
+    expectations: toStringArray(expectations, "expectations"),
+  };
+}
+
+export function buildProfileExtractionMessages(history: PrepHistoryItem[]): ChatMessage[] {
+  const transcript = history
+    .map((item) => `${item.authorType === "HUMAN_HR" ? "HR" : "Агент"}: ${item.content}`)
+    .join("\n");
+
+  return [
+    { role: "system", content: PROFILE_EXTRACTION_SYSTEM_PROMPT_UK },
+    { role: "user", content: transcript || "(розмова порожня)" },
+  ];
 }
