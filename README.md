@@ -101,7 +101,7 @@ npm --workspace backend run db:seed
 
 ## День 2 — Підключення AI
 
-**Задача:** навчити сервер розмовляти з локальною моделлю (omlx) або Gemini.
+**Задача:** навчити сервер розмовляти з локальною моделлю (omlx), Gemini або OpenAI.
 
 **Що робиш:**
 - Запускаєш omlx: `omlx serve --port 8000` (модель `Qwen2.5-7B-Instruct-4bit` у `~/.omlx/models`)
@@ -140,6 +140,14 @@ OMLX_API_KEY=your-omlx-api-key
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your-key-here
 GEMINI_MODEL=gemini-2.0-flash
+```
+
+Для OpenAI:
+
+```
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_MODEL=gpt-4o-mini
 ```
 
 **3. Перевірка endpoint:**
@@ -251,10 +259,65 @@ curl -X POST http://localhost:3000/api/llm/complete \
 - Збереження історії чату в базі
 
 **Definition of Done:**
-- [ ] Демонстрація: через Postman/curl HR веде діалог з Company Agent (мінімум 3 обміни)
-- [ ] Сценарій: повідомлення зберігаються в `ChatSession` + `Message`; відповіді агента релевантні темі вакансії
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: endpoint `POST /prep/:interviewId/message`, приклад запиту/відповіді
+- [x] Демонстрація: через Postman/curl HR веде діалог з Company Agent (мінімум 3 обміни)
+- [x] Сценарій: повідомлення зберігаються в `ChatSession` + `Message`; відповіді агента релевантні темі вакансії
+- [x] Збірка: `npm run build` проходить
+- [x] README: endpoint `POST /prep/:interviewId/message`, приклад запиту/відповіді
+
+### Company Agent Quick Start (Day 4)
+
+**1. Отримати id тестової співбесіди** (створюється разом з HR під час `db:seed`):
+
+```bash
+npm --workspace backend run db:seed
+```
+
+У виводі буде рядок на кшталт:
+
+```
+Seeded test interview: id=cmr949qn80001vdr97g7k1475 joinCode=TEST01
+```
+
+Скопіюй значення `id` — це `<interviewId>` для наступних кроків.
+
+**2. Логін HR:**
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"hr@test.com","password":"123456"}'
+```
+
+**3. Перше повідомлення (агент сам вітається і ставить перше питання):**
+
+```bash
+TOKEN="<token-from-login>"
+INTERVIEW_ID="<interviewId-from-seed>"
+
+curl -X POST "http://localhost:3000/api/prep/$INTERVIEW_ID/message" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{}'
+```
+
+Очікувана відповідь:
+
+```json
+{ "message": "Привіт! Розкажіть, будь ласка, про вакансію — яка це посада?", "readyForConfirmation": false }
+```
+
+**4. Продовжити діалог (мінімум 3 обміни):**
+
+```bash
+curl -X POST "http://localhost:3000/api/prep/$INTERVIEW_ID/message" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"message":"Middle Backend Developer, потрібен досвід з Node.js та PostgreSQL"}'
+```
+
+Повторити з наступними відповідями про вимоги, культуру й очікування. Коли даних достатньо, відповідь міститиме `"readyForConfirmation": true`.
+
+**5. Перевірка в базі:** повідомлення зберігаються в таблицях `PrepSessionHr` і `PrepMessageHr`, прив'язаних до `interviewId`.
 
 ---
 
