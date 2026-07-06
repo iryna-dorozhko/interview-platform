@@ -15,7 +15,7 @@ async function seedHrUser(prisma, { UserRole }) {
   const passwordHash = hashPassword(password);
   const userRole = UserRole[role];
 
-  await prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { email },
     update: {
       passwordHash,
@@ -28,7 +28,7 @@ async function seedHrUser(prisma, { UserRole }) {
     },
   });
 
-  return { email };
+  return { id: user.id, email: user.email };
 }
 
 module.exports = {

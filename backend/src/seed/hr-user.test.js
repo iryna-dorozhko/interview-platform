@@ -35,6 +35,7 @@ test("seedHrUser upserts HR user with hashed password", async () => {
   const result = await seedHrUser(fakePrisma, { UserRole });
 
   assert.equal(result.email, "hr@test.com");
+  assert.equal(result.id, "user_1");
   assert.equal(calls.length, 1);
 
   const upsertArgs = calls[0];
