@@ -17,8 +17,8 @@ AI-платформа співбесід — Дні 4 і 5
 вакансії (`POST /finish`) — це запланований на День 6, але включено в дизайн
 Дня 5 для повного UX-циклу.
 
-На кінець дня залишилися незакомічені зміни: сумісність Gemini з агентом, що
-вітається першим, і третій LLM-провайдер OpenAI.
+Наприкінці сесії були завершені й закомічені зміни для сумісності Gemini з
+агентом, що вітається першим, а також додано третій LLM-провайдер OpenAI.
 
 У репозиторії за день зроблено ~25 комітів.
 
@@ -203,7 +203,7 @@ AI-платформа співбесід — Дні 4 і 5
    Company Agent вітається першим — при порожній історії останнє повідомлення
    було б від assistant, і Gemini кидав помилку «last message must be from user».
 
-   **Рішення (незакомічено):** у `buildCompanyAgentMessages()` додано placeholder
+   **Рішення:** у `buildCompanyAgentMessages()` додано placeholder
    `(порожнє повідомлення)` як синтетичний user-turn; у `gemini.provider.ts` —
    `buildGeminiHistory()` з prepend `(start)` якщо history починається з model.
 
@@ -241,7 +241,7 @@ AI-платформа співбесід — Дні 4 і 5
    omlx/OpenAI приймають messages[] з assistant на кінці; Gemini — ні.
    Потрібна адаптація на двох рівнях: agent message builder і gemini provider.
 
-   **Статус:** виправлення написано, залишилося закомітити.
+   **Статус:** виправлення закомічено та готове до подальшого використання.
 
 
 ================================================================================
@@ -254,7 +254,7 @@ AI-платформа співбесід — Дні 4 і 5
 - Candidate Agent і prep-чат кандидата — Дні 11–13
 - Стрімінг відповідей агента (SSE / WebSocket)
 - Frontend автотести
-- Повна інтеграція OpenAI-провайдера в CI (WIP, незакомічено)
+- Повна інтеграція OpenAI-провайдера в CI (WIP)
 
 
 ================================================================================
@@ -301,16 +301,16 @@ AI-платформа співбесід — Дні 4 і 5
 
 
 ================================================================================
-НЕЗАКОМІЧЕНА РОБОТА (НА КІНЕЦЬ ДНЯ)
+ЗАКОМІЧЕНІ ДОПОВНЕННЯ ПІСЛЯ ОСНОВНОГО БЛОКУ ДНЯ
 ================================================================================
 
   backend/src/llm/openai.provider.ts          — новий провайдер (OpenAI API)
-  backend/src/llm/gemini.provider.ts          — buildGeminiHistory для greeting
-  backend/src/agents/company-agent.ts         — placeholder user-turn для Gemini
+  backend/src/llm/gemini.provider.ts          — buildGeminiHistory для greeting-first сценарію
+  backend/src/agents/company-agent.ts         — placeholder user-turn для Gemini-сумісності
   backend/src/llm/factory.ts                  — LLM_PROVIDER=openai
   backend/.env.example                        — OPENAI_* змінні
   backend/src/llm/gemini.provider.test.ts     — unit-тести (новий файл)
-  backend/src/llm/openai.provider.test.ts   — unit-тести (новий файл)
+  backend/src/llm/openai.provider.test.ts     — unit-тести (новий файл)
 
 
 ================================================================================
@@ -333,4 +333,4 @@ AI-платформа співбесід — Дні 4 і 5
   • «Видалити чат» → нова розмова з привітанням
   • Reload сторінки → історія збережена
   • curl POST /prep/:id/message без Bearer → 401
-  • Закомітити Gemini/OpenAI compatibility fixes і прогнати тести
+  • Прогнати регрес-тести Gemini/OpenAI compatibility після наступних змін
