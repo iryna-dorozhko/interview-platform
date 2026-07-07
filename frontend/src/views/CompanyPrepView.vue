@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+  confirmPrepProfile,
   deletePrepChat,
   fetchPrepState,
   finishPrepChat,
@@ -24,6 +25,7 @@ const viewingHistory = ref(false);
 
 const input = ref("");
 const sending = ref(false);
+const confirming = ref(false);
 const lastReadyForConfirmation = ref(false);
 const messagesEl = ref<HTMLElement | null>(null);
 
@@ -148,6 +150,27 @@ async function onFinishChat(): Promise<void> {
   }
 }
 
+async function onConfirmProfile(): Promise<void> {
+  if (
+    !window.confirm(
+      "Профіль буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?"
+    )
+  ) {
+    return;
+  }
+
+  errorMessage.value = null;
+  confirming.value = true;
+  try {
+    const response = await confirmPrepProfile(interviewId.value);
+    profile.value = response.profile;
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
+  } finally {
+    confirming.value = false;
+  }
+}
+
 function backToChat(): void {
   viewingHistory.value = true;
 }
@@ -188,7 +211,27 @@ onMounted(loadPrepState);
         </dl>
         <div class="actions">
           <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
-          <button type="button" class="btn-secondary" @click="onDeleteChat">Видалити чат</button>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="!!profile.confirmedAt"
+            :title="profile.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
+            @click="onDeleteChat"
+          >
+            Видалити чат
+          </button>
+          <button
+            v-if="!profile.confirmedAt"
+            type="button"
+            class="btn-primary"
+            :disabled="confirming"
+            @click="onConfirmProfile"
+          >
+            Підтвердити профіль
+          </button>
+          <p v-else class="confirmed-banner">
+            ✓ Підтверджено {{ new Date(profile.confirmedAt).toLocaleString("uk-UA") }}
+          </p>
         </div>
       </section>
 
@@ -390,5 +433,15 @@ onMounted(loadPrepState);
 .actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+.confirmed-banner {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 </style>

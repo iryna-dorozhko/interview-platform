@@ -63,6 +63,7 @@ export function createPrepRouter(
             requirements: profile.requirements,
             culture: profile.culture,
             expectations: profile.expectations,
+            confirmedAt: profile.confirmedAt,
           }
         : null,
     });
@@ -177,7 +178,68 @@ export function createPrepRouter(
         requirements: profile.requirements,
         culture: profile.culture,
         expectations: profile.expectations,
+        confirmedAt: profile.confirmedAt,
       },
+    });
+  });
+
+  router.post("/prep/:interviewId/confirm", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const profile = await prisma.companyProfile.findUnique({ where: { interviewId } });
+    if (!profile) {
+      res.status(404).json({ error: "Profile not found" });
+      return;
+    }
+
+    if (profile.confirmedAt) {
+      res.status(409).json({ error: "Profile already confirmed" });
+      return;
+    }
+
+    let updatedProfile;
+    let interviewStatus = interview.status;
+    try {
+      updatedProfile = await prisma.companyProfile.update({
+        where: { interviewId },
+        data: { confirmedAt: new Date() },
+      });
+
+      if (interview.status === "DRAFT") {
+        await prisma.interview.update({
+          where: { id: interviewId },
+          data: { status: "AWAITING_CANDIDATE" },
+        });
+        interviewStatus = "AWAITING_CANDIDATE";
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[prep:confirm] failed to confirm profile:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({
+      profile: {
+        role: updatedProfile.role,
+        requirements: updatedProfile.requirements,
+        culture: updatedProfile.culture,
+        expectations: updatedProfile.expectations,
+        confirmedAt: updatedProfile.confirmedAt,
+      },
+      interviewStatus,
     });
   });
 
@@ -285,6 +347,12 @@ export function createPrepRouter(
 
     if (interview.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const existingProfile = await prisma.companyProfile.findUnique({ where: { interviewId } });
+    if (existingProfile?.confirmedAt) {
+      res.status(409).json({ error: "Profile is confirmed and cannot be reset" });
       return;
     }
 

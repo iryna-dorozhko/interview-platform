@@ -412,10 +412,47 @@ curl "http://localhost:3000/api/interviews/mine" \
 - Без підтвердження — далі не пустити
 
 **Definition of Done:**
-- [ ] Демонстрація: HR натискає «Підтвердити» → профіль збережено з `confirmedAt`
-- [ ] Сценарій: без підтвердження створення співбесіди / наступні кроки заблоковані; після підтвердження prep-сесія закрита (`isClosed`)
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: endpoint `POST /prep/:interviewId/confirm`, поведінка після підтвердження
+- [x] Демонстрація: HR натискає «Підтвердити» → профіль збережено з `confirmedAt`
+- [x] Сценарій: без підтвердження створення співбесіди / наступні кроки заблоковані; після підтвердження prep-сесія закрита (`isClosed`)
+- [x] Збірка: `npm run build` проходить
+- [x] README: endpoint `POST /prep/:interviewId/confirm`, поведінка після підтвердження
+
+### HR Profile Confirmation Quick Start (Day 7)
+
+Після генерації профілю через `POST /api/prep/:interviewId/finish` HR може зафіксувати результат:
+
+```bash
+TOKEN="<token-from-login>"
+INTERVIEW_ID="<interviewId-from-seed>"
+
+curl -X POST "http://localhost:3000/api/prep/$INTERVIEW_ID/confirm" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Очікувана відповідь:
+
+```json
+{
+  "profile": {
+    "role": "Middle Backend Developer",
+    "requirements": ["Node.js"],
+    "culture": ["не вказано"],
+    "expectations": ["не вказано"],
+    "confirmedAt": "2026-07-07T09:00:00.000Z"
+  },
+  "interviewStatus": "AWAITING_CANDIDATE"
+}
+```
+
+Типові помилки:
+- `404 Profile not found` — профіль ще не згенеровано (`finish` не викликано).
+- `409 Profile already confirmed` — профіль уже підтверджено раніше.
+
+Після підтвердження `DELETE /api/prep/:interviewId` більше не скидає prep-чат і повертає `409`:
+
+```json
+{ "error": "Profile is confirmed and cannot be reset" }
+```
 
 ---
 

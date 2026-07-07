@@ -7,7 +7,7 @@ import { createPrepRouter } from "./prep";
 import { LlmUnavailableError, LlmEmptyResponseError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 
-type FakeInterview = { id: string; hrUserId: string };
+type FakeInterview = { id: string; hrUserId: string; status?: string };
 type FakeSession = { id: string; interviewId: string; isClosed: boolean };
 type FakeMessage = {
   id: string;
@@ -23,6 +23,7 @@ type FakeProfile = {
   requirements: string[];
   culture: string[];
   expectations: string[];
+  confirmedAt: Date | null;
 };
 
 function makeFakePrisma(
@@ -32,7 +33,7 @@ function makeFakePrisma(
     profiles?: FakeProfile[];
   } = {}
 ) {
-  const interviews = seed.interviews ?? [];
+  const interviews = (seed.interviews ?? []).map((item) => ({ status: "DRAFT", ...item }));
   const sessions = seed.sessions ?? [];
   const profiles = seed.profiles ?? [];
   const messages: FakeMessage[] = [];
@@ -42,6 +43,18 @@ function makeFakePrisma(
     interview: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         interviews.find((item) => item.id === where.id) ?? null,
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { status: string };
+      }) => {
+        const interview = interviews.find((item) => item.id === where.id);
+        if (!interview) throw new Error("interview not found");
+        Object.assign(interview, data);
+        return interview;
+      },
     },
     prepSessionHr: {
       findUnique: async ({ where }: { where: { interviewId: string } }) =>
@@ -104,17 +117,29 @@ function makeFakePrisma(
     companyProfile: {
       findUnique: async ({ where }: { where: { interviewId: string } }) =>
         profiles.find((item) => item.interviewId === where.interviewId) ?? null,
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { interviewId: string };
+        data: { confirmedAt: Date };
+      }) => {
+        const profile = profiles.find((item) => item.interviewId === where.interviewId);
+        if (!profile) throw new Error("profile not found");
+        Object.assign(profile, data);
+        return profile;
+      },
       upsert: async ({
         where,
         create,
       }: {
         where: { interviewId: string };
-        create: Omit<FakeProfile, "id">;
-        update: Omit<FakeProfile, "id" | "interviewId">;
+        create: Omit<FakeProfile, "id" | "confirmedAt">;
+        update: Omit<FakeProfile, "id" | "interviewId" | "confirmedAt">;
       }) => {
         let profile = profiles.find((item) => item.interviewId === where.interviewId);
         if (!profile) {
-          profile = { id: `profile_${++counter}`, ...create };
+          profile = { id: `profile_${++counter}`, confirmedAt: null, ...create };
           profiles.push(profile);
         } else {
           Object.assign(profile, create);
@@ -132,6 +157,7 @@ function makeFakePrisma(
     __sessions: sessions,
     __messages: messages,
     __profiles: profiles,
+    __interviews: interviews,
   };
 }
 
@@ -207,6 +233,7 @@ test("GET /prep/:interviewId returns profile when session is closed", async () =
         requirements: ["3+ роки"],
         culture: ["не вказано"],
         expectations: ["не вказано"],
+        confirmedAt: null,
       },
     ],
   });
@@ -226,6 +253,43 @@ test("GET /prep/:interviewId returns profile when session is closed", async () =
     const body = await response.json();
     assert.equal(body.isClosed, true);
     assert.equal(body.profile.role, "QA Engineer");
+    assert.equal(body.profile.confirmedAt, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /prep/:interviewId includes confirmedAt: null in an unconfirmed profile", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        role: "QA Engineer",
+        requirements: ["3+ роки"],
+        culture: ["не вказано"],
+        expectations: ["не вказано"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.profile.confirmedAt, null);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -305,8 +369,187 @@ test("POST /prep/:interviewId/finish extracts profile, saves it, and closes the 
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.profile.role, "Middle Backend Developer");
+    assert.equal(body.profile.confirmedAt, null);
     assert.equal(fakePrisma.__sessions[0].isClosed, true);
     assert.equal(fakePrisma.__profiles.length, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /prep/:interviewId/finish returns confirmedAt: null for a freshly generated profile", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push(
+    { id: "m1", sessionId: "session_1", authorType: "HUMAN_HR", content: "Middle Backend Developer", createdAt: new Date(1) }
+  );
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return JSON.stringify({
+        role: "Middle Backend Developer",
+        requirements: ["Node.js"],
+        culture: ["не вказано"],
+        expectations: ["не вказано"],
+      });
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.profile.confirmedAt, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /prep/:interviewId/confirm sets confirmedAt and moves interview to AWAITING_CANDIDATE", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "DRAFT" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        role: "QA Engineer",
+        requirements: ["3+ роки"],
+        culture: ["не вказано"],
+        expectations: ["не вказано"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.notEqual(body.profile.confirmedAt, null);
+    assert.equal(body.interviewStatus, "AWAITING_CANDIDATE");
+    assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
+    assert.equal(fakePrisma.__interviews[0].status, "AWAITING_CANDIDATE");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /prep/:interviewId/confirm returns 404 when profile does not exist yet", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "DRAFT" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.equal(body.error, "Profile not found");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /prep/:interviewId/confirm returns 409 when already confirmed", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        role: "QA Engineer",
+        requirements: ["3+ роки"],
+        culture: ["не вказано"],
+        expectations: ["не вказано"],
+        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Profile already confirmed");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /prep/:interviewId/confirm returns 403 when interview belongs to another HR", async () => {
+  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_other" }] });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    assert.equal(response.status, 403);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /prep/:interviewId/confirm returns 404 when interview does not exist", async () => {
+  const fakePrisma = makeFakePrisma();
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    assert.equal(response.status, 404);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -419,6 +662,7 @@ test("DELETE /prep/:interviewId removes session, messages, and profile", async (
         requirements: ["не вказано"],
         culture: ["не вказано"],
         expectations: ["не вказано"],
+        confirmedAt: null,
       },
     ],
   });
@@ -445,6 +689,44 @@ test("DELETE /prep/:interviewId removes session, messages, and profile", async (
     assert.equal(fakePrisma.__sessions.length, 0);
     assert.equal(fakePrisma.__messages.length, 0);
     assert.equal(fakePrisma.__profiles.length, 0);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("DELETE /prep/:interviewId returns 409 when profile is confirmed", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        role: "QA Engineer",
+        requirements: ["не вказано"],
+        culture: ["не вказано"],
+        expectations: ["не вказано"],
+        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`, { method: "DELETE" });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Profile is confirmed and cannot be reset");
+    assert.equal(fakePrisma.__sessions.length, 1);
+    assert.equal(fakePrisma.__profiles.length, 1);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

@@ -14,6 +14,7 @@ export type CompanyProfile = {
   requirements: string[];
   culture: string[];
   expectations: string[];
+  confirmedAt: string | null;
 };
 
 export type PrepState = {
@@ -68,6 +69,16 @@ export async function finishPrepChat(interviewId: string): Promise<{ profile: Co
     throw await parseError(response, "Не вдалося завершити чат");
   }
   return response.json() as Promise<{ profile: CompanyProfile }>;
+}
+
+export async function confirmPrepProfile(
+  interviewId: string
+): Promise<{ profile: CompanyProfile; interviewStatus: string }> {
+  const response = await fetchWithAuth(`/api/prep/${interviewId}/confirm`, { method: "POST" });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося підтвердити профіль");
+  }
+  return response.json() as Promise<{ profile: CompanyProfile; interviewStatus: string }>;
 }
 
 export async function deletePrepChat(interviewId: string): Promise<void> {
