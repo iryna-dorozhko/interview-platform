@@ -395,10 +395,33 @@ curl "http://localhost:3000/api/interviews/mine" \
 - Показуєш HR зібраний профіль на екрані (текстом, без редагування полів)
 
 **Definition of Done:**
-- [ ] Демонстрація: після завершення діалогу HR бачить зібраний профіль на екрані
-- [ ] Сценарій: JSON містить поля `role`, `requirements`, `culture`, `expectations`; дані відповідають змісту чату
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: структура `CompanyProfile` JSON, коли профіль генерується
+- [x] Демонстрація: після завершення діалогу HR бачить зібраний профіль на екрані
+- [x] Сценарій: JSON містить поля `role`, `requirements`, `culture`, `expectations`; дані відповідають змісту чату
+- [x] Збірка: `npm run build` проходить
+- [x] README: структура `CompanyProfile` JSON, коли профіль генерується
+
+### Company Profile Quick Start (Day 6)
+
+**Коли генерується:** HR натискає «Завершити чат» → фронтенд викликає `POST /api/prep/:interviewId/finish` (приклад запиту — див. Day 5 Quick Start вище). Бекенд бере всю історію `PrepMessageHr` цієї сесії, просить LLM (`buildProfileExtractionMessages` + `PROFILE_EXTRACTION_SYSTEM_PROMPT_UK`) стисло структурувати її в JSON, парсить і валідує відповідь (`parseProfileExtraction`) і зберігає результат у таблицю `CompanyProfile` (`upsert` за `interviewId`), одночасно закриваючи `PrepSessionHr` (`isClosed: true`).
+
+**Структура `CompanyProfile` JSON:**
+
+```json
+{
+  "role": "Middle Backend Developer",
+  "requirements": ["Node.js", "PostgreSQL", "2+ роки досвіду"],
+  "culture": ["remote-first", "код-рев'ю обов'язкове"],
+  "expectations": ["2-3 фічі за квартал", "участь у дизайн-рев'ю"],
+  "confirmedAt": null
+}
+```
+
+- `role` — рядок (посада, рівень).
+- `requirements` / `culture` / `expectations` — масиви коротких рядків (`string[]`), збережені в БД як `Json`. Якщо тема не обговорювалась у чаті, LLM пише `"не вказано"` замість вигадування фактів.
+- `confirmedAt` — `null` одразу після `finish`; встановлюється окремим кроком підтвердження (Day 7).
+- Якщо LLM повернула невалідний JSON — `finish` відповідає `502`, а prep-сесія лишається відкритою для повторної спроби (профіль не зберігається).
+
+**Показ HR:** `CompanyPrepView.vue` після успішного `finish` одразу рендерить профіль текстом (список `role`/`requirements`/`culture`/`expectations`) без будь-яких полів для редагування — лише кнопки «← Назад до чату» (перегляд історії) і «Видалити чат» (повний рестарт анкети).
 
 ---
 
