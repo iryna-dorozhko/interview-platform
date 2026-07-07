@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { fetchHealth, type HealthResponse } from "../api/health";
-import { fetchMyInterviews } from "../api/interviews";
+import { createInterview, fetchMyInterviews, type CreatedInterview } from "../api/interviews";
 import ChatPanel from "../components/ChatPanel.vue";
 import { useAuthStore } from "../stores/auth";
 
@@ -43,6 +43,28 @@ async function goToCompanyPrep(): Promise<void> {
   } catch {
     prepNavError.value = "Не вдалося завантажити список співбесід.";
   }
+}
+
+const creatingInterview = ref(false);
+const createInterviewError = ref<string | null>(null);
+const createdInterview = ref<CreatedInterview | null>(null);
+
+async function onCreateInterview(): Promise<void> {
+  createInterviewError.value = null;
+  creatingInterview.value = true;
+  try {
+    createdInterview.value = await createInterview();
+  } catch (error) {
+    createInterviewError.value =
+      error instanceof Error ? error.message : "Не вдалося створити співбесіду";
+  } finally {
+    creatingInterview.value = false;
+  }
+}
+
+function goToCreatedInterviewPrep(): void {
+  if (!createdInterview.value) return;
+  router.push({ name: "company-prep", params: { interviewId: createdInterview.value.id } });
 }
 
 onMounted(async () => {
@@ -93,7 +115,26 @@ onMounted(async () => {
       </ul>
       <div class="prep-nav">
         <button type="button" class="btn-primary" @click="goToCompanyPrep">Анкета компанії</button>
+        <button
+          type="button"
+          class="btn-primary"
+          :disabled="creatingInterview"
+          @click="onCreateInterview"
+        >
+          {{ creatingInterview ? "Створення…" : "Створити співбесіду" }}
+        </button>
         <p v-if="prepNavError" class="fail">{{ prepNavError }}</p>
+        <p v-if="createInterviewError" class="fail">{{ createInterviewError }}</p>
+      </div>
+
+      <div v-if="createdInterview" class="created-banner">
+        <p>
+          Співбесіду створено! Код для кандидата:
+          <strong class="created-code">{{ createdInterview.joinCode }}</strong>
+        </p>
+        <button type="button" class="btn-primary" @click="goToCreatedInterviewPrep">
+          Перейти до анкети →
+        </button>
       </div>
 
       <ChatPanel />
@@ -133,7 +174,27 @@ onMounted(async () => {
 .fail { color: #b00020; }
 .pending { color: #666; }
 .prep-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.created-banner {
   margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 0.375rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.created-code {
+  font-family: monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
 }
 .btn-primary {
   font-family: inherit;
