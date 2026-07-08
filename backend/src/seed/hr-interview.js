@@ -2,14 +2,16 @@ const SEED_INTERVIEW = {
   joinCode: "TEST01",
 };
 
-async function seedHrInterview(prisma, hrUserId) {
+async function seedHrInterview(prisma, hrUserId, vacancyId) {
   const interview = await prisma.interview.upsert({
     where: { joinCode: SEED_INTERVIEW.joinCode },
-    update: { hrUserId },
+    update: { hrUserId, vacancyId },
     create: {
       hrUserId,
+      vacancyId,
+      displayName: "Test Position",
       joinCode: SEED_INTERVIEW.joinCode,
-      status: "DRAFT",
+      status: "AWAITING_CANDIDATE",
     },
   });
 
