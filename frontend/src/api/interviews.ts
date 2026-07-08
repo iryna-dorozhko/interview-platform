@@ -4,6 +4,7 @@ export type InterviewSummary = {
   id: string;
   joinCode: string;
   status: string;
+  createdAt: string;
 };
 
 export type CreatedInterview = {
