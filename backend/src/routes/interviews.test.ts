@@ -55,6 +55,25 @@ function makeFakePrisma(
         }
         return filtered;
       },
+      findUnique: async ({
+        where,
+        include,
+      }: {
+        where: { id: string };
+        include?: { vacancy: { select: { title: true } } };
+      }) => {
+        const interview = interviews.find((item) => item.id === where.id) ?? null;
+        if (!interview) return null;
+
+        if (include?.vacancy) {
+          const vacancy = vacancies.find((v) => v.id === interview.vacancyId);
+          return {
+            ...interview,
+            vacancy: { title: vacancy?.title ?? "" },
+          };
+        }
+        return interview;
+      },
       create: async (input: CreateInput) => {
         if (createImpl) return createImpl(input);
         counter += 1;
@@ -310,6 +329,85 @@ test("interview created via POST /interviews appears in GET /interviews/mine", a
     assert.equal(body.interviews[0].displayName, "Frontend Dev");
     assert.equal(body.interviews[0].vacancyTitle, "Frontend Dev");
     assert.equal(body.interviews[0].reportSummary, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/:id returns interview for owner", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+      },
+    ],
+    [confirmedVacancy]
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/i1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.id, "i1");
+    assert.equal(body.interview.displayName, "Frontend Dev");
+    assert.equal(body.interview.joinCode, "AAAAAA");
+    assert.equal(body.interview.status, "AWAITING_CANDIDATE");
+    assert.equal(body.interview.vacancyTitle, "Frontend Dev");
+    assert.equal(body.interview.reportSummary, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/:id returns 404 when interview does not exist", async () => {
+  const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/missing`);
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.equal(body.error, "Interview not found");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/:id returns 403 when interview belongs to another HR", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_other",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+      },
+    ],
+    [confirmedVacancy]
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/i1`);
+    assert.equal(response.status, 403);
+    const body = await response.json();
+    assert.equal(body.error, "Forbidden");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

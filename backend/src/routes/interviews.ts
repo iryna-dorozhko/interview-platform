@@ -31,6 +31,36 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
     });
   });
 
+  router.get("/interviews/:id", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const interview = await prisma.interview.findUnique({
+      where: { id: req.params.id },
+      include: { vacancy: { select: { title: true } } },
+    });
+
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    res.status(200).json({
+      interview: {
+        id: interview.id,
+        vacancyId: interview.vacancyId,
+        vacancyTitle: interview.vacancy.title,
+        displayName: interview.displayName,
+        joinCode: interview.joinCode,
+        status: interview.status,
+        createdAt: interview.createdAt,
+        reportSummary: null,
+      },
+    });
+  });
+
   router.post("/interviews", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const hrUserId = req.user?.id as string;

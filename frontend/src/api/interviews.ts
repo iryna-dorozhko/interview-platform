@@ -11,6 +11,8 @@ export type InterviewSummary = {
   reportSummary: string | null;
 };
 
+export type InterviewDetail = InterviewSummary;
+
 export type CreatedInterview = {
   id: string;
   vacancyId: string;
@@ -31,6 +33,15 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   }
   const detail = body.detail ?? body.error;
   return new Error(detail ? `${fallback}: ${detail}` : fallback);
+}
+
+export async function fetchInterview(id: string): Promise<InterviewDetail> {
+  const response = await fetchWithAuth(`/api/interviews/${id}`);
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося завантажити співбесіду");
+  }
+  const body = (await response.json()) as { interview: InterviewDetail };
+  return body.interview;
 }
 
 export async function fetchMyInterviews(): Promise<InterviewSummary[]> {
