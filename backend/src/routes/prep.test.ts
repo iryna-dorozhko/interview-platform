@@ -7,8 +7,8 @@ import { createPrepRouter } from "./prep";
 import { LlmUnavailableError, LlmEmptyResponseError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 
-type FakeInterview = { id: string; hrUserId: string; status?: string };
-type FakeSession = { id: string; interviewId: string; isClosed: boolean };
+type FakeVacancy = { id: string; hrUserId: string; status?: string };
+type FakeSession = { id: string; vacancyId: string; isClosed: boolean };
 type FakeMessage = {
   id: string;
   sessionId: string;
@@ -18,7 +18,7 @@ type FakeMessage = {
 };
 type FakeProfile = {
   id: string;
-  interviewId: string;
+  vacancyId: string;
   role: string;
   requirements: string[];
   culture: string[];
@@ -28,21 +28,21 @@ type FakeProfile = {
 
 function makeFakePrisma(
   seed: {
-    interviews?: FakeInterview[];
+    vacancies?: FakeVacancy[];
     sessions?: FakeSession[];
     profiles?: FakeProfile[];
   } = {}
 ) {
-  const interviews = (seed.interviews ?? []).map((item) => ({ status: "DRAFT", ...item }));
+  const vacancies = (seed.vacancies ?? []).map((item) => ({ status: "DRAFT", ...item }));
   const sessions = seed.sessions ?? [];
   const profiles = seed.profiles ?? [];
   const messages: FakeMessage[] = [];
   let counter = 0;
 
   return {
-    interview: {
+    vacancy: {
       findUnique: async ({ where }: { where: { id: string } }) =>
-        interviews.find((item) => item.id === where.id) ?? null,
+        vacancies.find((item) => item.id === where.id) ?? null,
       update: async ({
         where,
         data,
@@ -50,25 +50,25 @@ function makeFakePrisma(
         where: { id: string };
         data: { status: string };
       }) => {
-        const interview = interviews.find((item) => item.id === where.id);
-        if (!interview) throw new Error("interview not found");
-        Object.assign(interview, data);
-        return interview;
+        const vacancy = vacancies.find((item) => item.id === where.id);
+        if (!vacancy) throw new Error("vacancy not found");
+        Object.assign(vacancy, data);
+        return vacancy;
       },
     },
     prepSessionHr: {
-      findUnique: async ({ where }: { where: { interviewId: string } }) =>
-        sessions.find((item) => item.interviewId === where.interviewId) ?? null,
+      findUnique: async ({ where }: { where: { vacancyId: string } }) =>
+        sessions.find((item) => item.vacancyId === where.vacancyId) ?? null,
       upsert: async ({
         where,
         create,
       }: {
-        where: { interviewId: string };
-        create: { interviewId: string };
+        where: { vacancyId: string };
+        create: { vacancyId: string };
       }) => {
-        let session = sessions.find((item) => item.interviewId === where.interviewId);
+        let session = sessions.find((item) => item.vacancyId === where.vacancyId);
         if (!session) {
-          session = { id: `session_${++counter}`, interviewId: create.interviewId, isClosed: false };
+          session = { id: `session_${++counter}`, vacancyId: create.vacancyId, isClosed: false };
           sessions.push(session);
         }
         return session;
@@ -115,16 +115,16 @@ function makeFakePrisma(
       },
     },
     companyProfile: {
-      findUnique: async ({ where }: { where: { interviewId: string } }) =>
-        profiles.find((item) => item.interviewId === where.interviewId) ?? null,
+      findUnique: async ({ where }: { where: { vacancyId: string } }) =>
+        profiles.find((item) => item.vacancyId === where.vacancyId) ?? null,
       update: async ({
         where,
         data,
       }: {
-        where: { interviewId: string };
+        where: { vacancyId: string };
         data: { confirmedAt: Date };
       }) => {
-        const profile = profiles.find((item) => item.interviewId === where.interviewId);
+        const profile = profiles.find((item) => item.vacancyId === where.vacancyId);
         if (!profile) throw new Error("profile not found");
         Object.assign(profile, data);
         return profile;
@@ -133,11 +133,11 @@ function makeFakePrisma(
         where,
         create,
       }: {
-        where: { interviewId: string };
+        where: { vacancyId: string };
         create: Omit<FakeProfile, "id" | "confirmedAt">;
-        update: Omit<FakeProfile, "id" | "interviewId" | "confirmedAt">;
+        update: Omit<FakeProfile, "id" | "vacancyId" | "confirmedAt">;
       }) => {
-        let profile = profiles.find((item) => item.interviewId === where.interviewId);
+        let profile = profiles.find((item) => item.vacancyId === where.vacancyId);
         if (!profile) {
           profile = { id: `profile_${++counter}`, confirmedAt: null, ...create };
           profiles.push(profile);
@@ -146,8 +146,8 @@ function makeFakePrisma(
         }
         return profile;
       },
-      deleteMany: async ({ where }: { where: { interviewId: string } }) => {
-        const remaining = profiles.filter((item) => item.interviewId !== where.interviewId);
+      deleteMany: async ({ where }: { where: { vacancyId: string } }) => {
+        const remaining = profiles.filter((item) => item.vacancyId !== where.vacancyId);
         const removedCount = profiles.length - remaining.length;
         profiles.length = 0;
         profiles.push(...remaining);
@@ -157,7 +157,7 @@ function makeFakePrisma(
     __sessions: sessions,
     __messages: messages,
     __profiles: profiles,
-    __interviews: interviews,
+    __vacancies: vacancies,
   };
 }
 
@@ -168,8 +168,8 @@ function withUser(user: AuthUser) {
   };
 }
 
-test("GET /prep/:interviewId returns empty state when no session exists yet", async () => {
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_1" }] });
+test("GET /prep/:vacancyId returns empty state when no session exists yet", async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
 
   const app = express();
@@ -181,7 +181,7 @@ test("GET /prep/:interviewId returns empty state when no session exists yet", as
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.deepEqual(body, { messages: [], isClosed: false, profile: null });
@@ -190,10 +190,10 @@ test("GET /prep/:interviewId returns empty state when no session exists yet", as
   }
 });
 
-test("GET /prep/:interviewId returns messages and isClosed when session exists", async () => {
+test("GET /prep/:vacancyId returns messages and isClosed when session exists", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   fakePrisma.__messages.push(
     { id: "m1", sessionId: "session_1", authorType: "AGENT_COMPANY", content: "Привіт!", createdAt: new Date(1) }
@@ -209,7 +209,7 @@ test("GET /prep/:interviewId returns messages and isClosed when session exists",
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.isClosed, false);
@@ -221,14 +221,14 @@ test("GET /prep/:interviewId returns messages and isClosed when session exists",
   }
 });
 
-test("GET /prep/:interviewId returns profile when session is closed", async () => {
+test("GET /prep/:vacancyId returns profile when session is closed", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        vacancyId: "vacancy_1",
         role: "QA Engineer",
         requirements: ["3+ роки"],
         culture: ["не вказано"],
@@ -248,7 +248,7 @@ test("GET /prep/:interviewId returns profile when session is closed", async () =
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.isClosed, true);
@@ -259,14 +259,14 @@ test("GET /prep/:interviewId returns profile when session is closed", async () =
   }
 });
 
-test("GET /prep/:interviewId includes confirmedAt: null in an unconfirmed profile", async () => {
+test("GET /prep/:vacancyId includes confirmedAt: null in an unconfirmed profile", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        vacancyId: "vacancy_1",
         role: "QA Engineer",
         requirements: ["3+ роки"],
         culture: ["не вказано"],
@@ -286,7 +286,7 @@ test("GET /prep/:interviewId includes confirmedAt: null in an unconfirmed profil
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.profile.confirmedAt, null);
@@ -295,7 +295,7 @@ test("GET /prep/:interviewId includes confirmedAt: null in an unconfirmed profil
   }
 });
 
-test("GET /prep/:interviewId returns 404 when interview does not exist", async () => {
+test("GET /prep/:vacancyId returns 404 when vacancy does not exist", async () => {
   const fakePrisma = makeFakePrisma();
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
 
@@ -315,8 +315,8 @@ test("GET /prep/:interviewId returns 404 when interview does not exist", async (
   }
 });
 
-test("GET /prep/:interviewId returns 403 when interview belongs to another HR", async () => {
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_other" }] });
+test("GET /prep/:vacancyId returns 403 when vacancy belongs to another HR", async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }] });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
 
   const app = express();
@@ -328,17 +328,17 @@ test("GET /prep/:interviewId returns 403 when interview belongs to another HR", 
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
     assert.equal(response.status, 403);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/finish extracts profile, saves it, and closes the session", async () => {
+test("POST /prep/:vacancyId/finish extracts profile, saves it, and closes the session", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   fakePrisma.__messages.push(
     { id: "m1", sessionId: "session_1", authorType: "HUMAN_HR", content: "Middle Backend Developer", createdAt: new Date(1) },
@@ -365,7 +365,7 @@ test("POST /prep/:interviewId/finish extracts profile, saves it, and closes the 
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.profile.role, "Middle Backend Developer");
@@ -377,10 +377,10 @@ test("POST /prep/:interviewId/finish extracts profile, saves it, and closes the 
   }
 });
 
-test("POST /prep/:interviewId/finish returns confirmedAt: null for a freshly generated profile", async () => {
+test("POST /prep/:vacancyId/finish returns confirmedAt: null for a freshly generated profile", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   fakePrisma.__messages.push(
     { id: "m1", sessionId: "session_1", authorType: "HUMAN_HR", content: "Middle Backend Developer", createdAt: new Date(1) }
@@ -406,7 +406,7 @@ test("POST /prep/:interviewId/finish returns confirmedAt: null for a freshly gen
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.profile.confirmedAt, null);
@@ -415,14 +415,14 @@ test("POST /prep/:interviewId/finish returns confirmedAt: null for a freshly gen
   }
 });
 
-test("POST /prep/:interviewId/confirm sets confirmedAt and moves interview to AWAITING_CANDIDATE", async () => {
+test("POST /prep/:vacancyId/confirm sets confirmedAt and moves vacancy to CONFIRMED", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "DRAFT" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        vacancyId: "vacancy_1",
         role: "QA Engineer",
         requirements: ["3+ роки"],
         culture: ["не вказано"],
@@ -442,22 +442,22 @@ test("POST /prep/:interviewId/confirm sets confirmedAt and moves interview to AW
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.notEqual(body.profile.confirmedAt, null);
-    assert.equal(body.interviewStatus, "AWAITING_CANDIDATE");
+    assert.equal(body.vacancyStatus, "CONFIRMED");
     assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
-    assert.equal(fakePrisma.__interviews[0].status, "AWAITING_CANDIDATE");
+    assert.equal(fakePrisma.__vacancies[0].status, "CONFIRMED");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/confirm returns 404 when profile does not exist yet", async () => {
+test("POST /prep/:vacancyId/confirm returns 404 when profile does not exist yet", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "DRAFT" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
@@ -470,7 +470,7 @@ test("POST /prep/:interviewId/confirm returns 404 when profile does not exist ye
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
     assert.equal(response.status, 404);
     const body = await response.json();
     assert.equal(body.error, "Profile not found");
@@ -479,14 +479,14 @@ test("POST /prep/:interviewId/confirm returns 404 when profile does not exist ye
   }
 });
 
-test("POST /prep/:interviewId/confirm returns 409 when already confirmed", async () => {
+test("POST /prep/:vacancyId/confirm returns 409 when already confirmed", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        vacancyId: "vacancy_1",
         role: "QA Engineer",
         requirements: ["3+ роки"],
         culture: ["не вказано"],
@@ -506,7 +506,7 @@ test("POST /prep/:interviewId/confirm returns 409 when already confirmed", async
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
     assert.equal(response.status, 409);
     const body = await response.json();
     assert.equal(body.error, "Profile already confirmed");
@@ -515,8 +515,8 @@ test("POST /prep/:interviewId/confirm returns 409 when already confirmed", async
   }
 });
 
-test("POST /prep/:interviewId/confirm returns 403 when interview belongs to another HR", async () => {
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_other" }] });
+test("POST /prep/:vacancyId/confirm returns 403 when vacancy belongs to another HR", async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }] });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
   const app = express();
@@ -528,14 +528,14 @@ test("POST /prep/:interviewId/confirm returns 403 when interview belongs to anot
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
     assert.equal(response.status, 403);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/confirm returns 404 when interview does not exist", async () => {
+test("POST /prep/:vacancyId/confirm returns 404 when vacancy does not exist", async () => {
   const fakePrisma = makeFakePrisma();
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
@@ -548,15 +548,15 @@ test("POST /prep/:interviewId/confirm returns 404 when interview does not exist"
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/confirm`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
     assert.equal(response.status, 404);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/finish returns 404 when no session exists yet", async () => {
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_1" }] });
+test("POST /prep/:vacancyId/finish returns 404 when no session exists yet", async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
   const app = express();
@@ -568,17 +568,17 @@ test("POST /prep/:interviewId/finish returns 404 when no session exists yet", as
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 404);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/finish returns 409 when session is already closed", async () => {
+test("POST /prep/:vacancyId/finish returns 409 when session is already closed", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
   });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
@@ -591,17 +591,17 @@ test("POST /prep/:interviewId/finish returns 409 when session is already closed"
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 409);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/finish returns 502 when LLM returns invalid JSON", async () => {
+test("POST /prep/:vacancyId/finish returns 502 when LLM returns invalid JSON", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не json"; } };
 
@@ -614,7 +614,7 @@ test("POST /prep/:interviewId/finish returns 502 when LLM returns invalid JSON",
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 502);
     assert.equal(fakePrisma.__sessions[0].isClosed, false);
   } finally {
@@ -622,10 +622,10 @@ test("POST /prep/:interviewId/finish returns 502 when LLM returns invalid JSON",
   }
 });
 
-test("POST /prep/:interviewId/finish returns 503 when LLM unavailable", async () => {
+test("POST /prep/:vacancyId/finish returns 503 when LLM unavailable", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -643,21 +643,21 @@ test("POST /prep/:interviewId/finish returns 503 when LLM unavailable", async ()
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/finish`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 503);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("DELETE /prep/:interviewId removes session, messages, and profile", async () => {
+test("DELETE /prep/:vacancyId removes session, messages, and profile", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        vacancyId: "vacancy_1",
         role: "QA Engineer",
         requirements: ["не вказано"],
         culture: ["не вказано"],
@@ -684,7 +684,7 @@ test("DELETE /prep/:interviewId removes session, messages, and profile", async (
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`, { method: "DELETE" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
     assert.equal(response.status, 200);
     assert.equal(fakePrisma.__sessions.length, 0);
     assert.equal(fakePrisma.__messages.length, 0);
@@ -694,14 +694,14 @@ test("DELETE /prep/:interviewId removes session, messages, and profile", async (
   }
 });
 
-test("DELETE /prep/:interviewId returns 409 when profile is confirmed", async () => {
+test("DELETE /prep/:vacancyId returns 409 when profile is confirmed", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        vacancyId: "vacancy_1",
         role: "QA Engineer",
         requirements: ["не вказано"],
         culture: ["не вказано"],
@@ -721,7 +721,7 @@ test("DELETE /prep/:interviewId returns 409 when profile is confirmed", async ()
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`, { method: "DELETE" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
     assert.equal(response.status, 409);
     const body = await response.json();
     assert.equal(body.error, "Profile is confirmed and cannot be reset");
@@ -732,8 +732,8 @@ test("DELETE /prep/:interviewId returns 409 when profile is confirmed", async ()
   }
 });
 
-test("DELETE /prep/:interviewId succeeds even when no session exists yet", async () => {
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_1" }] });
+test("DELETE /prep/:vacancyId succeeds even when no session exists yet", async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
   const app = express();
@@ -745,15 +745,15 @@ test("DELETE /prep/:interviewId succeeds even when no session exists yet", async
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`, { method: "DELETE" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
     assert.equal(response.status, 200);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("DELETE /prep/:interviewId returns 403 when interview belongs to another HR", async () => {
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_other" }] });
+test("DELETE /prep/:vacancyId returns 403 when vacancy belongs to another HR", async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }] });
   const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
 
   const app = express();
@@ -765,16 +765,16 @@ test("DELETE /prep/:interviewId returns 403 when interview belongs to another HR
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1`, { method: "DELETE" });
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
     assert.equal(response.status, 403);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("POST /prep/:interviewId/message creates session and both messages on first turn", async () => {
+test("POST /prep/:vacancyId/message creates session and both messages on first turn", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -792,7 +792,7 @@ test("POST /prep/:interviewId/message creates session and both messages on first
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -812,10 +812,10 @@ test("POST /prep/:interviewId/message creates session and both messages on first
   }
 });
 
-test("POST /prep/:interviewId/message saves HR message and extracts readyForConfirmation=true", async () => {
+test("POST /prep/:vacancyId/message saves HR message and extracts readyForConfirmation=true", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -833,7 +833,7 @@ test("POST /prep/:interviewId/message saves HR message and extracts readyForConf
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Middle Backend Developer, 3+ роки досвіду" }),
@@ -854,7 +854,7 @@ test("POST /prep/:interviewId/message saves HR message and extracts readyForConf
   }
 });
 
-test("POST /prep/:interviewId/message returns 404 when interview does not exist", async () => {
+test("POST /prep/:vacancyId/message returns 404 when vacancy does not exist", async () => {
   const fakePrisma = makeFakePrisma();
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -880,7 +880,7 @@ test("POST /prep/:interviewId/message returns 404 when interview does not exist"
 
     assert.equal(response.status, 404);
     const body = await response.json();
-    assert.equal(body.error, "Interview not found");
+    assert.equal(body.error, "Vacancy not found");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
@@ -888,9 +888,9 @@ test("POST /prep/:interviewId/message returns 404 when interview does not exist"
   }
 });
 
-test("POST /prep/:interviewId/message returns 403 when interview belongs to another HR", async () => {
+test("POST /prep/:vacancyId/message returns 403 when vacancy belongs to another HR", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_other" }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -908,7 +908,7 @@ test("POST /prep/:interviewId/message returns 403 when interview belongs to anot
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -924,10 +924,10 @@ test("POST /prep/:interviewId/message returns 403 when interview belongs to anot
   }
 });
 
-test("POST /prep/:interviewId/message returns 409 when session is closed", async () => {
+test("POST /prep/:vacancyId/message returns 409 when session is closed", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -945,7 +945,7 @@ test("POST /prep/:interviewId/message returns 409 when session is closed", async
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Ще одне питання" }),
@@ -961,9 +961,9 @@ test("POST /prep/:interviewId/message returns 409 when session is closed", async
   }
 });
 
-test("POST /prep/:interviewId/message returns 503 when LLM unavailable", async () => {
+test("POST /prep/:vacancyId/message returns 503 when LLM unavailable", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -981,7 +981,7 @@ test("POST /prep/:interviewId/message returns 503 when LLM unavailable", async (
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -997,9 +997,9 @@ test("POST /prep/:interviewId/message returns 503 when LLM unavailable", async (
   }
 });
 
-test("POST /prep/:interviewId/message returns 502 when LLM returns empty response", async () => {
+test("POST /prep/:vacancyId/message returns 502 when LLM returns empty response", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
   });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -1017,7 +1017,7 @@ test("POST /prep/:interviewId/message returns 502 when LLM returns empty respons
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -1031,9 +1031,9 @@ test("POST /prep/:interviewId/message returns 502 when LLM returns empty respons
   }
 });
 
-test("POST /prep/:interviewId/message returns 401 without auth when middleware applied", async () => {
+test("POST /prep/:vacancyId/message returns 401 without auth when middleware applied", async () => {
   process.env.JWT_SECRET = "test-secret-min-8-chars";
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_1" }] });
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
@@ -1049,7 +1049,7 @@ test("POST /prep/:interviewId/message returns 401 without auth when middleware a
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -1062,10 +1062,10 @@ test("POST /prep/:interviewId/message returns 401 without auth when middleware a
   }
 });
 
-test("POST /prep/:interviewId/message works with valid token through requireAuth+requireHr", async () => {
+test("POST /prep/:vacancyId/message works with valid token through requireAuth+requireHr", async () => {
   process.env.JWT_SECRET = "test-secret-min-8-chars";
   const token = signToken({ sub: "hr_1", email: "hr@test.com", role: "HR" });
-  const fakePrisma = makeFakePrisma({ interviews: [{ id: "interview_1", hrUserId: "hr_1" }] });
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
@@ -1081,7 +1081,7 @@ test("POST /prep/:interviewId/message works with valid token through requireAuth
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({}),
@@ -1094,9 +1094,9 @@ test("POST /prep/:interviewId/message works with valid token through requireAuth
   }
 });
 
-test("POST /prep/:interviewId/message returns 500 when persisting agent reply fails", async () => {
+test("POST /prep/:vacancyId/message returns 500 when persisting agent reply fails", async () => {
   const fakePrisma = makeFakePrisma({
-    interviews: [{ id: "interview_1", hrUserId: "hr_1" }],
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
   });
   const originalCreate = fakePrisma.prepMessageHr.create;
   fakePrisma.prepMessageHr.create = (async ({ data }: { data: { authorType: string } }) => {
@@ -1121,7 +1121,7 @@ test("POST /prep/:interviewId/message returns 500 when persisting agent reply fa
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/interview_1/message`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),

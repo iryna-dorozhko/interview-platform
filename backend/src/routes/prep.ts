@@ -19,22 +19,22 @@ export function createPrepRouter(
 ): Router {
   const router = Router();
 
-  router.get("/prep/:interviewId", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
+  router.get("/prep/:vacancyId", async (req: Request, res: Response) => {
+    const { vacancyId } = req.params;
     const prisma = getPrisma();
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
       return;
     }
 
-    if (interview.hrUserId !== req.user?.id) {
+    if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const session = await prisma.prepSessionHr.findUnique({ where: { interviewId } });
+    const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId } });
     if (!session) {
       res.status(200).json({ messages: [], isClosed: false, profile: null });
       return;
@@ -46,7 +46,7 @@ export function createPrepRouter(
     });
 
     const profile = session.isClosed
-      ? await prisma.companyProfile.findUnique({ where: { interviewId } })
+      ? await prisma.companyProfile.findUnique({ where: { vacancyId } })
       : null;
 
     res.status(200).json({
@@ -69,22 +69,22 @@ export function createPrepRouter(
     });
   });
 
-  router.post("/prep/:interviewId/finish", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
+  router.post("/prep/:vacancyId/finish", async (req: Request, res: Response) => {
+    const { vacancyId } = req.params;
     const prisma = getPrisma();
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
       return;
     }
 
-    if (interview.hrUserId !== req.user?.id) {
+    if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const session = await prisma.prepSessionHr.findUnique({ where: { interviewId } });
+    const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId } });
     if (!session) {
       res.status(404).json({ error: "Prep session not found" });
       return;
@@ -149,7 +149,7 @@ export function createPrepRouter(
     let profile;
     try {
       profile = await prisma.companyProfile.upsert({
-        where: { interviewId },
+        where: { vacancyId },
         update: {
           role: extracted.role,
           requirements: extracted.requirements,
@@ -157,7 +157,7 @@ export function createPrepRouter(
           expectations: extracted.expectations,
         },
         create: {
-          interviewId,
+          vacancyId,
           role: extracted.role,
           requirements: extracted.requirements,
           culture: extracted.culture,
@@ -183,22 +183,22 @@ export function createPrepRouter(
     });
   });
 
-  router.post("/prep/:interviewId/confirm", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
+  router.post("/prep/:vacancyId/confirm", async (req: Request, res: Response) => {
+    const { vacancyId } = req.params;
     const prisma = getPrisma();
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
       return;
     }
 
-    if (interview.hrUserId !== req.user?.id) {
+    if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const profile = await prisma.companyProfile.findUnique({ where: { interviewId } });
+    const profile = await prisma.companyProfile.findUnique({ where: { vacancyId } });
     if (!profile) {
       res.status(404).json({ error: "Profile not found" });
       return;
@@ -210,19 +210,19 @@ export function createPrepRouter(
     }
 
     let updatedProfile;
-    let interviewStatus = interview.status;
+    let vacancyStatus = vacancy.status;
     try {
       updatedProfile = await prisma.companyProfile.update({
-        where: { interviewId },
+        where: { vacancyId },
         data: { confirmedAt: new Date() },
       });
 
-      if (interview.status === "DRAFT") {
-        await prisma.interview.update({
-          where: { id: interviewId },
-          data: { status: "AWAITING_CANDIDATE" },
+      if (vacancy.status === "DRAFT") {
+        await prisma.vacancy.update({
+          where: { id: vacancyId },
+          data: { status: "CONFIRMED" },
         });
-        interviewStatus = "AWAITING_CANDIDATE";
+        vacancyStatus = "CONFIRMED";
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -239,32 +239,32 @@ export function createPrepRouter(
         expectations: updatedProfile.expectations,
         confirmedAt: updatedProfile.confirmedAt,
       },
-      interviewStatus,
+      vacancyStatus,
     });
   });
 
-  router.post("/prep/:interviewId/message", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
+  router.post("/prep/:vacancyId/message", async (req: Request, res: Response) => {
+    const { vacancyId } = req.params;
     const body = (req.body ?? {}) as MessageBody;
     const message = typeof body.message === "string" ? body.message.trim() : "";
 
     const prisma = getPrisma();
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
       return;
     }
 
-    if (interview.hrUserId !== req.user?.id) {
+    if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
     const session = await prisma.prepSessionHr.upsert({
-      where: { interviewId },
+      where: { vacancyId },
       update: {},
-      create: { interviewId },
+      create: { vacancyId },
     });
 
     if (session.isClosed) {
@@ -335,34 +335,34 @@ export function createPrepRouter(
     res.status(200).json({ message: agentMessage, readyForConfirmation });
   });
 
-  router.delete("/prep/:interviewId", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
+  router.delete("/prep/:vacancyId", async (req: Request, res: Response) => {
+    const { vacancyId } = req.params;
     const prisma = getPrisma();
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
       return;
     }
 
-    if (interview.hrUserId !== req.user?.id) {
+    if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const existingProfile = await prisma.companyProfile.findUnique({ where: { interviewId } });
+    const existingProfile = await prisma.companyProfile.findUnique({ where: { vacancyId } });
     if (existingProfile?.confirmedAt) {
       res.status(409).json({ error: "Profile is confirmed and cannot be reset" });
       return;
     }
 
     try {
-      const session = await prisma.prepSessionHr.findUnique({ where: { interviewId } });
+      const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId } });
       if (session) {
         await prisma.prepMessageHr.deleteMany({ where: { sessionId: session.id } });
         await prisma.prepSessionHr.delete({ where: { id: session.id } });
       }
-      await prisma.companyProfile.deleteMany({ where: { interviewId } });
+      await prisma.companyProfile.deleteMany({ where: { vacancyId } });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[prep:delete] failed to reset prep chat:", detail);
