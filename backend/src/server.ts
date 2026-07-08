@@ -8,6 +8,7 @@ import { createLlmProvider } from "./llm/factory";
 import { createAuthRouter } from "./routes/auth";
 import { createHealthRouter } from "./routes/health";
 import { createInterviewsRouter } from "./routes/interviews";
+import { createVacanciesRouter } from "./routes/vacancies";
 import { createLlmRouter } from "./routes/llm";
 import { createPrepRouter } from "./routes/prep";
 
@@ -29,6 +30,7 @@ app.use("/api", createAuthRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma));
+app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 
 app.listen(port, () => {
   console.log(`backend listening on http://localhost:${port}`);
