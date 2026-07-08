@@ -1,20 +1,32 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
-import CompanyPrepView from "../views/CompanyPrepView.vue";
-import HomeView from "../views/HomeView.vue";
+import HrLayout from "../layouts/HrLayout.vue";
+import HrHomeView from "../views/HrHomeView.vue";
+import VacancyListView from "../views/VacancyListView.vue";
+import VacancyDetailView from "../views/VacancyDetailView.vue";
+import VacancyPrepView from "../views/VacancyPrepView.vue";
+import InterviewListView from "../views/InterviewListView.vue";
+import InterviewDetailView from "../views/InterviewDetailView.vue";
 import LoginView from "../views/LoginView.vue";
 
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/login", name: "login", component: LoginView },
-    { path: "/", name: "home", component: HomeView, meta: { requiresAuth: true } },
     {
-      path: "/prep/:interviewId",
-      name: "company-prep",
-      component: CompanyPrepView,
+      path: "/",
+      component: HrLayout,
       meta: { requiresAuth: true },
+      children: [
+        { path: "", name: "home", component: HrHomeView },
+        { path: "vacancies", name: "vacancies", component: VacancyListView },
+        { path: "vacancies/:id", name: "vacancy-detail", component: VacancyDetailView },
+        { path: "vacancies/:id/prep", name: "vacancy-prep", component: VacancyPrepView },
+        { path: "interviews", name: "interviews", component: InterviewListView },
+        { path: "interviews/:id", name: "interview-detail", component: InterviewDetailView },
+      ],
     },
+    { path: "/prep/:interviewId", redirect: "/vacancies" },
   ],
 });
 
