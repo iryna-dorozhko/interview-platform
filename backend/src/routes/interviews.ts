@@ -4,6 +4,8 @@ import { generateJoinCode } from "../utils/joinCode";
 
 const MAX_CREATE_ATTEMPTS = 5;
 
+type CreateBody = { vacancyId?: unknown };
+
 export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
   const router = Router();
 
@@ -12,14 +14,19 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
     const interviews = await prisma.interview.findMany({
       where: { hrUserId: req.user?.id },
       orderBy: { createdAt: "desc" },
+      include: { vacancy: { select: { title: true } } },
     });
 
     res.status(200).json({
       interviews: interviews.map((item) => ({
         id: item.id,
+        vacancyId: item.vacancyId,
+        vacancyTitle: item.vacancy.title,
+        displayName: item.displayName,
         joinCode: item.joinCode,
         status: item.status,
         createdAt: item.createdAt,
+        reportSummary: null,
       })),
     });
   });
@@ -27,16 +34,45 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
   router.post("/interviews", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const hrUserId = req.user?.id as string;
+    const body = (req.body ?? {}) as CreateBody;
+    const vacancyId = typeof body.vacancyId === "string" ? body.vacancyId : "";
+
+    if (!vacancyId) {
+      res.status(400).json({ error: "vacancyId is required" });
+      return;
+    }
+
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
+      return;
+    }
+    if (vacancy.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (vacancy.status !== "CONFIRMED") {
+      res.status(400).json({ error: "Vacancy is not confirmed" });
+      return;
+    }
 
     for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
       const joinCode = generateJoinCode();
       try {
         const interview = await prisma.interview.create({
-          data: { hrUserId, joinCode, status: "DRAFT" },
+          data: {
+            hrUserId,
+            vacancyId,
+            displayName: vacancy.title,
+            joinCode,
+            status: "AWAITING_CANDIDATE",
+          },
         });
         res.status(201).json({
           interview: {
             id: interview.id,
+            vacancyId: interview.vacancyId,
+            displayName: interview.displayName,
             joinCode: interview.joinCode,
             status: interview.status,
             createdAt: interview.createdAt,
