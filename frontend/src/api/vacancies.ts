@@ -1,10 +1,15 @@
 import { fetchWithAuth } from "./client";
+import type { CompanyProfile } from "./prep";
 
 export type VacancySummary = {
   id: string;
   title: string;
   status: string;
   createdAt: string;
+};
+
+export type VacancyDetail = VacancySummary & {
+  profile: CompanyProfile | null;
 };
 
 type ErrorBody = { error?: string; detail?: string };
@@ -27,6 +32,15 @@ export async function fetchMyVacancies(): Promise<VacancySummary[]> {
   }
   const body = (await response.json()) as { vacancies: VacancySummary[] };
   return body.vacancies;
+}
+
+export async function fetchVacancy(id: string): Promise<VacancyDetail> {
+  const response = await fetchWithAuth(`/api/vacancies/${id}`);
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося завантажити анкету");
+  }
+  const body = (await response.json()) as { vacancy: VacancyDetail };
+  return body.vacancy;
 }
 
 export async function createVacancy(title: string): Promise<VacancySummary> {
