@@ -3,7 +3,9 @@ import { ref } from "vue";
 import {
   clearSession,
   fetchMe,
-  login as apiLogin,
+  loginCandidate as apiLoginCandidate,
+  loginHr as apiLoginHr,
+  registerCandidate as apiRegisterCandidate,
   type AuthUser,
 } from "../api/auth";
 import { getStoredToken } from "../api/client";
@@ -29,8 +31,23 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
-  async function login(email: string, password: string): Promise<void> {
-    const loggedInUser = await apiLogin(email, password);
+  async function loginHr(email: string, password: string): Promise<void> {
+    const loggedInUser = await apiLoginHr(email, password);
+    token.value = getStoredToken();
+    user.value = loggedInUser;
+  }
+
+  async function registerCandidate(
+    email: string,
+    password: string,
+  ): Promise<void> {
+    const loggedInUser = await apiRegisterCandidate(email, password);
+    token.value = getStoredToken();
+    user.value = loggedInUser;
+  }
+
+  async function loginCandidate(email: string, password: string): Promise<void> {
+    const loggedInUser = await apiLoginCandidate(email, password);
     token.value = getStoredToken();
     user.value = loggedInUser;
   }
@@ -41,5 +58,14 @@ export const useAuthStore = defineStore("auth", () => {
     clearSession();
   }
 
-  return { token, user, hydrated, restoreSession, login, logout };
+  return {
+    token,
+    user,
+    hydrated,
+    restoreSession,
+    loginHr,
+    registerCandidate,
+    loginCandidate,
+    logout,
+  };
 });

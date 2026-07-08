@@ -131,7 +131,7 @@ function mountApp(fakePrisma: ReturnType<typeof makeFakePrisma>, fakeProvider: L
   const app = express();
   app.use(express.json());
   app.use(withUser(user));
-  app.use("/api", createCandidatePrepRouter(() => fakePrisma as never, () => fakeProvider));
+  app.use("/api/candidate-prep", createCandidatePrepRouter(() => fakePrisma as never, () => fakeProvider));
   return app;
 }
 
@@ -385,7 +385,7 @@ test("requireCandidate blocks HR token on candidate-prep routes", async () => {
 
   const app = express();
   app.use(express.json());
-  app.use("/api", requireAuth, requireCandidate, createCandidatePrepRouter(() => fakePrisma as never, () => fakeProvider));
+  app.use("/api/candidate-prep", requireAuth, requireCandidate, createCandidatePrepRouter(() => fakePrisma as never, () => fakeProvider));
 
   const server = app.listen(0);
   const port = (server.address() as { port: number }).port;

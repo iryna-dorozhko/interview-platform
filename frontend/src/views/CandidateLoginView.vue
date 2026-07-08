@@ -8,7 +8,7 @@ const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const email = ref("hr@test.com");
+const email = ref("");
 const password = ref("");
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
@@ -25,12 +25,12 @@ async function onSubmit(): Promise<void> {
   errorMessage.value = null;
   loading.value = true;
   try {
-    await auth.loginHr(email.value.trim(), password.value);
-    await router.push(sanitizeRedirect(route.query.redirect, "/"));
+    await auth.loginCandidate(email.value.trim(), password.value);
+    await router.push(sanitizeRedirect(route.query.redirect, "/candidate"));
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 403) {
-        errorMessage.value = "Доступ лише для HR";
+        errorMessage.value = "Доступ лише для кандидатів";
       } else if (error.status === 401) {
         errorMessage.value = "Невірний email або пароль";
       } else {
@@ -47,7 +47,7 @@ async function onSubmit(): Promise<void> {
 
 <template>
   <main class="page">
-    <h1>Вхід HR</h1>
+    <h1>Вхід кандидата</h1>
     <form class="form" @submit.prevent="onSubmit">
       <label>
         Email
@@ -63,8 +63,8 @@ async function onSubmit(): Promise<void> {
       </button>
     </form>
     <p class="helper">
-      Кандидат?
-      <RouterLink to="/candidate/login">Увійти як кандидат</RouterLink>
+      Немає акаунта?
+      <RouterLink to="/candidate/register">Зареєструватися</RouterLink>
     </p>
   </main>
 </template>

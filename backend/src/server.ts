@@ -28,9 +28,8 @@ getJwtConfig();
 
 app.use("/api", createHealthRouter(() => prisma));
 app.use("/api", createAuthRouter(() => prisma));
-// Candidate prep before requireHr stacks — otherwise requireHr rejects CANDIDATE on every /api request.
 app.use(
-  "/api",
+  "/api/candidate-prep",
   requireAuth,
   requireCandidate,
   createCandidatePrepRouter(() => prisma, () => createLlmProvider())

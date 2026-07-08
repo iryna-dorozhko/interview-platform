@@ -15,7 +15,7 @@ export function createCandidatePrepRouter(
 ): Router {
   const router = Router();
 
-  router.get("/candidate-prep/:interviewId", async (req: Request, res: Response) => {
+  router.get("/:interviewId", async (req: Request, res: Response) => {
     const { interviewId } = req.params;
     const prisma = getPrisma();
 
@@ -60,7 +60,7 @@ export function createCandidatePrepRouter(
     });
   });
 
-  router.post("/candidate-prep/:interviewId/message", async (req: Request, res: Response) => {
+  router.post("/:interviewId/message", async (req: Request, res: Response) => {
     const { interviewId } = req.params;
     const body = (req.body ?? {}) as MessageBody;
     const message = typeof body.message === "string" ? body.message.trim() : "";
@@ -146,7 +146,7 @@ export function createCandidatePrepRouter(
     res.status(200).json({ message: agentMessage, readyForConfirmation });
   });
 
-  router.delete("/candidate-prep/:interviewId", async (req: Request, res: Response) => {
+  router.delete("/:interviewId", async (req: Request, res: Response) => {
     const { interviewId } = req.params;
     const prisma = getPrisma();
 

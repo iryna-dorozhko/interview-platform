@@ -1,0 +1,278 @@
+ЗВІТ ЗА 8 ЛИПНЯ 2026
+AI-платформа співбесід — Дні 9, 10 і 11 (серверна частина)
+
+================================================================================
+
+КОРОТКИЙ ПІДСУМОК
+
+Сьогодні закрито **три дні** 22-денного плану — День 9, День 10 і серверну
+частину Дня 11.
+
+**День 9:** HR-кабінет з розділенням домену «анкета» (`Vacancy`) і «співбесіда»
+(`Interview`) — глобальний `HrLayout` з бічною панеллю, overview-головна,
+окремі списки `/vacancies` і `/interviews`, prep-флоу на `vacancyId`.
+
+**День 10:** Окрема автентифікація кандидата — реєстрація, логін, порожній
+кабінет `/candidate`, role-aware router guards, ізоляція HR ↔ CANDIDATE.
+
+**День 11 (backend):** Candidate Agent — промпт, `POST/GET/DELETE
+/api/candidate-prep/:interviewId`, збереження в `PrepSessionCandidate` /
+`PrepMessageCandidate`, middleware `requireCandidate`.
+
+У репозиторії за день зроблено 31 коміт.
+
+
+################################################################################
+# ДЕНЬ 9 — HR-КАБІНЕТ: АНКЕТИ ТА СПІВБЕСІДИ
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО (ДЕНЬ 9)
+================================================================================
+
+1. ПРОЄКТУВАННЯ (DESIGN SPECS)
+
+Написано й затверджено дизайн-документи у docs/superpowers/specs/:
+
+  HR vacancy/interview split — модель Vacancy, prep на vacancyId
+  HR dashboard — HrLayout, sidebar, overview, списки
+
+Додано implementation plans у docs/superpowers/plans/.
+
+
+2. BACKEND — РОЗДІЛЕННЯ ДОМЕНУ
+
+- **Нова модель `Vacancy`** у Prisma: назва, статус (`DRAFT` / `CONFIRMED`),
+  `hrUserId`, зв'язок з `CompanyProfile` і prep-сесією HR.
+- **`Interview`** тепер лише сесія з кандидатом: `vacancyId`, `joinCode`,
+  статуси `AWAITING_CANDIDATE` … `ENDED`.
+- **CRUD `/api/vacancies`** — створення, список, перегляд, PATCH, DELETE
+  (409 якщо є прив'язані співбесіди).
+- **Prep-флоу** переїхав з `interviewId` на `vacancyId`
+  (`/api/prep/:vacancyId/*`).
+- **`POST /api/interviews`** вимагає `vacancyId` підтвердженої анкети.
+- **Seed:** тестова анкета `Test Position` (CONFIRMED) + співбесіда `TEST01`.
+
+
+3. FRONTEND — HR-КАБІНЕТ
+
+- **`HrLayout.vue`** — header (email, «Вийти») + sidebar + `<router-view>`.
+- **`HrSidebar.vue`** — навігація: Головна / Анкети / Співбесіди.
+- **`HrHomeView.vue`** — overview-картки (кількість анкет, співбесід,
+  очікують кандидата), кнопки «Створити нову анкету» / «Створити нову
+  співбесіду», блок «Останні дії».
+- **`VacancyListView`**, **`VacancyDetailView`**, **`VacancyPrepView`** —
+  список анкет, перегляд профілю, prep-чат на `/vacancies/:id/prep`.
+- **`InterviewListView`**, **`InterviewDetailView`** — список співбесід,
+  заглушка деталей (live room — пізніші дні).
+- **Модалки** `CreateVacancyModal`, `CreateInterviewModal`.
+- **Deprecated:** `/prep/:interviewId` → редірект на `/vacancies`.
+
+
+################################################################################
+# ДЕНЬ 10 — ВХІД ДЛЯ КАНДИДАТА
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО (ДЕНЬ 10)
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+Design spec: docs/superpowers/specs/2026-07-08-candidate-auth-day10-design.md
+Implementation plan: docs/superpowers/plans/2026-07-08-candidate-auth-day10.md
+
+
+2. BACKEND — ROLE-SPECIFIC AUTH
+
+- **`POST /api/auth/hr/login`** — вхід лише для `role === "HR"`.
+- **`POST /api/auth/candidate/register`** — створює `User` з роллю `CANDIDATE`,
+  повертає `201` + JWT.
+- **`POST /api/auth/candidate/login`** — вхід лише для `CANDIDATE`.
+- **`POST /api/auth/login`** — alias для HR (зворотна сумісність).
+- **403** при спробі HR зайти через candidate endpoint і навпаки.
+- **10 unit-тестів** у `auth.test.ts`: login, register, role isolation, alias.
+
+
+3. FRONTEND — КАБІНЕТ КАНДИДАТА
+
+- **`CandidateRegisterView.vue`** — `/candidate/register`.
+- **`CandidateLoginView.vue`** — `/candidate/login`.
+- **`CandidateHomeView.vue`** — `/candidate` (порожній кабінет + logout).
+- **`LoginView.vue`** — перейменовано на «Вхід HR», лінк «Увійти як кандидат».
+- **`auth.ts` store** — `loginHr`, `registerCandidate`, `loginCandidate`.
+- **Router guards** — `requiredRole`, `guestRole`, редіректи за роллю:
+    • HR на `/candidate/*` → `/`
+    • CANDIDATE на `/vacancies` → `/candidate`
+    • без сесії `/candidate` → `/candidate/login`
+
+
+################################################################################
+# ДЕНЬ 11 — CANDIDATE AGENT (СЕРВЕРНА ЧАСТИНА)
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО (ДЕНЬ 11 — BACKEND)
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+Design spec: docs/superpowers/specs/2026-07-08-candidate-agent-day11-design.md
+Implementation plan: docs/superpowers/plans/2026-07-08-candidate-agent-day11.md
+
+
+2. BACKEND — CANDIDATE PREP API
+
+- **Промпт** `candidate-agent.uk.ts` — досвід, навички, цілі; агент вітається
+  першим.
+- **`buildCandidateAgentMessages()`** — system prompt + історія з БД.
+- **`requireCandidate`** middleware — 403 для HR-токена.
+- **API** (префікс `/api/candidate-prep`, потрібен candidate JWT):
+    • `GET /:interviewId` — історія, `isClosed`, `profile`
+    • `POST /:interviewId/message` — повідомлення → відповідь агента
+    • `DELETE /:interviewId` — скинути чат (409 якщо профіль підтверджено)
+- **Рефакторинг:** `parseAgentReply` винесено в спільний модуль `agent-reply.ts`.
+- **Unit-тести** у `candidate-prep.test.ts` (8 тестів + role isolation).
+
+> UI для candidate prep-чату — День 12. Ownership check (`candidateUserId`) — День 14.
+
+
+================================================================================
+ВИПРАВЛЕННЯ ПІД ЧАС ЗВІТУ
+================================================================================
+
+Під час зйомки скріншотів виявлено регресію: `requireCandidate` на рівні
+`app.use("/api", …)` блокував усі HR-запити (403 Forbidden на `/vacancies/mine`).
+
+**Фікс:** candidate prep router змонтовано на `/api/candidate-prep` замість
+глобального `/api`, щоб middleware спрацьовував лише на candidate-маршрутах.
+Шляхи API не змінилися (`/api/candidate-prep/:interviewId`).
+
+
+================================================================================
+СКРІНШОТИ
+================================================================================
+
+Автоматично згенеровані скріншоти збережено в reports/screenshots/.
+Скрипт: scripts/screenshot-day9-day10.mjs
+
+
+--- День 9: overview HR-кабінету ---
+
+  Файл: reports/screenshots/day9-hr-overview.png
+
+  Головна `/` після логіну HR: overview-картки (2 анкети, 2 співбесіди,
+  2 очікують кандидата), кнопки створення, блок «Останні дії», бічна панель.
+
+
+--- День 9: список анкет ---
+
+  Файл: reports/screenshots/day9-vacancies-list.png
+
+  Сторінка `/vacancies`: таблиця з назвою, датою, статусом («Підтверджена»),
+  діями «Переглянути» / «Редагувати назву» / «Видалити».
+
+
+--- День 9: список співбесід ---
+
+  Файл: reports/screenshots/day9-interviews-list.png
+
+  Сторінка `/interviews`: таблиця співбесід з join code, статусом
+  «Очікує кандидата», датою.
+
+
+--- День 10: реєстрація кандидата ---
+
+  Файл: reports/screenshots/day10-candidate-register.png
+
+  Сторінка `/candidate/register` — форма email + пароль, кнопка
+  «Зареєструватися», лінк на логін.
+
+
+--- День 10: кабінет кандидата ---
+
+  Файл: reports/screenshots/day10-candidate-home.png
+
+  Після реєстрації — `/candidate`: заголовок «Кабінет кандидата»,
+  текст-заглушка, кнопка «Вийти».
+
+
+--- День 10: сторінка логіну кандидата ---
+
+  Файл: reports/screenshots/day10-candidate-login.png
+
+  `/candidate/login` — форма входу, лінк «Зареєструватися».
+
+
+--- День 10: ізоляція ролей ---
+
+  Файл: reports/screenshots/day10-hr-blocked-on-candidate-login.png
+
+  Спроба увійти як `hr@test.com` на `/candidate/login` → повідомлення
+  «Доступ лише для кандидатів» (403 від API).
+
+
+================================================================================
+ЩО ЩЕ НЕ ЗРОБЛЕНО (НАСТУПНІ ДНІ)
+================================================================================
+
+- Candidate prep-чат у браузері — День 12
+- Join code flow (приєднання до співбесіди) — День 14
+- Live-співбесіда з арбітром — Дні 15–18
+- Фінальний звіт — Дні 19–20
+- Frontend автотести
+- Ownership check candidate ↔ interview (День 14)
+
+
+================================================================================
+РИЗИКИ (ДНІ 9–11)
+================================================================================
+
+1. **Міграція prep з interviewId на vacancyId** — старі закладки `/prep/:id`
+   редіректять, але зовнішні інтеграції потребують оновлення.
+2. **Candidate prep без ownership** — будь-який CANDIDATE може писати за
+   відомим `interviewId` (тимчасово, до Дня 14).
+3. **Порядок middleware на `/api`** — при додаванні нових role-specific
+   router-ів важливо монтувати їх на вузький prefix, а не на весь `/api`.
+4. **Залежність від LLM** — candidate prep API потребує працюючого провайдера
+   для `POST /message`.
+
+
+================================================================================
+МЕТРИКИ ДНЯ
+================================================================================
+
+  Коміти за день               31
+  Design specs                 3 (+ 3 implementation plans)
+  Нові Prisma-моделі           1 (Vacancy)
+  Нові backend endpoint-групи  3 (vacancies CRUD, role auth, candidate-prep)
+  Нові frontend views          8 (HR + candidate)
+  Middleware                   requireCandidate
+  Unit-тести (backend)         140 pass / 0 fail
+  Скрипти верифікації          1 (screenshot-day9-day10.mjs)
+  Скріншоти                    7 нових файлів у reports/screenshots/
+  DoD День 9                   Закрито
+  DoD День 10                  Закрито
+  DoD День 11 (backend)        Закрито
+
+
+================================================================================
+ПЛАН ПЕРЕВІРКИ (НА ЗАВТРА — ДЕНЬ 12)
+================================================================================
+
+Дні 9–11 (backend) уже перевірено в рамках DoD, тестів і скріншот-скрипта.
+Завтра після реалізації candidate prep UI перевіряємо:
+
+  1. `npm run dev`
+  2. Зареєструвати кандидата → `/candidate`
+  3. Ввести join code співбесіди → перейти в prep-чат
+  4. Мінімум 3 обміни з Candidate Agent → «Завершити чат»
+  5. Переконатися, що HR-флоу не зламаний (регрес Днів 9–10)
+  6. `npm run build` проходить
+
+Швидкий регрес Днів 9–10 перед цим:
+
+  • HR: логін → overview → створити анкету → prep → confirm → створити співбесіду
+  • Candidate: реєстрація → кабінет → logout → login
+  • HR на `/candidate/login` → 403; CANDIDATE на `/vacancies` → редірект
+  • node scripts/screenshot-day9-day10.mjs (backend + frontend запущені)

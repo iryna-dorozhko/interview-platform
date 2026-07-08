@@ -6,10 +6,18 @@ const route = useRoute();
 function isActive(prefix: string): boolean {
   return route.path === prefix || route.path.startsWith(`${prefix}/`);
 }
+
+function isHomeActive(): boolean {
+  return route.name === "home";
+}
 </script>
 
 <template>
   <nav class="sidebar" aria-label="HR navigation">
+    <RouterLink to="/" class="nav-item" :class="{ active: isHomeActive() }" title="Головна">
+      <span class="icon" aria-hidden="true">🏠</span>
+      <span class="label">Головна</span>
+    </RouterLink>
     <RouterLink to="/vacancies" class="nav-item" :class="{ active: isActive('/vacancies') }" title="Профіль вакансії">
       <span class="icon" aria-hidden="true">📋</span>
       <span class="label">Анкети</span>

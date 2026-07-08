@@ -1,38 +1,29 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { ApiError } from "../api/client";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
 const router = useRouter();
-const route = useRoute();
 
-const email = ref("hr@test.com");
+const email = ref("");
 const password = ref("");
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
-
-function sanitizeRedirect(value: unknown, fallback: string): string {
-  return typeof value === "string" &&
-    value.startsWith("/") &&
-    !value.startsWith("//")
-    ? value
-    : fallback;
-}
 
 async function onSubmit(): Promise<void> {
   errorMessage.value = null;
   loading.value = true;
   try {
-    await auth.loginHr(email.value.trim(), password.value);
-    await router.push(sanitizeRedirect(route.query.redirect, "/"));
+    await auth.registerCandidate(email.value.trim(), password.value);
+    await router.push("/candidate");
   } catch (error) {
     if (error instanceof ApiError) {
-      if (error.status === 403) {
-        errorMessage.value = "Доступ лише для HR";
-      } else if (error.status === 401) {
-        errorMessage.value = "Невірний email або пароль";
+      if (error.status === 409) {
+        errorMessage.value = "Email вже зареєстровано";
+      } else if (error.status === 400) {
+        errorMessage.value = "Невірні дані";
       } else {
         errorMessage.value = error.message;
       }
@@ -47,7 +38,7 @@ async function onSubmit(): Promise<void> {
 
 <template>
   <main class="page">
-    <h1>Вхід HR</h1>
+    <h1>Реєстрація кандидата</h1>
     <form class="form" @submit.prevent="onSubmit">
       <label>
         Email
@@ -55,16 +46,16 @@ async function onSubmit(): Promise<void> {
       </label>
       <label>
         Пароль
-        <input v-model="password" type="password" autocomplete="current-password" required />
+        <input v-model="password" type="password" autocomplete="new-password" required />
       </label>
       <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
       <button type="submit" :disabled="loading">
-        {{ loading ? "Вхід…" : "Увійти" }}
+        {{ loading ? "Реєстрація…" : "Зареєструватися" }}
       </button>
     </form>
     <p class="helper">
-      Кандидат?
-      <RouterLink to="/candidate/login">Увійти як кандидат</RouterLink>
+      Вже є акаунт?
+      <RouterLink to="/candidate/login">Увійти</RouterLink>
     </p>
   </main>
 </template>
