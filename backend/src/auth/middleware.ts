@@ -44,3 +44,11 @@ export function requireHr(req: Request, res: Response, next: NextFunction): void
   }
   next();
 }
+
+export function requireCandidate(req: Request, res: Response, next: NextFunction): void {
+  if (req.user?.role !== "CANDIDATE") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  next();
+}

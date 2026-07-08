@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express, { type Request, type Response } from "express";
-import { requireAuth, requireHr } from "./middleware";
+import { requireAuth, requireHr, requireCandidate } from "./middleware";
 import { signToken } from "./jwt";
 
 const ORIGINAL_SECRET = process.env.JWT_SECRET;
@@ -74,6 +74,56 @@ test("requireHr returns 403 for CANDIDATE role", async () => {
     assert.equal(res.status, 403);
     const body = await res.json();
     assert.equal(body.error, "Forbidden");
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
+
+test("requireCandidate returns 403 for HR role", async () => {
+  const token = signToken({ sub: "u1", email: "hr@test.com", role: "HR" });
+
+  const app = express();
+  app.get(
+    "/candidate-only",
+    requireAuth,
+    requireCandidate,
+    (_req, res) => res.status(200).json({ ok: true })
+  );
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/candidate-only`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(res.status, 403);
+    const body = await res.json();
+    assert.equal(body.error, "Forbidden");
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
+
+test("requireCandidate allows CANDIDATE role", async () => {
+  const token = signToken({ sub: "u2", email: "cd@test.com", role: "CANDIDATE" });
+
+  const app = express();
+  app.get(
+    "/candidate-only",
+    requireAuth,
+    requireCandidate,
+    (_req, res) => res.status(200).json({ ok: true })
+  );
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/candidate-only`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(res.status, 200);
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
   }
