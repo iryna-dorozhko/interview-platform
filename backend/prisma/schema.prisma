@@ -19,6 +19,11 @@ enum InterviewStatus {
   ENDED
 }
 
+enum VacancyStatus {
+  DRAFT
+  CONFIRMED
+}
+
 enum LiveAuthorType {
   HUMAN_HR
   HUMAN_CANDIDATE
@@ -52,32 +57,51 @@ model User {
   updatedAt      DateTime    @updatedAt
   interviewsAsHr Interview[] @relation("HrInterviews")
   interviewsAsCd Interview[] @relation("CandidateInterviews")
+  vacanciesAsHr  Vacancy[]   @relation("HrVacancies")
+}
+
+model Vacancy {
+  id        String        @id @default(cuid())
+  hrUserId  String
+  title     String
+  status    VacancyStatus @default(DRAFT)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  hrUser         User            @relation("HrVacancies", fields: [hrUserId], references: [id])
+  companyProfile CompanyProfile?
+  prepSessionHr  PrepSessionHr?
+  interviews     Interview[]
+
+  @@index([hrUserId, createdAt(sort: Desc)])
 }
 
 model Interview {
   id               String               @id @default(cuid())
   hrUserId         String
+  vacancyId        String
+  displayName      String
   candidateUserId  String?
   joinCode         String               @unique @db.Char(6)
-  status           InterviewStatus      @default(DRAFT)
+  status           InterviewStatus      @default(AWAITING_CANDIDATE)
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   hrUser           User                 @relation("HrInterviews", fields: [hrUserId], references: [id])
+  vacancy          Vacancy              @relation(fields: [vacancyId], references: [id])
   candidateUser    User?                @relation("CandidateInterviews", fields: [candidateUserId], references: [id])
-  companyProfile   CompanyProfile?
   candidateProfile CandidateProfile?
-  prepSessionHr    PrepSessionHr?
   prepSessionCd    PrepSessionCandidate?
   liveSession      LiveSession?
   finalReport      FinalReport?
 
   @@index([hrUserId, createdAt(sort: Desc)])
   @@index([candidateUserId])
+  @@index([vacancyId])
 }
 
 model CompanyProfile {
   id           String    @id @default(cuid())
-  interviewId  String    @unique
+  vacancyId    String    @unique
   role         String
   requirements Json
   culture      Json
@@ -85,7 +109,7 @@ model CompanyProfile {
   confirmedAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  interview    Interview @relation(fields: [interviewId], references: [id])
+  vacancy      Vacancy   @relation(fields: [vacancyId], references: [id])
 }
 
 model CandidateProfile {
@@ -102,13 +126,13 @@ model CandidateProfile {
 }
 
 model PrepSessionHr {
-  id          String          @id @default(cuid())
-  interviewId String          @unique
-  isClosed    Boolean         @default(false)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  interview   Interview       @relation(fields: [interviewId], references: [id])
-  messages    PrepMessageHr[]
+  id        String          @id @default(cuid())
+  vacancyId String          @unique
+  isClosed  Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  vacancy   Vacancy         @relation(fields: [vacancyId], references: [id])
+  messages  PrepMessageHr[]
 }
 
 model PrepMessageHr {
