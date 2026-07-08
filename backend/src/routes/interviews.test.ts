@@ -64,7 +64,8 @@ test("GET /interviews/mine returns interviews for the current HR only, newest fi
     assert.equal(body.interviews.length, 2);
     assert.equal(body.interviews[0].id, "i3");
     assert.equal(body.interviews[1].id, "i1");
-    assert.deepEqual(Object.keys(body.interviews[0]).sort(), ["id", "joinCode", "status"]);
+    assert.deepEqual(Object.keys(body.interviews[0]).sort(), ["createdAt", "id", "joinCode", "status"]);
+    assert.equal(body.interviews[0].createdAt, new Date(3).toISOString());
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
