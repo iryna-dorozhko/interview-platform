@@ -2,13 +2,19 @@ import { fetchWithAuth } from "./client";
 
 export type InterviewSummary = {
   id: string;
+  vacancyId: string;
+  vacancyTitle: string;
+  displayName: string;
   joinCode: string;
   status: string;
   createdAt: string;
+  reportSummary: string | null;
 };
 
 export type CreatedInterview = {
   id: string;
+  vacancyId: string;
+  displayName: string;
   joinCode: string;
   status: string;
   createdAt: string;
@@ -36,8 +42,11 @@ export async function fetchMyInterviews(): Promise<InterviewSummary[]> {
   return body.interviews;
 }
 
-export async function createInterview(): Promise<CreatedInterview> {
-  const response = await fetchWithAuth("/api/interviews", { method: "POST" });
+export async function createInterview(vacancyId: string): Promise<CreatedInterview> {
+  const response = await fetchWithAuth("/api/interviews", {
+    method: "POST",
+    body: JSON.stringify({ vacancyId }),
+  });
   if (!response.ok) {
     throw await parseError(response, "Не вдалося створити співбесіду");
   }

@@ -41,8 +41,8 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(detail ? `${fallback}: ${detail}` : fallback);
 }
 
-export async function fetchPrepState(interviewId: string): Promise<PrepState> {
-  const response = await fetchWithAuth(`/api/prep/${interviewId}`);
+export async function fetchPrepState(vacancyId: string): Promise<PrepState> {
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}`);
   if (!response.ok) {
     throw await parseError(response, "Не вдалося завантажити анкету");
   }
@@ -50,10 +50,10 @@ export async function fetchPrepState(interviewId: string): Promise<PrepState> {
 }
 
 export async function sendPrepMessage(
-  interviewId: string,
+  vacancyId: string,
   message?: string
 ): Promise<SendMessageResponse> {
-  const response = await fetchWithAuth(`/api/prep/${interviewId}/message`, {
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}/message`, {
     method: "POST",
     body: JSON.stringify(message ? { message } : {}),
   });
@@ -63,8 +63,8 @@ export async function sendPrepMessage(
   return response.json() as Promise<SendMessageResponse>;
 }
 
-export async function finishPrepChat(interviewId: string): Promise<{ profile: CompanyProfile }> {
-  const response = await fetchWithAuth(`/api/prep/${interviewId}/finish`, { method: "POST" });
+export async function finishPrepChat(vacancyId: string): Promise<{ profile: CompanyProfile }> {
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}/finish`, { method: "POST" });
   if (!response.ok) {
     throw await parseError(response, "Не вдалося завершити чат");
   }
@@ -72,17 +72,17 @@ export async function finishPrepChat(interviewId: string): Promise<{ profile: Co
 }
 
 export async function confirmPrepProfile(
-  interviewId: string
-): Promise<{ profile: CompanyProfile; interviewStatus: string }> {
-  const response = await fetchWithAuth(`/api/prep/${interviewId}/confirm`, { method: "POST" });
+  vacancyId: string
+): Promise<{ profile: CompanyProfile; vacancyStatus: string }> {
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}/confirm`, { method: "POST" });
   if (!response.ok) {
     throw await parseError(response, "Не вдалося підтвердити профіль");
   }
-  return response.json() as Promise<{ profile: CompanyProfile; interviewStatus: string }>;
+  return response.json() as Promise<{ profile: CompanyProfile; vacancyStatus: string }>;
 }
 
-export async function deletePrepChat(interviewId: string): Promise<void> {
-  const response = await fetchWithAuth(`/api/prep/${interviewId}`, { method: "DELETE" });
+export async function deletePrepChat(vacancyId: string): Promise<void> {
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}`, { method: "DELETE" });
   if (!response.ok) {
     throw await parseError(response, "Не вдалося видалити чат");
   }
