@@ -720,7 +720,75 @@ npm run dev
 - [ ] Демонстрація: кандидат реєструється, логіниться, бачить свій кабінет
 - [ ] Сценарій: нова реєстрація створює `User` з роллю `CANDIDATE`; HR-акаунт не може зайти в кабінет кандидата і навпаки
 - [ ] Збірка: `npm run build` проходить
-- [ ] README: тестовий акаунт кандидата, маршрути реєстрації/логіну
+- [x] README: тестовий акаунт кандидата, маршрути реєстрації/логіну
+
+### Candidate Auth Quick Start (Day 10)
+
+HR і кандидат мають окремі сторінки входу та role-aware редіректи: HR-акаунт не потрапляє в `/candidate`, кандидат — у HR-кабінет (`/`, `/vacancies`, …).
+
+**1. Реєстрація та логін через UI:**
+
+```bash
+npm run dev
+```
+
+- HR: [http://localhost:5173/login](http://localhost:5173/login) → `hr@test.com` / `123456` (seed) → головна `/`
+- Кандидат: [http://localhost:5173/candidate/register](http://localhost:5173/candidate/register) → нова реєстрація → кабінет `/candidate`
+- Повторний вхід кандидата: [http://localhost:5173/candidate/login](http://localhost:5173/candidate/login)
+
+Тестовий акаунт кандидата не в seed — створюється через реєстрацію (наприклад `candidate@test.com` / `123456`). Сесія зберігається в `localStorage` (`auth_token`), як у HR.
+
+**2. Маршрути UI:**
+
+| Маршрут | Опис |
+|---|---|
+| `/candidate/register` | Реєстрація нового кандидата |
+| `/candidate/login` | Вхід кандидата |
+| `/candidate` | Кабінет кандидата (поки порожній) |
+| `/login` | Вхід HR (з лінком «Увійти як кандидат») |
+
+**3. API-ендпоінти:**
+
+| Метод | Шлях | Опис |
+|---|---|---|
+| `POST` | `/api/auth/hr/login` | Вхід HR (`role === "HR"`) |
+| `POST` | `/api/auth/candidate/register` | Реєстрація кандидата → `201` + token |
+| `POST` | `/api/auth/candidate/login` | Вхід кандидата (`role === "CANDIDATE"`) |
+
+> `POST /api/auth/login` — тимчасовий alias для HR-логіну (зворотна сумісність).
+
+**4. Реєстрація та логін через curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/auth/candidate/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"candidate@test.com","password":"123456"}'
+
+curl -X POST http://localhost:3000/api/auth/candidate/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"candidate@test.com","password":"123456"}'
+```
+
+Очікувана відповідь (register — `201`, login — `200`):
+
+```json
+{"token":"...","user":{"id":"...","email":"candidate@test.com","role":"CANDIDATE"}}
+```
+
+HR-логін:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/hr/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"hr@test.com","password":"123456"}'
+```
+
+**5. Ізоляція ролей (ручна перевірка):**
+
+1. Увійти як HR → відкрити `/candidate/login` → редірект на `/`
+2. Зареєструвати кандидата → відкрити `/vacancies` → редірект на `/candidate`
+3. Без сесії відкрити `/candidate` → редірект на `/candidate/login`
+4. Спроба `POST /api/auth/candidate/login` з `hr@test.com` → `403 { "error": "Candidate access only" }`
 
 ---
 
@@ -734,8 +802,8 @@ npm run dev
 - Збереження чату в базі
 
 **Definition of Done:**
-- [ ] Демонстрація: через API кандидат веде діалог з Candidate Agent (мінімум 3 обміни)
-- [ ] Сценарій: повідомлення зберігаються в окремій prep-сесії `CANDIDATE_PREP`; відповіді стосуються досвіду та навичок
+- [x] Демонстрація: через API кандидат веде діалог з Candidate Agent (мінімум 3 обміни)
+- [x] Сценарій: повідомлення зберігаються в окремій prep-сесії `CANDIDATE_PREP`; відповіді стосуються досвіду та навичок
 - [x] Збірка: `npm run build` проходить
 - [x] README: відмінність `CANDIDATE_PREP` від `COMPANY_PREP`, приклад API-запиту
 

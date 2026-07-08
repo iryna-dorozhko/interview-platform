@@ -28,14 +28,15 @@ getJwtConfig();
 
 app.use("/api", createHealthRouter(() => prisma));
 app.use("/api", createAuthRouter(() => prisma));
-app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
-app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
+// Candidate prep before requireHr stacks — otherwise requireHr rejects CANDIDATE on every /api request.
 app.use(
   "/api",
   requireAuth,
   requireCandidate,
   createCandidatePrepRouter(() => prisma, () => createLlmProvider())
 );
+app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
+app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 
