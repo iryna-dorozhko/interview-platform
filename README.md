@@ -736,8 +736,63 @@ npm run dev
 **Definition of Done:**
 - [ ] Демонстрація: через API кандидат веде діалог з Candidate Agent (мінімум 3 обміни)
 - [ ] Сценарій: повідомлення зберігаються в окремій prep-сесії `CANDIDATE_PREP`; відповіді стосуються досвіду та навичок
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: відмінність `CANDIDATE_PREP` від `COMPANY_PREP`, приклад API-запиту
+- [x] Збірка: `npm run build` проходить
+- [x] README: відмінність `CANDIDATE_PREP` від `COMPANY_PREP`, приклад API-запиту
+
+### Terminology: COMPANY_PREP vs CANDIDATE_PREP
+
+| Назва | Prisma-модель | Автори повідомлень |
+|-------|---------------|-------------------|
+| **COMPANY_PREP** | `PrepSessionHr` | `HUMAN_HR`, `AGENT_COMPANY` |
+| **CANDIDATE_PREP** | `PrepSessionCandidate` | `HUMAN_CANDIDATE`, `AGENT_CANDIDATE` |
+
+HR prep: `/api/prep/:vacancyId` (Дні 4–7). Candidate prep: `/api/candidate-prep/:interviewId`.
+
+### Candidate Prep API
+
+Усі endpoint-и вимагають `Authorization: Bearer <candidate-jwt>` (роль `CANDIDATE`).
+
+| Метод | Шлях | Опис |
+|-------|------|------|
+| `GET` | `/candidate-prep/:interviewId` | Історія чату, `isClosed`, `profile` |
+| `POST` | `/candidate-prep/:interviewId/message` | `{ "message": "..." }` → `{ "message", "readyForConfirmation" }` |
+| `DELETE` | `/candidate-prep/:interviewId` | Скинути чат і непідтверджений профіль |
+
+**Помилки:** `404` — interview не знайдено; `409` — сесія закрита або профіль підтверджено (DELETE); `403` — не CANDIDATE.
+
+> **Тимчасово (День 11):** не перевіряється `interview.candidateUserId` — будь-який авторизований кандидат може писати за відомим `interviewId`. Ownership check — День 14.
+
+### Candidate Prep Quick Start
+
+**Передумова:** День 10 (candidate auth) — `POST /api/auth/candidate/register` і `POST /api/auth/candidate/login`.
+
+```bash
+# 1. Логін кандидата
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/candidate/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"candidate@test.com","password":"123456"}' | jq -r .token)
+
+# 2. interviewId з seed (joinCode=TEST01) — див. вивід npm --workspace backend run db:seed
+INTERVIEW_ID="<interviewId-from-seed>"
+
+# 3. Привітання агента (порожнє повідомлення)
+curl -s -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/message" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":""}' | jq
+
+# 4. Відповідь кандидата
+curl -s -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/message" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"3 роки backend, Node.js, PostgreSQL"}' | jq
+
+# 5. Ще один обмін + перевірка історії
+curl -s "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID" \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Потрібен запущений LLM (`omlx serve` або `LLM_PROVIDER=gemini` у `backend/.env`).
 
 ---
 
