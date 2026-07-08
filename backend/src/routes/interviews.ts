@@ -19,6 +19,7 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
         id: item.id,
         joinCode: item.joinCode,
         status: item.status,
+        createdAt: item.createdAt,
       })),
     });
   });
