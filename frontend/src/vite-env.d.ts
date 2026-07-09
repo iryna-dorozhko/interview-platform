@@ -10,10 +10,3 @@ declare module "vue-router" {
   }
 }
 
-interface ImportMetaEnv {
-  readonly VITE_DEMO_INTERVIEW_ID?: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
