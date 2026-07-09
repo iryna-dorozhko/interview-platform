@@ -15,6 +15,7 @@ import LoginView from "../views/LoginView.vue";
 import CandidateLoginView from "../views/CandidateLoginView.vue";
 import CandidateRegisterView from "../views/CandidateRegisterView.vue";
 import CandidateHomeView from "../views/CandidateHomeView.vue";
+import CandidatePrepView from "../views/CandidatePrepView.vue";
 
 function homeByRole(role: "HR" | "CANDIDATE"): RouteLocationRaw {
   return role === "HR" ? { name: "home" } : { name: "candidate-home" };
@@ -45,6 +46,12 @@ export const router = createRouter({
       path: "/candidate",
       name: "candidate-home",
       component: CandidateHomeView,
+      meta: { requiresAuth: true, requiredRole: "CANDIDATE" },
+    },
+    {
+      path: "/candidate/prep/:interviewId",
+      name: "candidate-prep",
+      component: CandidatePrepView,
       meta: { requiresAuth: true, requiredRole: "CANDIDATE" },
     },
     {
