@@ -8,7 +8,7 @@ type ListState = "loading" | "ready" | "error";
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Чернетка",
   AWAITING_CANDIDATE: "Очікує кандидата",
-  READY: "Готова",
+  READY: "Обидва готові",
   LIVE: "В ефірі",
   ENDED: "Завершена",
 };

@@ -884,17 +884,11 @@ curl -s "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID" \
 
 **Передумови:** День 10 (candidate auth), День 11 (candidate prep API), запущений LLM.
 
-**1. Налаштувати demo interviewId:**
+**1. Підготувати demo-співбесіду:**
 
 ```bash
 npm --workspace backend run db:seed
-# Скопіювати interviewId з рядка "Seeded test interview: id=... joinCode=TEST01"
-```
-
-Створити `frontend/.env`:
-
-```
-VITE_DEMO_INTERVIEW_ID=<interviewId-from-seed>
+# У виводі з'явиться joinCode=TEST01 — його дає HR кандидату
 ```
 
 **2. UI-маршрути:**
@@ -911,7 +905,7 @@ npm run dev
 ```
 
 1. Зареєструватися на `/candidate/register` (або увійти на `/candidate/login`)
-2. На `/candidate` натиснути **«Моя анкета»** → `/candidate/prep/:interviewId`
+2. На `/candidate` ввести код **TEST01** → «Приєднатися» → «Моя анкета» → `/candidate/prep/:interviewId`
 3. Агент привітається; надіслати 2–3 відповіді про досвід
 4. Перезавантажити сторінку — історія чату на місці
 5. «Видалити чат» → нова розмова з привітанням
@@ -980,16 +974,38 @@ curl -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/confirm" \
 **Задача:** кандидат вводить код від HR і потрапляє на співбесіду.
 
 **Що робиш:**
-- Форма «Ввести код співбесіди»
+- Форма «Ввести код співбесіди» (модалка в кабінеті кандидата)
 - Перевірка: код існує, співбесіда не зайнята іншим кандидатом
-- Прив’язка кандидата до співбесіди
-- Статус оновлюється: «Обидва готові» (якщо HR теж підтвердив профіль)
+- Прив’язка кандидата до співбесіди (`Interview.candidateUserId`)
+- Статус оновлюється: «Обидва готові» (`READY`) після join + confirm профілю кандидата
 
 **Definition of Done:**
-- [ ] Демонстрація: HR дав код → кандидат ввів → обидва в статусі «готові до співбесіди» (`READY`)
-- [ ] Сценарій: невалідний код → помилка; код уже зайнятий → помилка; валідний код → `InterviewParticipant` створено
+- [ ] Демонстрація: HR дав код → кандидат ввів → prep → confirm → обидва в `READY` («Обидва готові»)
+- [ ] Сценарій: невалідний код → помилка; код зайнятий → помилка; валідний join → `candidateUserId` встановлено
 - [ ] Збірка: `npm run build` проходить
-- [ ] README: endpoint `POST /interviews/join`, сценарій HR + кандидат до співбесіди
+- [ ] README: endpoint `POST /api/candidate/interview/join`, сценарій HR + кандидат до `READY`
+
+### Candidate Join Quick Start (Day 14)
+
+**Endpoint:** `POST /api/candidate/interview/join`  
+**Auth:** Bearer token, `role: CANDIDATE`  
+**Body:** `{ "joinCode": "TEST01" }`
+
+**Потік:**
+
+1. HR створює співбесіду з підтвердженої анкети → отримує 6-символьний код
+2. Кандидат: `/candidate` → «Приєднатися до зустрічі» → вводить код
+3. Кандидат проходить prep → finish → confirm
+4. `Interview.status` → `READY` («Обидва готові») у HR і candidate UI
+
+**Помилки join:**
+
+| HTTP | error | Значення |
+|------|-------|----------|
+| 404 | `Invalid join code` | Невірний код |
+| 409 | `Interview already taken` | Код зайнятий іншим кандидатом |
+| 409 | `Interview is not joinable` | LIVE або ENDED |
+| 409 | `Candidate already has active interview` | У кандидата вже є активна співбесідa |
 
 ✅ Кабінет кандидата готовий.
 

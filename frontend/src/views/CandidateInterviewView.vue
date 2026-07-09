@@ -7,7 +7,7 @@ type LoadState = "loading" | "ready" | "error";
 
 const STATUS_LABELS: Record<string, string> = {
   AWAITING_CANDIDATE: "Очікує кандидата",
-  READY: "Готова",
+  READY: "Обидва готові",
   LIVE: "В ефірі",
 };
 
