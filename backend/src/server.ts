@@ -12,6 +12,7 @@ import { createVacanciesRouter } from "./routes/vacancies";
 import { createLlmRouter } from "./routes/llm";
 import { createPrepRouter } from "./routes/prep";
 import { createCandidatePrepRouter } from "./routes/candidate-prep";
+import { createCandidateInterviewRouter } from "./routes/candidate-interview";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -33,6 +34,12 @@ app.use(
   requireAuth,
   requireCandidate,
   createCandidatePrepRouter(() => prisma, () => createLlmProvider())
+);
+app.use(
+  "/api",
+  requireAuth,
+  requireCandidate,
+  createCandidateInterviewRouter(() => prisma)
 );
 app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
