@@ -824,6 +824,8 @@ HR prep: `/api/prep/:vacancyId` (Дні 4–7). Candidate prep: `/api/candidate-
 |-------|------|------|
 | `GET` | `/candidate-prep/:interviewId` | Історія чату, `isClosed`, `profile` |
 | `POST` | `/candidate-prep/:interviewId/message` | `{ "message": "..." }` → `{ "message", "readyForConfirmation" }` |
+| `POST` | `/candidate-prep/:interviewId/finish` | Згенерувати профіль з історії чату |
+| `POST` | `/candidate-prep/:interviewId/confirm` | Підтвердити профіль (`confirmedAt`) |
 | `DELETE` | `/candidate-prep/:interviewId` | Скинути чат і непідтверджений профіль |
 
 **Помилки:** `404` — interview не знайдено; `409` — сесія закрита або профіль підтверджено (DELETE); `403` — не CANDIDATE.
@@ -919,6 +921,42 @@ npm run dev
 
 Див. [Candidate Prep Quick Start (Day 11)](#candidate-prep-quick-start) — ті самі endpoint-и, UI викликає їх через `fetchWithAuth`.
 
+### Candidate Profile Quick Start (Day 13)
+
+**Структура `CandidateProfile` JSON:**
+
+```json
+{
+  "experience": ["3 роки backend у FinTech"],
+  "skills": {
+    "strong": ["TypeScript", "PostgreSQL"],
+    "growth": ["публічні виступи"]
+  },
+  "goals": ["перейти на senior"],
+  "summary": "Backend-розробник з 3 роками досвіду."
+}
+```
+
+**Finish (після чату):**
+
+```bash
+curl -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/finish" \
+  -H "Authorization: Bearer $CANDIDATE_TOKEN"
+```
+
+**Confirm:**
+
+```bash
+curl -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/confirm" \
+  -H "Authorization: Bearer $CANDIDATE_TOKEN"
+```
+
+**UI-сценарій:**
+1. Пройти анкету в `/candidate/prep/:interviewId` (3+ обміни).
+2. Натиснути «Завершити чат» → переглянути профіль.
+3. Натиснути «Підтвердити профіль» → «✓ Підтверджено {дата}».
+4. Reload — профіль і `confirmedAt` на місці; «Видалити чат» disabled.
+
 ---
 
 ## День 13 — Профіль кандидата + підтвердження
@@ -932,8 +970,8 @@ npm run dev
 **Definition of Done:**
 - [ ] Демонстрація: кандидат бачить свій профіль і підтверджує його
 - [ ] Сценарій: JSON містить `experience`, `skills`, `goals`, `summary`; після підтвердження `confirmedAt` заповнено, prep закритий
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: структура `CandidateProfile` JSON
+- [x] Збірка: `npm run build` проходить
+- [x] README: структура `CandidateProfile` JSON
 
 ---
 
