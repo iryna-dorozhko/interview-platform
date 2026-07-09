@@ -14,7 +14,10 @@ import InterviewDetailView from "../views/InterviewDetailView.vue";
 import LoginView from "../views/LoginView.vue";
 import CandidateLoginView from "../views/CandidateLoginView.vue";
 import CandidateRegisterView from "../views/CandidateRegisterView.vue";
+import CandidateLayout from "../layouts/CandidateLayout.vue";
 import CandidateHomeView from "../views/CandidateHomeView.vue";
+import CandidateProfileView from "../views/CandidateProfileView.vue";
+import CandidateInterviewView from "../views/CandidateInterviewView.vue";
 import CandidatePrepView from "../views/CandidatePrepView.vue";
 
 function homeByRole(role: "HR" | "CANDIDATE"): RouteLocationRaw {
@@ -44,15 +47,14 @@ export const router = createRouter({
     },
     {
       path: "/candidate",
-      name: "candidate-home",
-      component: CandidateHomeView,
+      component: CandidateLayout,
       meta: { requiresAuth: true, requiredRole: "CANDIDATE" },
-    },
-    {
-      path: "/candidate/prep/:interviewId",
-      name: "candidate-prep",
-      component: CandidatePrepView,
-      meta: { requiresAuth: true, requiredRole: "CANDIDATE" },
+      children: [
+        { path: "", name: "candidate-home", component: CandidateHomeView },
+        { path: "profile", name: "candidate-profile", component: CandidateProfileView },
+        { path: "interview", name: "candidate-interview", component: CandidateInterviewView },
+        { path: "prep/:interviewId", name: "candidate-prep", component: CandidatePrepView },
+      ],
     },
     {
       path: "/",
