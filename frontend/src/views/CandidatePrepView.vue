@@ -2,10 +2,13 @@
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+  confirmCandidatePrepProfile,
   deleteCandidatePrepChat,
   fetchCandidatePrepState,
+  finishCandidatePrepChat,
   sendCandidatePrepMessage,
   type CandidatePrepMessage,
+  type CandidateProfile,
 } from "../api/candidate-prep";
 
 const route = useRoute();
@@ -17,8 +20,11 @@ const errorMessage = ref<string | null>(null);
 
 const messages = ref<CandidatePrepMessage[]>([]);
 const isClosed = ref(false);
+const profile = ref<CandidateProfile | null>(null);
+const viewingHistory = ref(false);
 const input = ref("");
 const sending = ref(false);
+const confirming = ref(false);
 const lastReadyForConfirmation = ref(false);
 const messagesEl = ref<HTMLElement | null>(null);
 
@@ -35,6 +41,8 @@ async function loadPrepState(): Promise<void> {
     const state = await fetchCandidatePrepState(interviewId.value);
     messages.value = state.messages;
     isClosed.value = state.isClosed;
+    profile.value = state.profile;
+    viewingHistory.value = false;
     loadState.value = "ready";
 
     if (!state.isClosed && state.messages.length === 0) {
@@ -114,11 +122,62 @@ async function onDeleteChat(): Promise<void> {
     await deleteCandidatePrepChat(interviewId.value);
     messages.value = [];
     isClosed.value = false;
+    profile.value = null;
+    viewingHistory.value = false;
     lastReadyForConfirmation.value = false;
     await triggerGreeting();
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося видалити чат";
   }
+}
+
+async function onFinishChat(): Promise<void> {
+  if (!lastReadyForConfirmation.value) {
+    const proceed = window.confirm("Даних може бути недостатньо. Все одно завершити й сформувати профіль?");
+    if (!proceed) return;
+  }
+
+  errorMessage.value = null;
+  sending.value = true;
+  try {
+    const response = await finishCandidatePrepChat(interviewId.value);
+    profile.value = response.profile;
+    isClosed.value = true;
+    viewingHistory.value = false;
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Не вдалося завершити чат";
+  } finally {
+    sending.value = false;
+  }
+}
+
+async function onConfirmProfile(): Promise<void> {
+  if (
+    !window.confirm(
+      "Профіль буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?"
+    )
+  ) {
+    return;
+  }
+
+  errorMessage.value = null;
+  confirming.value = true;
+  try {
+    const response = await confirmCandidatePrepProfile(interviewId.value);
+    profile.value = response.profile;
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
+  } finally {
+    confirming.value = false;
+  }
+}
+
+function backToChat(): void {
+  viewingHistory.value = true;
+}
+
+function backToProfile(): void {
+  viewingHistory.value = false;
 }
 
 function goHome(): void {
@@ -138,47 +197,107 @@ onMounted(loadPrepState);
     <p v-if="loadState === 'loading'">Завантаження…</p>
     <p v-else-if="loadState === 'error'" class="error-banner">{{ errorMessage }}</p>
 
-    <section v-else class="chat-view">
-      <div class="chat-header">
-        <h2>Чат з Candidate Agent</h2>
-        <button type="button" class="btn-secondary" :disabled="sending" @click="onDeleteChat">
-          Видалити чат
-        </button>
-      </div>
-
-      <div ref="messagesEl" class="messages" role="log" aria-live="polite">
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          class="message"
-          :class="message.authorType === 'HUMAN_CANDIDATE' ? 'user' : 'assistant'"
-        >
-          <span class="message-label">
-            {{ message.authorType === "HUMAN_CANDIDATE" ? "Ви" : "Агент" }}
-          </span>
-          <p class="message-text">{{ message.content }}</p>
+    <template v-else>
+      <section v-if="isClosed && profile && !viewingHistory" class="profile-view">
+        <h2>Зібраний профіль кандидата</h2>
+        <dl>
+          <dt>Досвід</dt>
+          <dd><ul><li v-for="(item, i) in profile.experience" :key="i">{{ item }}</li></ul></dd>
+          <dt>Сильні сторони</dt>
+          <dd><ul><li v-for="(item, i) in profile.skills.strong" :key="i">{{ item }}</li></ul></dd>
+          <dt>Зони росту</dt>
+          <dd><ul><li v-for="(item, i) in profile.skills.growth" :key="i">{{ item }}</li></ul></dd>
+          <dt>Цілі</dt>
+          <dd><ul><li v-for="(item, i) in profile.goals" :key="i">{{ item }}</li></ul></dd>
+          <dt>Короткий опис</dt>
+          <dd>{{ profile.summary }}</dd>
+        </dl>
+        <div class="actions">
+          <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="!!profile.confirmedAt"
+            :title="profile.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
+            @click="onDeleteChat"
+          >
+            Видалити чат
+          </button>
+          <button
+            v-if="!profile.confirmedAt"
+            type="button"
+            class="btn-primary"
+            :disabled="confirming"
+            @click="onConfirmProfile"
+          >
+            Підтвердити профіль
+          </button>
+          <p v-else class="confirmed-banner">
+            ✓ Підтверджено {{ new Date(profile.confirmedAt).toLocaleString("uk-UA") }}
+          </p>
         </div>
-        <p v-if="sending" class="thinking">Думаю…</p>
-      </div>
+      </section>
 
-      <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
+      <section v-else class="chat-view">
+        <div class="chat-header">
+          <h2>Чат з Candidate Agent</h2>
+          <div class="chat-actions">
+            <button
+              type="button"
+              class="btn-secondary"
+              :disabled="sending || !!profile?.confirmedAt"
+              :title="profile?.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
+              @click="onDeleteChat"
+            >
+              Видалити чат
+            </button>
+            <button
+              v-if="!isClosed"
+              type="button"
+              class="btn-primary"
+              :disabled="sending"
+              @click="onFinishChat"
+            >
+              Завершити чат
+            </button>
+            <button v-else-if="profile" type="button" class="btn-secondary" @click="backToProfile">
+              Показати профіль
+            </button>
+          </div>
+        </div>
 
-      <form v-if="!isClosed" class="composer" @submit.prevent="sendMessage">
-        <textarea
-          v-model="input"
-          class="composer-input"
-          rows="2"
-          placeholder="Напишіть відповідь…"
-          :disabled="sending"
-          @keydown="onKeydown"
-        />
-        <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">
-          Надіслати
-        </button>
-      </form>
+        <div ref="messagesEl" class="messages" role="log" aria-live="polite">
+          <div
+            v-for="message in messages"
+            :key="message.id"
+            class="message"
+            :class="message.authorType === 'HUMAN_CANDIDATE' ? 'user' : 'assistant'"
+          >
+            <span class="message-label">
+              {{ message.authorType === "HUMAN_CANDIDATE" ? "Ви" : "Агент" }}
+            </span>
+            <p class="message-text">{{ message.content }}</p>
+          </div>
+          <p v-if="sending" class="thinking">Думаю…</p>
+        </div>
 
-      <p v-else class="closed-hint">Сесію анкети закрито.</p>
-    </section>
+        <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
+
+        <form v-if="!isClosed" class="composer" @submit.prevent="sendMessage">
+          <textarea
+            v-model="input"
+            class="composer-input"
+            rows="2"
+            placeholder="Напишіть відповідь…"
+            :disabled="sending"
+            @keydown="onKeydown"
+          />
+          <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">
+            Надіслати
+          </button>
+        </form>
+      </section>
+    </template>
   </main>
 </template>
 
@@ -210,6 +329,11 @@ onMounted(loadPrepState);
 .chat-header h2 {
   margin: 0;
   font-size: 1rem;
+}
+.chat-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 .messages {
   max-height: 24rem;
@@ -260,11 +384,6 @@ onMounted(loadPrepState);
   font-size: 0.875rem;
   font-style: italic;
 }
-.closed-hint {
-  margin: 0;
-  color: #666;
-  font-size: 0.875rem;
-}
 .error-banner {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -314,5 +433,37 @@ onMounted(loadPrepState);
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.profile-view dl {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+.profile-view dt {
+  font-weight: 600;
+  color: #374151;
+}
+.profile-view dd {
+  margin: 0;
+}
+.profile-view ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.confirmed-banner {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 </style>
