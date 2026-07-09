@@ -9,10 +9,15 @@ export type CandidatePrepMessage = {
   createdAt: string;
 };
 
-export type CandidateProfilePreview = {
-  experience: unknown;
-  skills: unknown;
-  goals: unknown;
+export type CandidateSkills = {
+  strong: string[];
+  growth: string[];
+};
+
+export type CandidateProfile = {
+  experience: string[];
+  skills: CandidateSkills;
+  goals: string[];
   summary: string;
   confirmedAt: string | null;
 };
@@ -20,7 +25,7 @@ export type CandidateProfilePreview = {
 export type CandidatePrepState = {
   messages: CandidatePrepMessage[];
   isClosed: boolean;
-  profile: CandidateProfilePreview | null;
+  profile: CandidateProfile | null;
 };
 
 export type SendMessageResponse = {
@@ -70,4 +75,24 @@ export async function deleteCandidatePrepChat(interviewId: string): Promise<void
   if (!response.ok) {
     throw await parseError(response, "Не вдалося видалити чат");
   }
+}
+
+export async function finishCandidatePrepChat(
+  interviewId: string
+): Promise<{ profile: CandidateProfile }> {
+  const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}/finish`, { method: "POST" });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося завершити чат");
+  }
+  return response.json() as Promise<{ profile: CandidateProfile }>;
+}
+
+export async function confirmCandidatePrepProfile(
+  interviewId: string
+): Promise<{ profile: CandidateProfile; interviewStatus: string }> {
+  const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}/confirm`, { method: "POST" });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося підтвердити профіль");
+  }
+  return response.json() as Promise<{ profile: CandidateProfile; interviewStatus: string }>;
 }
