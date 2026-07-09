@@ -59,6 +59,27 @@ function toStringArray(value: unknown, field: string): string[] {
   return value.map((item) => String(item));
 }
 
+function normalizeSkillsFields(
+  data: Record<string, unknown>
+): { strong: unknown; growth: unknown } {
+  const skills = data.skills;
+
+  if (typeof skills === "object" && skills !== null && !Array.isArray(skills)) {
+    const skillsObj = skills as Record<string, unknown>;
+    return { strong: skillsObj.strong, growth: skillsObj.growth };
+  }
+
+  if (data["skills.strong"] !== undefined || data["skills.growth"] !== undefined) {
+    return { strong: data["skills.strong"], growth: data["skills.growth"] };
+  }
+
+  if (Array.isArray(skills)) {
+    return { strong: skills, growth: ["не вказано"] };
+  }
+
+  throw new CandidateProfileExtractionError("missing or invalid field: skills");
+}
+
 export function parseCandidateProfileExtraction(rawText: string): ExtractedCandidateProfile {
   const withoutFences = stripCodeFences(rawText.trim());
 
@@ -73,13 +94,8 @@ export function parseCandidateProfileExtraction(rawText: string): ExtractedCandi
     throw new CandidateProfileExtractionError("LLM response is not a JSON object");
   }
 
-  const { experience, skills, goals, summary } = data as Record<string, unknown>;
-
-  if (typeof skills !== "object" || skills === null) {
-    throw new CandidateProfileExtractionError("missing or invalid field: skills");
-  }
-
-  const skillsObj = skills as Record<string, unknown>;
+  const { experience, goals, summary } = data as Record<string, unknown>;
+  const skillsFields = normalizeSkillsFields(data as Record<string, unknown>);
 
   if (typeof summary !== "string" || !summary.trim()) {
     throw new CandidateProfileExtractionError("missing or invalid field: summary");
@@ -88,8 +104,8 @@ export function parseCandidateProfileExtraction(rawText: string): ExtractedCandi
   return {
     experience: toStringArray(experience, "experience"),
     skills: {
-      strong: toStringArray(skillsObj.strong, "skills.strong"),
-      growth: toStringArray(skillsObj.growth, "skills.growth"),
+      strong: toStringArray(skillsFields.strong, "skills.strong"),
+      growth: toStringArray(skillsFields.growth, "skills.growth"),
     },
     goals: toStringArray(goals, "goals"),
     summary: summary.trim(),

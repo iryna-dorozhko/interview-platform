@@ -79,6 +79,21 @@ test("parseCandidateProfileExtraction throws when response is not valid JSON", (
   assert.throws(() => parseCandidateProfileExtraction("це не json, а звичайний текст"));
 });
 
+test("parseCandidateProfileExtraction accepts flat skills.strong and skills.growth keys", () => {
+  const raw = JSON.stringify({
+    experience: ["3 роки backend"],
+    "skills.strong": ["архітектура API", "PostgreSQL"],
+    "skills.growth": ["публічні виступи"],
+    goals: ["Senior role"],
+    summary: "Backend-розробник.",
+  });
+  const result = parseCandidateProfileExtraction(raw);
+  assert.deepEqual(result.skills, {
+    strong: ["архітектура API", "PostgreSQL"],
+    growth: ["публічні виступи"],
+  });
+});
+
 test("parseCandidateProfileExtraction throws when skills.strong is missing", () => {
   const raw = JSON.stringify({
     experience: ["3 роки backend"],
