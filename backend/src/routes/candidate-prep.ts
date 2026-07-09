@@ -318,12 +318,6 @@ export function createCandidatePrepRouter(
       return;
     }
 
-    const existingProfile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
-    if (existingProfile?.confirmedAt) {
-      res.status(409).json({ error: "Profile is confirmed and cannot be reset" });
-      return;
-    }
-
     try {
       const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
       if (session) {

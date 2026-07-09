@@ -381,7 +381,7 @@ test("DELETE /candidate-prep/:interviewId removes session, messages, and unconfi
   }
 });
 
-test("DELETE /candidate-prep/:interviewId returns 409 when profile is confirmed", async () => {
+test("DELETE /candidate-prep/:interviewId removes session, messages, and confirmed profile", async () => {
   const fakePrisma = makeFakePrisma({
     interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
     sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
@@ -397,6 +397,13 @@ test("DELETE /candidate-prep/:interviewId returns 409 when profile is confirmed"
       },
     ],
   });
+  fakePrisma.__messages.push({
+    id: "m1",
+    sessionId: "session_1",
+    authorType: "AGENT_CANDIDATE",
+    content: "Привіт!",
+    createdAt: new Date(1),
+  });
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
@@ -410,9 +417,10 @@ test("DELETE /candidate-prep/:interviewId returns 409 when profile is confirmed"
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1`, { method: "DELETE" });
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Profile is confirmed and cannot be reset");
+    assert.equal(response.status, 200);
+    assert.equal(fakePrisma.__sessions.length, 0);
+    assert.equal(fakePrisma.__messages.length, 0);
+    assert.equal(fakePrisma.__profiles.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
