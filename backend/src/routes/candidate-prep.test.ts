@@ -15,7 +15,12 @@ test.after(() => {
   else process.env.JWT_SECRET = ORIGINAL_SECRET;
 });
 
-type FakeInterview = { id: string; vacancyId: string; hrUserId: string };
+type FakeInterview = {
+  id: string;
+  vacancyId: string;
+  hrUserId: string;
+  status?: string;
+};
 type FakeSession = { id: string; interviewId: string; isClosed: boolean };
 type FakeMessage = {
   id: string;
@@ -69,6 +74,18 @@ function makeFakePrisma(
         }
         return session;
       },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { isClosed?: boolean };
+      }) => {
+        const session = sessions.find((item) => item.id === where.id);
+        if (!session) throw new Error("session not found");
+        if (data.isClosed !== undefined) session.isClosed = data.isClosed;
+        return session;
+      },
       delete: async ({ where }: { where: { id: string } }) => {
         const index = sessions.findIndex((item) => item.id === where.id);
         if (index === -1) throw new Error("session not found");
@@ -105,6 +122,36 @@ function makeFakePrisma(
     candidateProfile: {
       findUnique: async ({ where }: { where: { interviewId: string } }) =>
         profiles.find((item) => item.interviewId === where.interviewId) ?? null,
+      upsert: async ({
+        where,
+        create,
+        update,
+      }: {
+        where: { interviewId: string };
+        create: Omit<FakeProfile, "id" | "confirmedAt">;
+        update: Omit<FakeProfile, "id" | "interviewId" | "confirmedAt">;
+      }) => {
+        let profile = profiles.find((item) => item.interviewId === where.interviewId);
+        if (!profile) {
+          profile = { id: `profile_${++counter}`, confirmedAt: null, ...create };
+          profiles.push(profile);
+        } else {
+          Object.assign(profile, update);
+        }
+        return profile;
+      },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { interviewId: string };
+        data: { confirmedAt?: Date };
+      }) => {
+        const profile = profiles.find((item) => item.interviewId === where.interviewId);
+        if (!profile) throw new Error("profile not found");
+        if (data.confirmedAt !== undefined) profile.confirmedAt = data.confirmedAt;
+        return profile;
+      },
       deleteMany: async ({ where }: { where: { interviewId: string } }) => {
         const remaining = profiles.filter((item) => item.interviewId !== where.interviewId);
         const removedCount = profiles.length - remaining.length;
@@ -366,6 +413,153 @@ test("DELETE /candidate-prep/:interviewId returns 409 when profile is confirmed"
     assert.equal(response.status, 409);
     const body = await response.json();
     assert.equal(body.error, "Profile is confirmed and cannot be reset");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+const SAMPLE_PROFILE_JSON = JSON.stringify({
+  experience: ["3 роки backend"],
+  skills: { strong: ["TypeScript"], growth: ["people management"] },
+  goals: ["senior role"],
+  summary: "Backend-розробник з досвідом у fintech.",
+});
+
+test("POST /candidate-prep/:interviewId/finish extracts profile and closes session", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push(
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_CANDIDATE",
+      content: "3 роки backend",
+      createdAt: new Date(1),
+    },
+    {
+      id: "m2",
+      sessionId: "session_1",
+      authorType: "AGENT_CANDIDATE",
+      content: "Дякую!",
+      createdAt: new Date(2),
+    }
+  );
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return SAMPLE_PROFILE_JSON;
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/finish`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.profile.experience, ["3 роки backend"]);
+    assert.deepEqual(body.profile.skills, { strong: ["TypeScript"], growth: ["people management"] });
+    assert.deepEqual(body.profile.goals, ["senior role"]);
+    assert.equal(body.profile.summary, "Backend-розробник з досвідом у fintech.");
+    assert.equal(body.profile.confirmedAt, null);
+    assert.equal(fakePrisma.__sessions[0].isClosed, true);
+    assert.equal(fakePrisma.__profiles.length, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/finish returns 404 when no session exists", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return SAMPLE_PROFILE_JSON;
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/finish`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.equal(body.error, "Prep session not found");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/finish returns 409 when session already closed", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return SAMPLE_PROFILE_JSON;
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/finish`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Prep session closed");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/finish returns 502 when LLM returns invalid JSON", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push({
+    id: "m1",
+    sessionId: "session_1",
+    authorType: "HUMAN_CANDIDATE",
+    content: "досвід",
+    createdAt: new Date(1),
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return "не json";
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/finish`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 502);
+    assert.equal(fakePrisma.__profiles.length, 0);
+    assert.equal(fakePrisma.__sessions[0].isClosed, false);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

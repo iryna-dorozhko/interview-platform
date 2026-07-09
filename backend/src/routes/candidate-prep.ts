@@ -1,6 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
-import { buildCandidateAgentMessages } from "../agents/candidate-agent";
+import {
+  buildCandidateAgentMessages,
+  buildCandidateProfileExtractionMessages,
+  parseCandidateProfileExtraction,
+} from "../agents/candidate-agent";
 import { parseAgentReply } from "../agents/agent-reply";
 import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
@@ -144,6 +148,118 @@ export function createCandidatePrepRouter(
     }
 
     res.status(200).json({ message: agentMessage, readyForConfirmation });
+  });
+
+  router.post("/:interviewId/finish", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
+    if (!session) {
+      res.status(404).json({ error: "Prep session not found" });
+      return;
+    }
+
+    if (session.isClosed) {
+      res.status(409).json({ error: "Prep session closed" });
+      return;
+    }
+
+    const history = await prisma.prepMessageCandidate.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const llmMessages = buildCandidateProfileExtractionMessages(
+      history.map((item) => ({ authorType: item.authorType, content: item.content }))
+    );
+
+    let provider: LlmProvider;
+    try {
+      provider = getProvider();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[candidate-prep:finish] provider init failed:", detail);
+      res.status(503).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    let rawReply: string;
+    try {
+      rawReply = await provider.complete(llmMessages);
+    } catch (error) {
+      if (error instanceof LlmUnavailableError) {
+        console.error(`[candidate-prep:finish:${provider.name}] unavailable:`, error.message);
+        res.status(503).json({ error: "LLM unavailable", detail: error.message });
+        return;
+      }
+
+      if (error instanceof LlmError && error.code === "empty_response") {
+        console.error(`[candidate-prep:finish:${provider.name}] empty response`);
+        res.status(502).json({ error: "LLM unavailable", detail: error.message });
+        return;
+      }
+
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[candidate-prep:finish:${provider.name}] unexpected error:`, detail);
+      res.status(503).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    let extracted;
+    try {
+      extracted = parseCandidateProfileExtraction(rawReply);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[candidate-prep:finish] failed to parse profile extraction:", detail);
+      res.status(502).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    let profile;
+    try {
+      profile = await prisma.candidateProfile.upsert({
+        where: { interviewId },
+        update: {
+          experience: extracted.experience,
+          skills: extracted.skills,
+          goals: extracted.goals,
+          summary: extracted.summary,
+        },
+        create: {
+          interviewId,
+          experience: extracted.experience,
+          skills: extracted.skills,
+          goals: extracted.goals,
+          summary: extracted.summary,
+        },
+      });
+      await prisma.prepSessionCandidate.update({
+        where: { id: session.id },
+        data: { isClosed: true },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[candidate-prep:finish] failed to persist profile:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({
+      profile: {
+        experience: profile.experience,
+        skills: profile.skills,
+        goals: profile.goals,
+        summary: profile.summary,
+        confirmedAt: profile.confirmedAt,
+      },
+    });
   });
 
   router.delete("/:interviewId", async (req: Request, res: Response) => {
