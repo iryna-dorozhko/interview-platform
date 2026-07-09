@@ -565,6 +565,115 @@ test("POST /candidate-prep/:interviewId/finish returns 502 when LLM returns inva
   }
 });
 
+test("POST /candidate-prep/:interviewId/confirm sets confirmedAt without changing interview status", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        experience: ["3 роки backend"],
+        skills: { strong: ["TypeScript"], growth: ["росту"] },
+        goals: ["senior"],
+        summary: "Backend dev",
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return "не має викликатись";
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/confirm`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.notEqual(body.profile.confirmedAt, null);
+    assert.equal(body.interviewStatus, "AWAITING_CANDIDATE");
+    assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
+    assert.equal(fakePrisma.__interviews[0].status, "AWAITING_CANDIDATE");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/confirm returns 404 when profile does not exist", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return "не має викликатись";
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/confirm`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.equal(body.error, "Profile not found");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/confirm returns 409 when already confirmed", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        experience: ["досвід"],
+        skills: { strong: ["TS"], growth: ["росту"] },
+        goals: ["ціль"],
+        summary: "summary",
+        confirmedAt: new Date("2026-07-09T09:00:00.000Z"),
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return "не має викликатись";
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/confirm`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Profile already confirmed");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
 test("requireCandidate blocks HR token on candidate-prep routes", async () => {
   const fakePrisma = makeFakePrisma({
     interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],

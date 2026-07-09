@@ -262,6 +262,52 @@ export function createCandidatePrepRouter(
     });
   });
 
+  router.post("/:interviewId/confirm", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    const profile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
+    if (!profile) {
+      res.status(404).json({ error: "Profile not found" });
+      return;
+    }
+
+    if (profile.confirmedAt) {
+      res.status(409).json({ error: "Profile already confirmed" });
+      return;
+    }
+
+    let updatedProfile;
+    try {
+      updatedProfile = await prisma.candidateProfile.update({
+        where: { interviewId },
+        data: { confirmedAt: new Date() },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[candidate-prep:confirm] failed to confirm profile:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({
+      profile: {
+        experience: updatedProfile.experience,
+        skills: updatedProfile.skills,
+        goals: updatedProfile.goals,
+        summary: updatedProfile.summary,
+        confirmedAt: updatedProfile.confirmedAt,
+      },
+      interviewStatus: interview.status,
+    });
+  });
+
   router.delete("/:interviewId", async (req: Request, res: Response) => {
     const { interviewId } = req.params;
     const prisma = getPrisma();
