@@ -878,6 +878,47 @@ curl -s "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID" \
 - [ ] Збірка: `npm run build` проходить
 - [ ] README: маршрут анкети кандидата в UI
 
+### Candidate Prep Chat UI Quick Start (Day 12)
+
+**Передумови:** День 10 (candidate auth), День 11 (candidate prep API), запущений LLM.
+
+**1. Налаштувати demo interviewId:**
+
+```bash
+npm --workspace backend run db:seed
+# Скопіювати interviewId з рядка "Seeded test interview: id=... joinCode=TEST01"
+```
+
+Створити `frontend/.env`:
+
+```
+VITE_DEMO_INTERVIEW_ID=<interviewId-from-seed>
+```
+
+**2. UI-маршрути:**
+
+| Маршрут | Опис |
+|---|---|
+| `/candidate` | Кабінет кандидата, кнопка «Моя анкета» |
+| `/candidate/prep/:interviewId` | Чат з Candidate Agent |
+
+**3. Сценарій перевірки:**
+
+```bash
+npm run dev
+```
+
+1. Зареєструватися на `/candidate/register` (або увійти на `/candidate/login`)
+2. На `/candidate` натиснути **«Моя анкета»** → `/candidate/prep/:interviewId`
+3. Агент привітається; надіслати 2–3 відповіді про досвід
+4. Перезавантажити сторінку — історія чату на місці
+5. «Видалити чат» → нова розмова з привітанням
+6. Увійти як HR → відкрити `/candidate/prep/:interviewId` → редірект на `/`
+
+**4. API (для порівняння з UI):**
+
+Див. [Candidate Prep Quick Start (Day 11)](#candidate-prep-quick-start) — ті самі endpoint-и, UI викликає їх через `fetchWithAuth`.
+
 ---
 
 ## День 13 — Профіль кандидата + підтвердження
