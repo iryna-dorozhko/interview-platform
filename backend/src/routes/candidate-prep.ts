@@ -8,6 +8,7 @@ import {
 import { parseAgentReply } from "../agents/agent-reply";
 import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
+import { maybeTransitionToReady } from "../utils/interview-readiness";
 
 type MessageBody = {
   message?: unknown;
@@ -296,6 +297,8 @@ export function createCandidatePrepRouter(
       return;
     }
 
+    const finalInterview = (await maybeTransitionToReady(prisma, interviewId)) ?? interview;
+
     res.status(200).json({
       profile: {
         experience: updatedProfile.experience,
@@ -304,7 +307,7 @@ export function createCandidatePrepRouter(
         summary: updatedProfile.summary,
         confirmedAt: updatedProfile.confirmedAt,
       },
-      interviewStatus: interview.status,
+      interviewStatus: finalInterview.status,
     });
   });
 

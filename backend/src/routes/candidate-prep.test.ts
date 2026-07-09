@@ -20,6 +20,7 @@ type FakeInterview = {
   vacancyId: string;
   hrUserId: string;
   status?: string;
+  candidateUserId?: string | null;
 };
 type FakeSession = { id: string; interviewId: string; isClosed: boolean };
 type FakeMessage = {
@@ -44,18 +45,59 @@ function makeFakePrisma(
     interviews?: FakeInterview[];
     sessions?: FakeSession[];
     profiles?: FakeProfile[];
+    vacancies?: Array<{ id: string; status: string; companyProfile?: { confirmedAt: Date | null } | null }>;
   } = {}
 ) {
   const interviews = seed.interviews ?? [];
   const sessions = seed.sessions ?? [];
   const profiles = seed.profiles ?? [];
+  const vacancies = seed.vacancies ?? [
+    { id: "vacancy_1", status: "CONFIRMED", companyProfile: { confirmedAt: new Date(1) } },
+  ];
   const messages: FakeMessage[] = [];
   let counter = 0;
 
   return {
     interview: {
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        interviews.find((item) => item.id === where.id) ?? null,
+      findUnique: async ({
+        where,
+        include,
+      }: {
+        where: { id: string };
+        include?: {
+          vacancy?: { include?: { companyProfile?: boolean } };
+          candidateProfile?: boolean;
+        };
+      }) => {
+        const interview = interviews.find((item) => item.id === where.id) ?? null;
+        if (!interview) return null;
+        if (!include) return interview;
+        const vacancy = vacancies.find((item) => item.id === interview.vacancyId) ?? null;
+        return {
+          ...interview,
+          vacancy: vacancy
+            ? {
+                status: vacancy.status,
+                companyProfile: include.vacancy?.include?.companyProfile ? vacancy.companyProfile : undefined,
+              }
+            : null,
+          candidateProfile: include.candidateProfile
+            ? (profiles.find((item) => item.interviewId === interview.id) ?? null)
+            : undefined,
+        };
+      },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { status?: string };
+      }) => {
+        const interview = interviews.find((item) => item.id === where.id);
+        if (!interview) throw new Error("interview not found");
+        if (data.status !== undefined) interview.status = data.status;
+        return interview;
+      },
     },
     prepSessionCandidate: {
       findUnique: async ({ where }: { where: { interviewId: string } }) =>
@@ -164,6 +206,7 @@ function makeFakePrisma(
     __messages: messages,
     __profiles: profiles,
     __interviews: interviews,
+    __vacancies: vacancies,
   };
 }
 
@@ -573,7 +616,7 @@ test("POST /candidate-prep/:interviewId/finish returns 502 when LLM returns inva
   }
 });
 
-test("POST /candidate-prep/:interviewId/confirm sets confirmedAt without changing interview status", async () => {
+test("POST /candidate-prep/:interviewId/confirm stays AWAITING_CANDIDATE when candidate not joined", async () => {
   const fakePrisma = makeFakePrisma({
     interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
     sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
@@ -610,6 +653,55 @@ test("POST /candidate-prep/:interviewId/confirm sets confirmedAt without changin
     assert.equal(body.interviewStatus, "AWAITING_CANDIDATE");
     assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
     assert.equal(fakePrisma.__interviews[0].status, "AWAITING_CANDIDATE");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/confirm transitions to READY when candidate joined", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [
+      {
+        id: "interview_1",
+        vacancyId: "vacancy_1",
+        hrUserId: "hr_1",
+        status: "AWAITING_CANDIDATE",
+        candidateUserId: "cd_1",
+      },
+    ],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        experience: ["3 роки backend"],
+        skills: { strong: ["TypeScript"], growth: ["росту"] },
+        goals: ["senior"],
+        summary: "Backend dev",
+        confirmedAt: null,
+      },
+    ],
+    vacancies: [{ id: "vacancy_1", status: "CONFIRMED", companyProfile: { confirmedAt: new Date(1) } }],
+  });
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return "не має викликатись";
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/confirm`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interviewStatus, "READY");
+    assert.equal(fakePrisma.__interviews[0].status, "READY");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
