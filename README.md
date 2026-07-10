@@ -1081,6 +1081,31 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 - [ ] Збірка: `npm run build` проходить
 - [ ] README: опис orchestrator pipeline (людина → агент)
 
+### Agent Orchestrator Quick Start (Day 16)
+
+**Pipeline:** `Human message → debounce 2.5s → Arbiter stub → room:messages`
+
+**1. Відкрити live-кімнату** (як у Day 15) у двох вкладках.
+
+**2. Написати повідомлення від HR або кандидата**
+
+- Через ~2.5 с з'являється «Arbiter думає…»
+- Ще через ~1.5 с — відповідь `[Arbiter stub] …`
+- Відповідь видна в обох вкладках
+
+**3. Перевірити debounce і скасування**
+
+- Швидко надіслати 3 повідомлення → stub відповідає один раз (на останнє)
+- Під час «думає» надіслати ще одне → debounce починається заново
+
+**Нова socket-подія**
+
+| Напрям | Подія | Payload |
+|--------|-------|---------|
+| server → client | `room:agent-thinking` | `{ active: boolean; agentType?: "AGENT_ARBITER" }` |
+
+Агентські повідомлення зберігаються в `LiveMessage` з `authorType: AGENT_ARBITER`.
+
 ---
 
 ## День 17 — Arbiter
