@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { createInterview, type CreatedInterview } from "../api/interviews";
 import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
 
@@ -12,6 +13,10 @@ const emit = defineEmits<{
   created: [interview: CreatedInterview];
 }>();
 
+const router = useRouter();
+
+const step = ref<"form" | "code">("form");
+const createdInterview = ref<CreatedInterview | null>(null);
 const confirmedVacancies = ref<VacancySummary[]>([]);
 const selectedVacancyId = ref("");
 const loading = ref(false);
@@ -24,6 +29,8 @@ watch(
   async (isOpen) => {
     if (!isOpen) return;
 
+    step.value = "form";
+    createdInterview.value = null;
     selectedVacancyId.value = "";
     error.value = null;
     loadError.value = null;
@@ -51,6 +58,18 @@ function onClose(): void {
   emit("close");
 }
 
+function finishCreated(): void {
+  if (!createdInterview.value) return;
+  emit("created", createdInterview.value);
+  emit("close");
+}
+
+function onContinue(): void {
+  if (!createdInterview.value) return;
+  router.push({ name: "interview-room", params: { id: createdInterview.value.id } });
+  finishCreated();
+}
+
 async function onSubmit(): Promise<void> {
   if (!selectedVacancyId.value) return;
 
@@ -58,7 +77,8 @@ async function onSubmit(): Promise<void> {
   submitting.value = true;
   try {
     const interview = await createInterview(selectedVacancyId.value);
-    emit("created", interview);
+    createdInterview.value = interview;
+    step.value = "code";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Не вдалося створити співбесіду";
   } finally {
@@ -70,36 +90,48 @@ async function onSubmit(): Promise<void> {
 <template>
   <div v-if="open" class="modal-overlay" @click.self="onClose">
     <div class="modal" role="dialog" aria-labelledby="create-interview-title">
-      <h2 id="create-interview-title">Створити нову співбесіду</h2>
-
-      <p v-if="loading">Завантаження…</p>
-      <p v-else-if="loadError" class="fail">{{ loadError }}</p>
-      <p v-else-if="confirmedVacancies.length === 0" class="empty-message">
-        Спочатку створіть і підтвердіть анкету
-      </p>
-      <form v-else @submit.prevent="onSubmit">
-        <label class="field">
-          <span>Анкета</span>
-          <select v-model="selectedVacancyId" :disabled="submitting">
-            <option v-for="vacancy in confirmedVacancies" :key="vacancy.id" :value="vacancy.id">
-              {{ vacancy.title }}
-            </option>
-          </select>
-        </label>
-        <p v-if="error" class="fail">{{ error }}</p>
+      <template v-if="step === 'code' && createdInterview">
+        <h2 id="create-interview-title">Код для кандидата</h2>
+        <p class="join-code">{{ createdInterview.joinCode }}</p>
+        <p class="hint">Надішліть цей код кандидату</p>
         <div class="actions">
-          <button type="button" class="btn-secondary" :disabled="submitting" @click="onClose">
-            Скасувати
-          </button>
-          <button type="submit" class="btn-primary" :disabled="submitting">
-            {{ submitting ? "Створення…" : "Створити" }}
-          </button>
+          <button type="button" class="btn-secondary" @click="finishCreated">Закрити</button>
+          <button type="button" class="btn-primary" @click="onContinue">Далі</button>
         </div>
-      </form>
+      </template>
 
-      <div v-if="!loading && (loadError || confirmedVacancies.length === 0)" class="actions">
-        <button type="button" class="btn-secondary" @click="onClose">Закрити</button>
-      </div>
+      <template v-else>
+        <h2 id="create-interview-title">Створити зустріч</h2>
+
+        <p v-if="loading">Завантаження…</p>
+        <p v-else-if="loadError" class="fail">{{ loadError }}</p>
+        <p v-else-if="confirmedVacancies.length === 0" class="empty-message">
+          Спочатку створіть і підтвердіть анкету
+        </p>
+        <form v-else @submit.prevent="onSubmit">
+          <label class="field">
+            <span>Анкета</span>
+            <select v-model="selectedVacancyId" :disabled="submitting">
+              <option v-for="vacancy in confirmedVacancies" :key="vacancy.id" :value="vacancy.id">
+                {{ vacancy.title }}
+              </option>
+            </select>
+          </label>
+          <p v-if="error" class="fail">{{ error }}</p>
+          <div class="actions">
+            <button type="button" class="btn-secondary" :disabled="submitting" @click="onClose">
+              Скасувати
+            </button>
+            <button type="submit" class="btn-primary" :disabled="submitting">
+              {{ submitting ? "Створення…" : "Створити" }}
+            </button>
+          </div>
+        </form>
+
+        <div v-if="!loading && (loadError || confirmedVacancies.length === 0)" class="actions">
+          <button type="button" class="btn-secondary" @click="onClose">Закрити</button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -126,6 +158,21 @@ async function onSubmit(): Promise<void> {
 .modal h2 {
   margin: 0 0 1rem;
   font-size: 1.125rem;
+}
+.join-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-align: center;
+  padding: 1rem 0;
+}
+.hint {
+  margin: 0 0 0.5rem;
+  color: #555;
+  font-size: 0.875rem;
+  text-align: center;
 }
 .empty-message {
   margin: 0;
