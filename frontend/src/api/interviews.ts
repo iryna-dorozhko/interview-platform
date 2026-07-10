@@ -64,3 +64,10 @@ export async function createInterview(vacancyId: string): Promise<CreatedIntervi
   const body = (await response.json()) as { interview: CreatedInterview };
   return body.interview;
 }
+
+export async function deleteInterview(id: string): Promise<void> {
+  const response = await fetchWithAuth(`/api/interviews/${id}`, { method: "DELETE" });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося видалити співбесіду");
+  }
+}
