@@ -15,6 +15,7 @@ import { createLlmRouter } from "./routes/llm";
 import { createPrepRouter } from "./routes/prep";
 import { createCandidatePrepRouter } from "./routes/candidate-prep";
 import { createCandidateInterviewRouter } from "./routes/candidate-interview";
+import { createRoomOrchestrator } from "./socket/orchestrator";
 import { registerRoomHandlers } from "./socket/room";
 
 const app = express();
@@ -51,7 +52,8 @@ const io = new Server(httpServer, {
   },
 });
 
-registerRoomHandlers(io, () => prisma);
+const orchestrator = createRoomOrchestrator(() => prisma);
+registerRoomHandlers(io, () => prisma, orchestrator);
 
 httpServer.listen(port, () => {
   console.log(`backend listening on http://localhost:${port}`);
