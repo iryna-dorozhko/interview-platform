@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import type { LiveMessage } from "../composables/useInterviewRoom";
+import type { AgentThinkingState, LiveMessage } from "../composables/useInterviewRoom";
 
 const props = defineProps<{
   messages: LiveMessage[];
@@ -8,6 +8,7 @@ const props = defineProps<{
   connectionState: "connecting" | "connected" | "error";
   disabled?: boolean;
   errorMessage?: string | null;
+  agentThinking?: AgentThinkingState | null;
 }>();
 
 const emit = defineEmits<{
@@ -22,8 +23,25 @@ const ownAuthorType = computed(() =>
 );
 
 function labelFor(authorType: LiveMessage["authorType"]): string {
-  return authorType === "HUMAN_HR" ? "HR" : "Кандидат";
+  switch (authorType) {
+    case "HUMAN_HR":
+      return "HR";
+    case "HUMAN_CANDIDATE":
+      return "Кандидат";
+    case "AGENT_ARBITER":
+      return "Arbiter";
+    case "AGENT_COMPANY":
+      return "Компанія";
+    case "AGENT_CANDIDATE":
+      return "Кандидат (AI)";
+    default:
+      return "Учасник";
+  }
 }
+
+const thinkingLabel = computed(() =>
+  props.agentThinking?.agentType === "AGENT_ARBITER" ? "Arbiter" : "Агент",
+);
 
 async function scrollToBottom(): Promise<void> {
   await nextTick();
@@ -68,11 +86,15 @@ function onKeydown(event: KeyboardEvent): void {
         v-for="message in messages"
         :key="message.id"
         class="message"
-        :class="{ own: message.authorType === ownAuthorType }"
+        :class="{
+          own: message.authorType === ownAuthorType,
+          agent: message.authorType.startsWith('AGENT_'),
+        }"
       >
         <span class="message-label">{{ labelFor(message.authorType) }}</span>
         <p class="message-text">{{ message.content }}</p>
       </div>
+      <p v-if="agentThinking?.active" class="thinking">{{ thinkingLabel }} думає…</p>
     </div>
 
     <form class="composer" @submit.prevent="sendMessage">
@@ -144,6 +166,16 @@ function onKeydown(event: KeyboardEvent): void {
 .message.own .message-text {
   background: #dbeafe;
   color: #1e3a5f;
+}
+.message.agent .message-text {
+  background: #ede9fe;
+  color: #4c1d95;
+}
+.thinking {
+  margin: 0;
+  color: #666;
+  font-size: 0.875rem;
+  font-style: italic;
 }
 .error-banner {
   margin: 0 0 0.75rem;

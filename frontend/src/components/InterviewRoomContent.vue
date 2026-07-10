@@ -13,6 +13,7 @@ const {
   errorMessage,
   sendMessage,
   isReadOnly,
+  agentThinking,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 </script>
 
@@ -23,6 +24,7 @@ const {
     :connection-state="connectionState"
     :disabled="isReadOnly"
     :error-message="errorMessage"
+    :agent-thinking="agentThinking"
     @send="sendMessage"
   />
 </template>
