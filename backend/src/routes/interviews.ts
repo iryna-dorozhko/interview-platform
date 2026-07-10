@@ -123,5 +123,45 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
     }
   });
 
+  router.delete("/interviews/:id", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const interview = await prisma.interview.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const liveSession = await tx.liveSession.findUnique({
+        where: { interviewId: interview.id },
+      });
+      if (liveSession) {
+        await tx.liveMessage.deleteMany({ where: { sessionId: liveSession.id } });
+        await tx.liveSession.delete({ where: { id: liveSession.id } });
+      }
+
+      const prepSession = await tx.prepSessionCandidate.findUnique({
+        where: { interviewId: interview.id },
+      });
+      if (prepSession) {
+        await tx.prepMessageCandidate.deleteMany({ where: { sessionId: prepSession.id } });
+        await tx.prepSessionCandidate.delete({ where: { id: prepSession.id } });
+      }
+
+      await tx.candidateProfile.deleteMany({ where: { interviewId: interview.id } });
+      await tx.finalReport.deleteMany({ where: { interviewId: interview.id } });
+      await tx.interview.delete({ where: { id: interview.id } });
+    });
+
+    res.status(204).end();
+  });
+
   return router;
 }
