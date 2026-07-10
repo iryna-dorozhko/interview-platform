@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import CreateInterviewModal from "../components/CreateInterviewModal.vue";
 import CreateVacancyModal from "../components/CreateVacancyModal.vue";
-import {
-  fetchMyInterviews,
-  type CreatedInterview,
-  type InterviewSummary,
-} from "../api/interviews";
+import { fetchMyInterviews, type InterviewSummary } from "../api/interviews";
 import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
 
 type LoadState = "loading" | "ready" | "error";
@@ -27,8 +22,6 @@ const loadState = ref<LoadState>("loading");
 const loadError = ref<string | null>(null);
 
 const showVacancyModal = ref(false);
-const showInterviewModal = ref(false);
-const createdInterview = ref<CreatedInterview | null>(null);
 
 const awaitingCandidateCount = computed(
   () => interviews.value.filter((i) => i.status === "AWAITING_CANDIDATE").length,
@@ -76,21 +69,6 @@ function onVacancyCreated(vacancyId: string): void {
   router.push({ name: "vacancy-prep", params: { id: vacancyId } });
 }
 
-function onInterviewCreated(interview: CreatedInterview): void {
-  showInterviewModal.value = false;
-  createdInterview.value = interview;
-  interviews.value.unshift({
-    id: interview.id,
-    vacancyId: interview.vacancyId,
-    vacancyTitle: "",
-    displayName: interview.displayName,
-    joinCode: interview.joinCode,
-    status: interview.status,
-    createdAt: interview.createdAt,
-    reportSummary: null,
-  });
-}
-
 function activityTypeLabel(kind: ActivityItem["kind"]): string {
   return kind === "vacancy" ? "Анкета" : "Співбесіда";
 }
@@ -129,16 +107,6 @@ onMounted(loadDashboard);
         <button type="button" class="btn-primary" @click="showVacancyModal = true">
           Створити нову анкету
         </button>
-        <button type="button" class="btn-primary" @click="showInterviewModal = true">
-          Створити нову співбесіду
-        </button>
-      </div>
-
-      <div v-if="createdInterview" class="created-banner">
-        <p>
-          Співбесіду створено! Код для кандидата:
-          <strong class="created-code">{{ createdInterview.joinCode }}</strong>
-        </p>
       </div>
 
       <section v-if="recentActivity.length > 0" class="recent">
@@ -157,11 +125,6 @@ onMounted(loadDashboard);
       :open="showVacancyModal"
       @close="showVacancyModal = false"
       @created="onVacancyCreated"
-    />
-    <CreateInterviewModal
-      :open="showInterviewModal"
-      @close="showInterviewModal = false"
-      @created="onInterviewCreated"
     />
   </div>
 </template>
@@ -206,18 +169,6 @@ onMounted(loadDashboard);
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
-}
-.created-banner {
-  margin: 1rem 0;
-  padding: 0.75rem 1rem;
-  background: #dcfce7;
-  color: #166534;
-  border-radius: 0.375rem;
-}
-.created-code {
-  font-family: monospace;
-  font-size: 1.1rem;
-  letter-spacing: 0.1em;
 }
 .btn-primary {
   font-family: inherit;
