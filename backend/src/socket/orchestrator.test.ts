@@ -18,9 +18,12 @@ function makeIo(): { io: Server; emitted: Emitted[] } {
   return { io, emitted };
 }
 
-function makePrisma(messages: LiveMessage[]) {
+function makePrisma(messages: LiveMessage[], interviewStatus: "LIVE" | "READY" = "LIVE") {
   let createCount = 0;
   return {
+    interview: {
+      findUnique: async () => ({ status: interviewStatus }),
+    },
     liveMessage: {
       findFirst: async ({
         where,
@@ -142,4 +145,28 @@ test("orchestrator cancels in-flight agent when new human message arrives", asyn
     (agentMessages[0].payload as { messages: Array<{ content: string }> }).messages[0].content,
     /reply:Друге/,
   );
+});
+
+test("orchestrator does not run when interview is not LIVE", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Привіт",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages, "READY");
+  const { io, emitted } = makeIo();
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 20,
+    runAgent: async () => "should-not-run",
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 60));
+
+  assert.equal(emitted.length, 0);
 });

@@ -105,22 +105,36 @@ export function createRoomOrchestrator(
     }
   }
 
+  function scheduleTurn(io: Server, interviewId: string, sessionId: string): void {
+    const state = getState(interviewId);
+
+    if (state.debounceTimer) {
+      clearTimeout(state.debounceTimer);
+    }
+
+    state.generation += 1;
+    emitThinking(io, interviewId, { active: false });
+
+    const capturedGeneration = state.generation;
+    state.debounceTimer = setTimeout(() => {
+      state.debounceTimer = null;
+      void executeTurn(io, interviewId, sessionId, capturedGeneration);
+    }, debounceMs);
+  }
+
   return {
     onHumanMessage(io: Server, interviewId: string, sessionId: string): void {
-      const state = getState(interviewId);
+      void (async () => {
+        const interview = await getPrisma().interview.findUnique({
+          where: { id: interviewId },
+          select: { status: true },
+        });
+        if (!interview || interview.status !== "LIVE") {
+          return;
+        }
 
-      if (state.debounceTimer) {
-        clearTimeout(state.debounceTimer);
-      }
-
-      state.generation += 1;
-      emitThinking(io, interviewId, { active: false });
-
-      const capturedGeneration = state.generation;
-      state.debounceTimer = setTimeout(() => {
-        state.debounceTimer = null;
-        void executeTurn(io, interviewId, sessionId, capturedGeneration);
-      }, debounceMs);
+        scheduleTurn(io, interviewId, sessionId);
+      })();
     },
   };
 }

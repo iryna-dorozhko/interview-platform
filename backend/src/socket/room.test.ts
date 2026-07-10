@@ -7,6 +7,7 @@ import { io as ioClient, type Socket as ClientSocket } from "socket.io-client";
 import type { LiveMessage, LiveSession, PrismaClient } from "@prisma/client";
 import { signToken } from "../auth/jwt";
 import { registerRoomHandlers } from "./room";
+import { resetPresenceForTests } from "./room-presence";
 
 process.env.JWT_SECRET = "test-secret-min-8-chars";
 
@@ -164,7 +165,8 @@ const candidateToken = signToken({
   role: "CANDIDATE",
 });
 
-test("room:join returns stored history and transitions READY to LIVE", async () => {
+test("room:join transitions READY to LIVE when both participants join", async () => {
+  resetPresenceForTests();
   const interview: FakeInterview = {
     id: "interview_1",
     hrUserId: "hr_1",
@@ -185,20 +187,27 @@ test("room:join returns stored history and transitions READY to LIVE", async () 
   const server = await startRoomServer(prisma);
 
   try {
-    const socket = await connectClient(server.port, hrToken);
-    const statusPromise = waitForEvent<{ status: string }>(socket, "room:status");
-    socket.emit("room:join", { interviewId: "interview_1" });
+    const hrSocket = await connectClient(server.port, hrToken);
+    const candidateSocket = await connectClient(server.port, candidateToken);
 
-    const [history, status] = await Promise.all([
-      waitForEvent<{ messages: Array<{ id: string; content: string }> }>(socket, "room:messages"),
-      statusPromise,
-    ]);
+    hrSocket.emit("room:join", { interviewId: "interview_1" });
+    const hrHistory = await waitForEvent<{ messages: Array<{ id: string; content: string }> }>(
+      hrSocket,
+      "room:messages",
+    );
 
-    assert.equal(history.messages.length, 1);
-    assert.equal(history.messages[0]?.content, "Привіт");
-    assert.equal(status.status, "LIVE");
+    const liveStatusPromise = waitForEvent<{ status: string }>(hrSocket, "room:status");
+    candidateSocket.emit("room:join", { interviewId: "interview_1" });
+    await waitForEvent(candidateSocket, "room:messages");
+    const liveStatus = await liveStatusPromise;
+
+    assert.equal(hrHistory.messages.length, 1);
+    assert.equal(hrHistory.messages[0]?.content, "Привіт");
+    assert.equal(liveStatus.status, "LIVE");
     assert.equal(interview.status, "LIVE");
-    socket.disconnect();
+
+    hrSocket.disconnect();
+    candidateSocket.disconnect();
   } finally {
     await server.close();
   }
