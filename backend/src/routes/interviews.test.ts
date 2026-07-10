@@ -14,6 +14,10 @@ type FakeInterview = {
   status: string;
   createdAt: Date;
 };
+type FakeFinalReport = {
+  interviewId: string;
+  recommendation: string;
+};
 type CreateInput = {
   data: {
     hrUserId: string;
@@ -28,7 +32,8 @@ type CreateImpl = (input: CreateInput) => Promise<FakeInterview> | FakeInterview
 function makeFakePrisma(
   interviews: FakeInterview[] = [],
   vacancies: FakeVacancy[] = [],
-  createImpl?: CreateImpl
+  createImpl?: CreateImpl,
+  finalReports: FakeFinalReport[] = []
 ) {
   let counter = 0;
   return {
@@ -38,18 +43,31 @@ function makeFakePrisma(
         include,
       }: {
         where: { hrUserId: string };
-        include?: { vacancy: { select: { title: true } } };
+        include?: {
+          vacancy?: { select: { title: true } };
+          finalReport?: { select: { recommendation: true } };
+        };
       }) => {
         const filtered = interviews
           .filter((item) => item.hrUserId === where.hrUserId)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-        if (include?.vacancy) {
+        if (include?.vacancy || include?.finalReport) {
           return filtered.map((item) => {
             const vacancy = vacancies.find((v) => v.id === item.vacancyId);
+            const finalReport = finalReports.find((r) => r.interviewId === item.id);
             return {
               ...item,
-              vacancy: { title: vacancy?.title ?? "" },
+              ...(include?.vacancy
+                ? { vacancy: { title: vacancy?.title ?? "" } }
+                : {}),
+              ...(include?.finalReport
+                ? {
+                    finalReport: finalReport
+                      ? { recommendation: finalReport.recommendation }
+                      : null,
+                  }
+                : {}),
             };
           });
         }
@@ -60,16 +78,29 @@ function makeFakePrisma(
         include,
       }: {
         where: { id: string };
-        include?: { vacancy: { select: { title: true } } };
+        include?: {
+          vacancy?: { select: { title: true } };
+          finalReport?: { select: { recommendation: true } };
+        };
       }) => {
         const interview = interviews.find((item) => item.id === where.id) ?? null;
         if (!interview) return null;
 
-        if (include?.vacancy) {
+        if (include?.vacancy || include?.finalReport) {
           const vacancy = vacancies.find((v) => v.id === interview.vacancyId);
+          const finalReport = finalReports.find((r) => r.interviewId === interview.id);
           return {
             ...interview,
-            vacancy: { title: vacancy?.title ?? "" },
+            ...(include?.vacancy
+              ? { vacancy: { title: vacancy?.title ?? "" } }
+              : {}),
+            ...(include?.finalReport
+              ? {
+                  finalReport: finalReport
+                    ? { recommendation: finalReport.recommendation }
+                    : null,
+                }
+              : {}),
           };
         }
         return interview;
@@ -186,6 +217,50 @@ test("GET /interviews/mine returns interviews for the current HR only, newest fi
     assert.equal(body.interviews[0].displayName, "Frontend Dev");
     assert.equal(body.interviews[0].reportSummary, null);
     assert.equal(body.interviews[0].createdAt, new Date(3).toISOString());
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/mine returns reportSummary from finalReport when present", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "ENDED",
+        createdAt: new Date(1),
+      },
+      {
+        id: "i2",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "BBBBBB",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(2),
+      },
+    ],
+    [confirmedVacancy],
+    undefined,
+    [{ interviewId: "i1", recommendation: "HIRE" }]
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/mine`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interviews.length, 2);
+    assert.equal(body.interviews[0].id, "i2");
+    assert.equal(body.interviews[0].reportSummary, null);
+    assert.equal(body.interviews[1].id, "i1");
+    assert.equal(body.interviews[1].reportSummary, "HIRE");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

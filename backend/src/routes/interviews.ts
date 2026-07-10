@@ -14,7 +14,10 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
     const interviews = await prisma.interview.findMany({
       where: { hrUserId: req.user?.id },
       orderBy: { createdAt: "desc" },
-      include: { vacancy: { select: { title: true } } },
+      include: {
+        vacancy: { select: { title: true } },
+        finalReport: { select: { recommendation: true } },
+      },
     });
 
     res.status(200).json({
@@ -26,7 +29,7 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
         joinCode: item.joinCode,
         status: item.status,
         createdAt: item.createdAt,
-        reportSummary: null,
+        reportSummary: item.finalReport?.recommendation ?? null,
       })),
     });
   });
@@ -35,7 +38,10 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
     const prisma = getPrisma();
     const interview = await prisma.interview.findUnique({
       where: { id: req.params.id },
-      include: { vacancy: { select: { title: true } } },
+      include: {
+        vacancy: { select: { title: true } },
+        finalReport: { select: { recommendation: true } },
+      },
     });
 
     if (!interview) {
@@ -56,7 +62,7 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
         joinCode: interview.joinCode,
         status: interview.status,
         createdAt: interview.createdAt,
-        reportSummary: null,
+        reportSummary: interview.finalReport?.recommendation ?? null,
       },
     });
   });
