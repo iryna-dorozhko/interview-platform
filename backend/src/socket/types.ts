@@ -1,6 +1,13 @@
+export type LiveAuthorTypeDto =
+  | "HUMAN_HR"
+  | "HUMAN_CANDIDATE"
+  | "AGENT_ARBITER"
+  | "AGENT_COMPANY"
+  | "AGENT_CANDIDATE";
+
 export type LiveMessageDto = {
   id: string;
-  authorType: "HUMAN_HR" | "HUMAN_CANDIDATE";
+  authorType: LiveAuthorTypeDto;
   content: string;
   createdAt: string;
 };
@@ -24,4 +31,9 @@ export type RoomStatusEvent = {
 
 export type RoomErrorEvent = {
   error: string;
+};
+
+export type RoomAgentThinkingEvent = {
+  active: boolean;
+  agentType?: "AGENT_ARBITER";
 };
