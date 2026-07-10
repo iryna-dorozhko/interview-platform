@@ -1,9 +1,21 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { connectSocket } from "../api/socket";
 
+export type LiveAuthorType =
+  | "HUMAN_HR"
+  | "HUMAN_CANDIDATE"
+  | "AGENT_ARBITER"
+  | "AGENT_COMPANY"
+  | "AGENT_CANDIDATE";
+
+export type AgentThinkingState = {
+  active: boolean;
+  agentType?: LiveAuthorType;
+};
+
 export type LiveMessage = {
   id: string;
-  authorType: "HUMAN_HR" | "HUMAN_CANDIDATE";
+  authorType: LiveAuthorType;
   content: string;
   createdAt: string;
 };
@@ -15,6 +27,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
   const connectionState = ref<RoomConnectionState>("connecting");
   const errorMessage = ref<string | null>(null);
   const interviewStatus = ref<"READY" | "LIVE" | "ENDED" | null>(null);
+  const agentThinking = ref<AgentThinkingState | null>(null);
 
   const socket = connectSocket();
 
@@ -46,7 +59,18 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
   function onMessages(payload: { messages?: LiveMessage[] }): void {
     if (Array.isArray(payload?.messages)) {
       mergeMessages(payload.messages);
+      if (payload.messages.some((m) => m.authorType.startsWith("AGENT_"))) {
+        agentThinking.value = { active: false };
+      }
     }
+  }
+
+  function onAgentThinking(payload: { active?: boolean; agentType?: LiveAuthorType }): void {
+    if (typeof payload?.active !== "boolean") return;
+    agentThinking.value = {
+      active: payload.active,
+      agentType: payload.agentType,
+    };
   }
 
   function onStatus(payload: { status?: "LIVE" | "ENDED" }): void {
@@ -74,6 +98,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.on("room:messages", onMessages);
     socket.on("room:status", onStatus);
     socket.on("room:error", onError);
+    socket.on("room:agent-thinking", onAgentThinking);
 
     if (socket.connected) {
       onConnect();
@@ -89,6 +114,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.off("room:messages", onMessages);
     socket.off("room:status", onStatus);
     socket.off("room:error", onError);
+    socket.off("room:agent-thinking", onAgentThinking);
   });
 
   const isReadOnly = computed(
@@ -100,6 +126,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     connectionState,
     errorMessage,
     interviewStatus,
+    agentThinking,
     currentRole,
     sendMessage,
     isReadOnly,
