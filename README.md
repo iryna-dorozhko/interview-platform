@@ -1029,6 +1029,17 @@ HR і кандидат в одному чаті + три AI-агенти.
 - [x] Збірка: `npm run build` проходить
 - [x] README: socket-події `room:join`, `room:message`, `room:messages`
 
+### Interview Tabs Live Room Quick Start
+
+End-to-end сценарій вкладок «Співбесіда»:
+
+1. **HR** `/interviews` → «Створити зустріч» → анкета → код → «Далі» → кімната (banner «Очікуємо кандидата»)
+2. **Кандидат** confirmed анкета → join за кодом → «Увійти в кімнату» при `READY`
+3. **LIVE** — коли обидва в socket-кімнаті при `READY`; тоді Arbiter відповідає на людські msg
+4. **Видалення** — 🗑 на `/interviews` з confirm (будь-який статус)
+
+Spec: `docs/superpowers/specs/2026-07-10-interview-tabs-live-room-design.md`
+
 ### Live Chat Quick Start (Day 15)
 
 **1. Підготувати співбесіду в статусі READY**
@@ -1041,14 +1052,14 @@ HR і кандидат в одному чаті + три AI-агенти.
 
 | Роль | URL |
 |------|-----|
-| HR | `http://localhost:5173/interviews/:id` → «Увійти в кімнату» |
+| HR | `http://localhost:5173/interviews/:id/room` |
 | Кандидат | `http://localhost:5173/candidate/interview` → «Увійти в кімнату» |
 
 **3. Перевірити realtime**
 
-- Написати повідомлення в одній вкладці → миттєво з'являється в іншій
-- Перезавантажити обидві вкладки → історія відновлюється
-- Статус співбесіди → `LIVE` після першого входу в кімнату
+- HR може зайти раніше (`AWAITING_CANDIDATE`); агенти мовчать до `LIVE`
+- `LIVE` — коли обидва учасники в кімнаті при `READY`
+- Повідомлення в одній вкладці → миттєво в іншій
 
 **Socket events**
 
