@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import express, { type NextFunction, type Request, type Response } from "express";
+import express from "express";
 import type { AuthUser } from "../auth/middleware";
+import { signToken } from "../auth/jwt";
 import { createCandidateInterviewRouter } from "./candidate-interview";
+
+process.env.JWT_SECRET = "test-secret-min-8-chars";
 
 type FakeInterview = {
   id: string;
@@ -76,19 +79,16 @@ function makeFakePrisma(interviews: FakeInterview[] = []) {
   };
 }
 
-function withUser(user: AuthUser) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    req.user = user;
-    next();
-  };
-}
-
 function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, user: AuthUser) {
   const app = express();
   app.use(express.json());
-  app.use(withUser(user));
-  app.use("/api", createCandidateInterviewRouter(() => fakePrisma as never));
+  app.use("/api/candidate", createCandidateInterviewRouter(() => fakePrisma as never));
   return app;
+}
+
+function authHeaders(user: AuthUser): Record<string, string> {
+  const token = signToken({ sub: user.id, email: user.email, role: user.role });
+  return { Authorization: `Bearer ${token}` };
 }
 
 const candidateUser: AuthUser = {
@@ -113,7 +113,9 @@ test("GET /candidate/interview returns null when candidate has no active intervi
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview`, {
+      headers: authHeaders(candidateUser),
+    });
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.interview, null);
@@ -138,7 +140,9 @@ test("GET /candidate/interview returns linked interview for current candidate", 
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview`, {
+      headers: authHeaders(candidateUser),
+    });
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.interview.id, "interview_1");
@@ -166,7 +170,7 @@ test("POST /candidate/interview/join links candidate to interview by join code",
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
       body: JSON.stringify({ joinCode: "test01" }),
     });
     assert.equal(response.status, 200);
@@ -188,7 +192,7 @@ test("POST /candidate/interview/join returns 404 for invalid join code", async (
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
       body: JSON.stringify({ joinCode: "NOPE99" }),
     });
     assert.equal(response.status, 404);
@@ -217,7 +221,7 @@ test("POST /candidate/interview/join returns 409 when interview is taken by anot
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
       body: JSON.stringify({ joinCode: "TEST01" }),
     });
     assert.equal(response.status, 409);
@@ -246,7 +250,7 @@ test("POST /candidate/interview/join returns 409 for ENDED interview", async () 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
       body: JSON.stringify({ joinCode: "END001" }),
     });
     assert.equal(response.status, 409);
@@ -283,7 +287,7 @@ test("POST /candidate/interview/join returns 409 when candidate already has acti
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
       body: JSON.stringify({ joinCode: "NEW001" }),
     });
     assert.equal(response.status, 409);
@@ -312,7 +316,7 @@ test("POST /candidate/interview/join is idempotent for same candidate", async ()
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
       body: JSON.stringify({ joinCode: "TEST01" }),
     });
     assert.equal(response.status, 200);

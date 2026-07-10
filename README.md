@@ -1024,10 +1024,45 @@ HR і кандидат в одному чаті + три AI-агенти.
 - Збереження в базі, підпис хто написав (HR / кандидат)
 
 **Definition of Done:**
-- [ ] Демонстрація: дві вкладки браузера — пишеш в одній, бачиш в іншій миттєво
-- [ ] Сценарій: повідомлення зберігаються в `ROOM`-сесії з `authorType: HUMAN`; після перезавантаження історія відновлюється
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: socket-події `room:join`, `room:message`, `room:messages`
+- [x] Демонстрація: дві вкладки браузера — пишеш в одній, бачиш в іншій миттєво
+- [x] Сценарій: повідомлення зберігаються в `LiveSession` / `LiveMessage` з `authorType: HUMAN_HR` або `HUMAN_CANDIDATE`; після перезавантаження історія відновлюється
+- [x] Збірка: `npm run build` проходить
+- [x] README: socket-події `room:join`, `room:message`, `room:messages`
+
+### Live Chat Quick Start (Day 15)
+
+**1. Підготувати співбесіду в статусі READY**
+
+- HR: анкета confirmed, співбесіда створена
+- Кандидат: приєднався за кодом, профіль confirmed
+- Статус співбесіди: «Обидва готові» (`READY`)
+
+**2. Відкрити дві вкладки**
+
+| Роль | URL |
+|------|-----|
+| HR | `http://localhost:5173/interviews/:id` → «Увійти в кімнату» |
+| Кандидат | `http://localhost:5173/candidate/interview` → «Увійти в кімнату» |
+
+**3. Перевірити realtime**
+
+- Написати повідомлення в одній вкладці → миттєво з'являється в іншій
+- Перезавантажити обидві вкладки → історія відновлюється
+- Статус співбесіди → `LIVE` після першого входу в кімнату
+
+**Socket events**
+
+| Напрям | Подія | Payload |
+|--------|-------|---------|
+| client → server | `room:join` | `{ interviewId: string }` |
+| client → server | `room:message` | `{ interviewId: string, content: string }` |
+| server → client | `room:messages` | `{ messages: LiveMessageDto[] }` |
+| server → client | `room:status` | `{ status: "LIVE" \| "ENDED" }` |
+| server → client | `room:error` | `{ error: string }` |
+
+Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStorage).
+
+Повідомлення зберігаються в `LiveSession` / `LiveMessage` з `authorType: HUMAN_HR` або `HUMAN_CANDIDATE`.
 
 ---
 

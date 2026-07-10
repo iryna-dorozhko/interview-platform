@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import { requireAuth, requireCandidate } from "../auth/middleware";
 import {
   ACTIVE_CANDIDATE_INTERVIEW_STATUSES,
   canCandidateJoinInterview,
@@ -10,8 +11,9 @@ type JoinBody = { joinCode?: unknown };
 
 export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): Router {
   const router = Router();
+  router.use(requireAuth, requireCandidate);
 
-  router.get("/candidate/interview", async (req: Request, res: Response) => {
+  router.get("/interview", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const candidateUserId = req.user?.id as string;
 
@@ -37,7 +39,7 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
     });
   });
 
-  router.post("/candidate/interview/join", async (req: Request, res: Response) => {
+  router.post("/interview/join", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const candidateUserId = req.user?.id as string;
     const body = (req.body ?? {}) as JoinBody;

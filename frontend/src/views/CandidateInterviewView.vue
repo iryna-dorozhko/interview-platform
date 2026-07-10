@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { fetchCandidateInterview, type CandidateInterview } from "../api/candidate-interview";
 import JoinInterviewModal from "../components/JoinInterviewModal.vue";
 
@@ -15,6 +16,10 @@ const interview = ref<CandidateInterview | null>(null);
 const loadState = ref<LoadState>("loading");
 const errorMessage = ref<string | null>(null);
 const showJoinModal = ref(false);
+
+const canEnterRoom = computed(
+  () => interview.value?.status === "READY" || interview.value?.status === "LIVE",
+);
 
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status;
@@ -50,7 +55,16 @@ onMounted(loadInterview);
     <template v-else-if="interview">
       <h1>{{ interview.displayName }}</h1>
       <p class="meta">Статус: <strong>{{ statusLabel(interview.status) }}</strong></p>
-      <p class="muted">Жива кімната співбесіди з'явиться пізніше.</p>
+      <RouterLink
+        v-if="canEnterRoom"
+        to="/candidate/interview/room"
+        class="btn-primary"
+      >
+        Увійти в кімнату
+      </RouterLink>
+      <p v-else class="muted">
+        Кімната буде доступна, коли обидва профілі підтверджені (статус «Обидва готові»).
+      </p>
     </template>
 
     <template v-else>
@@ -96,10 +110,12 @@ h1 {
   font-size: 0.875rem;
 }
 .btn-primary {
+  display: inline-block;
   font-family: inherit;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
+  text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
   background: #2563eb;
