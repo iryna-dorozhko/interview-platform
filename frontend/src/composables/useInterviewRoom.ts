@@ -26,7 +26,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
   const messages = ref<LiveMessage[]>([]);
   const connectionState = ref<RoomConnectionState>("connecting");
   const errorMessage = ref<string | null>(null);
-  const interviewStatus = ref<"READY" | "LIVE" | "ENDED" | null>(null);
+  const interviewStatus = ref<"AWAITING_CANDIDATE" | "READY" | "LIVE" | "ENDED" | null>(null);
   const agentThinking = ref<AgentThinkingState | null>(null);
 
   const socket = connectSocket();
@@ -73,7 +73,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     };
   }
 
-  function onStatus(payload: { status?: "LIVE" | "ENDED" }): void {
+  function onStatus(payload: { status?: "AWAITING_CANDIDATE" | "READY" | "LIVE" | "ENDED" }): void {
     if (payload?.status) {
       interviewStatus.value = payload.status;
     }
