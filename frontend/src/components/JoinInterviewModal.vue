@@ -69,7 +69,7 @@ async function onSubmit(): Promise<void> {
             Скасувати
           </button>
           <button type="submit" class="btn-primary" :disabled="submitting || !joinCode.trim()">
-            {{ submitting ? "Приєднання…" : "Приєднатися" }}
+            {{ submitting ? "Приєднання…" : "Приєднатися до співбесіди" }}
           </button>
         </div>
       </form>

@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { RouterLink } from "vue-router";
-import { fetchCandidateInterview, type CandidateInterview } from "../api/candidate-interview";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { fetchCandidatePrepState } from "../api/candidate-prep";
+import {
+  fetchCandidateInterview,
+  fetchCandidateQuestionnaire,
+  type CandidateInterview,
+} from "../api/candidate-interview";
 import JoinInterviewModal from "../components/JoinInterviewModal.vue";
 
 type LoadState = "loading" | "ready" | "error";
@@ -12,14 +17,12 @@ const STATUS_LABELS: Record<string, string> = {
   LIVE: "В ефірі",
 };
 
+const router = useRouter();
 const interview = ref<CandidateInterview | null>(null);
 const loadState = ref<LoadState>("loading");
 const errorMessage = ref<string | null>(null);
 const showJoinModal = ref(false);
-
-const canEnterRoom = computed(
-  () => interview.value?.status === "READY" || interview.value?.status === "LIVE",
-);
+const canJoinMeeting = ref(false);
 
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status;
@@ -30,6 +33,13 @@ async function loadInterview(): Promise<void> {
   errorMessage.value = null;
   try {
     interview.value = await fetchCandidateInterview();
+    const questionnaire = await fetchCandidateQuestionnaire();
+    if (questionnaire) {
+      const prep = await fetchCandidatePrepState(questionnaire.id);
+      canJoinMeeting.value = prep.profile?.confirmedAt != null;
+    } else {
+      canJoinMeeting.value = false;
+    }
     loadState.value = "ready";
   } catch (error) {
     loadState.value = "error";
@@ -55,21 +65,30 @@ onMounted(loadInterview);
     <template v-else-if="interview">
       <h1>{{ interview.displayName }}</h1>
       <p class="meta">Статус: <strong>{{ statusLabel(interview.status) }}</strong></p>
-      <RouterLink
-        v-if="canEnterRoom"
-        to="/candidate/interview/room"
+      <button
+        v-if="interview.status === 'READY' || interview.status === 'LIVE'"
+        type="button"
         class="btn-primary"
+        @click="router.push({ name: 'candidate-interview-room' })"
       >
         Увійти в кімнату
-      </RouterLink>
+      </button>
       <p v-else class="muted">
-        Кімната буде доступна, коли обидва профілі підтверджені (статус «Обидва готові»).
+        Очікуємо підтвердження профілів від обох сторін.
       </p>
     </template>
 
     <template v-else>
-      <p class="empty">Ви ще не приєдналися до зустрічі</p>
-      <button type="button" class="btn-primary" @click="showJoinModal = true">
+      <p class="empty">Введіть код співбесіди від HR, щоб приєднатися</p>
+      <p v-if="!canJoinMeeting" class="muted">
+        Спочатку створіть і підтвердіть анкету в розділі «Моя анкета».
+      </p>
+      <button
+        type="button"
+        class="btn-primary"
+        :disabled="!canJoinMeeting"
+        @click="showJoinModal = true"
+      >
         Приєднатися до зустрічі
       </button>
     </template>
@@ -120,5 +139,9 @@ h1 {
   cursor: pointer;
   background: #2563eb;
   color: #fff;
+}
+.btn-primary:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
 }
 </style>
