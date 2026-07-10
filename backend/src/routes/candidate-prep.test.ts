@@ -21,6 +21,7 @@ type FakeInterview = {
   hrUserId: string;
   status?: string;
   candidateUserId?: string | null;
+  displayName?: string;
 };
 type FakeSession = { id: string; interviewId: string; isClosed: boolean };
 type FakeMessage = {
@@ -59,6 +60,31 @@ function makeFakePrisma(
 
   return {
     interview: {
+      findFirst: async ({ where }: { where: Record<string, unknown> }) =>
+        interviews.find((item) => {
+          const candidateUserId = where.candidateUserId as string | undefined;
+          if (candidateUserId != null && item.candidateUserId !== candidateUserId) return false;
+
+          const statusFilter = where.status as { in: string[] } | string | undefined;
+          if (typeof statusFilter === "string" && item.status != null && item.status !== statusFilter) {
+            return false;
+          }
+          if (statusFilter && typeof statusFilter === "object" && item.status != null && !statusFilter.in.includes(item.status)) {
+            return false;
+          }
+
+          const displayName = where.displayName;
+          if (
+            displayName &&
+            typeof displayName === "object" &&
+            "not" in displayName &&
+            item.displayName === (displayName as { not: string }).not
+          ) {
+            return false;
+          }
+
+          return true;
+        }) ?? null,
       findUnique: async ({
         where,
         include,
@@ -662,18 +688,27 @@ test("POST /candidate-prep/:interviewId/confirm transitions to READY when candid
   const fakePrisma = makeFakePrisma({
     interviews: [
       {
-        id: "interview_1",
+        id: "interview_questionnaire",
+        displayName: "Моя анкета",
+        vacancyId: "vacancy_1",
+        hrUserId: "hr_1",
+        status: "AWAITING_CANDIDATE",
+        candidateUserId: "cd_1",
+      },
+      {
+        id: "interview_hr",
+        displayName: "Frontend Dev",
         vacancyId: "vacancy_1",
         hrUserId: "hr_1",
         status: "AWAITING_CANDIDATE",
         candidateUserId: "cd_1",
       },
     ],
-    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    sessions: [{ id: "session_1", interviewId: "interview_questionnaire", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
-        interviewId: "interview_1",
+        interviewId: "interview_questionnaire",
         experience: ["3 роки backend"],
         skills: { strong: ["TypeScript"], growth: ["росту"] },
         goals: ["senior"],
@@ -695,13 +730,16 @@ test("POST /candidate-prep/:interviewId/confirm transitions to READY when candid
   const port = (server.address() as { port: number }).port;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/confirm`, {
-      method: "POST",
-    });
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/candidate-prep/interview_questionnaire/confirm`,
+      {
+        method: "POST",
+      },
+    );
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.interviewStatus, "READY");
-    assert.equal(fakePrisma.__interviews[0].status, "READY");
+    assert.equal(fakePrisma.__interviews[1].status, "READY");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

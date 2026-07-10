@@ -14,26 +14,65 @@ type FakeInterview = {
   candidateUserId: string | null;
   status: string;
   createdAt: Date;
+  hrUserId?: string;
+  vacancyId?: string;
 };
 
-function makeFakePrisma(interviews: FakeInterview[] = []) {
+function matchesFindFirstWhere(item: FakeInterview, where: Record<string, unknown>): boolean {
+  const candidateUserId = where.candidateUserId as string | undefined;
+  if (candidateUserId != null && item.candidateUserId !== candidateUserId) return false;
+
+  const statusFilter = where.status as { in: string[] } | undefined;
+  if (statusFilter && !statusFilter.in.includes(item.status)) return false;
+
+  const notFilter = where.NOT as { id: string } | undefined;
+  if (notFilter && item.id === notFilter.id) return false;
+
+  const displayName = where.displayName;
+  if (typeof displayName === "string" && item.displayName !== displayName) return false;
+  if (
+    displayName &&
+    typeof displayName === "object" &&
+    "not" in displayName &&
+    item.displayName === (displayName as { not: string }).not
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+type FakeCandidateProfile = {
+  interviewId: string;
+  confirmedAt: Date | null;
+};
+
+function makeFakePrisma(
+  interviews: FakeInterview[] = [],
+  options?: {
+    hrUserId?: string;
+    vacancyId?: string;
+    candidateProfiles?: FakeCandidateProfile[];
+  },
+) {
+  const hrUserId = options?.hrUserId ?? "hr_1";
+  const vacancyId = options?.vacancyId ?? "vacancy_1";
+  const candidateProfiles = (options?.candidateProfiles ?? []).map((item) => ({ ...item }));
+
   return {
+    user: {
+      findFirst: async () => ({ id: hrUserId, role: "HR" }),
+    },
+    vacancy: {
+      findFirst: async () => ({ id: vacancyId, hrUserId }),
+    },
+    candidateProfile: {
+      findUnique: async ({ where }: { where: { interviewId: string } }) =>
+        candidateProfiles.find((item) => item.interviewId === where.interviewId) ?? null,
+    },
     interview: {
-      findFirst: async ({
-        where,
-      }: {
-        where: {
-          candidateUserId: string;
-          status: { in: string[] };
-          NOT?: { id: string };
-        };
-      }) =>
-        interviews.find(
-          (item) =>
-            item.candidateUserId === where.candidateUserId &&
-            where.status.in.includes(item.status) &&
-            item.id !== where.NOT?.id,
-        ) ?? null,
+      findFirst: async ({ where }: { where: Record<string, unknown> }) =>
+        interviews.find((item) => matchesFindFirstWhere(item, where)) ?? null,
       findUnique: async ({
         where,
         include,
@@ -59,8 +98,35 @@ function makeFakePrisma(interviews: FakeInterview[] = []) {
               ? { confirmedAt: new Date(1) }
               : undefined,
           },
-          candidateProfile: include.candidateProfile ? null : undefined,
+          candidateProfile: include.candidateProfile
+            ? candidateProfiles.find((item) => item.interviewId === interview.id) ?? null
+            : undefined,
         };
+      },
+      create: async ({
+        data,
+      }: {
+        data: {
+          hrUserId: string;
+          vacancyId: string;
+          displayName: string;
+          candidateUserId: string;
+          joinCode: string;
+          status: string;
+        };
+      }) => {
+        const interview: FakeInterview = {
+          id: `interview_${interviews.length + 1}`,
+          displayName: data.displayName,
+          joinCode: data.joinCode,
+          candidateUserId: data.candidateUserId,
+          status: data.status,
+          createdAt: new Date(),
+          hrUserId: data.hrUserId,
+          vacancyId: data.vacancyId,
+        };
+        interviews.push(interview);
+        return interview;
       },
       update: async ({
         where,
@@ -96,6 +162,26 @@ const candidateUser: AuthUser = {
   email: "candidate@test.com",
   role: "CANDIDATE",
 };
+
+const confirmedQuestionnaireInterview: FakeInterview = {
+  id: "interview_questionnaire",
+  displayName: "Моя анкета",
+  joinCode: "SELF01",
+  candidateUserId: "candidate_1",
+  status: "AWAITING_CANDIDATE",
+  createdAt: new Date(),
+};
+
+const confirmedQuestionnaireProfile: FakeCandidateProfile = {
+  interviewId: "interview_questionnaire",
+  confirmedAt: new Date(),
+};
+
+function makeFakePrismaWithConfirmedQuestionnaire(interviews: FakeInterview[] = []) {
+  return makeFakePrisma([confirmedQuestionnaireInterview, ...interviews], {
+    candidateProfiles: [confirmedQuestionnaireProfile],
+  });
+}
 
 test("GET /candidate/interview returns null when candidate has no active interview", async () => {
   const fakePrisma = makeFakePrisma([
@@ -153,7 +239,7 @@ test("GET /candidate/interview returns linked interview for current candidate", 
 });
 
 test("POST /candidate/interview/join links candidate to interview by join code", async () => {
-  const fakePrisma = makeFakePrisma([
+  const fakePrisma = makeFakePrismaWithConfirmedQuestionnaire([
     {
       id: "interview_1",
       displayName: "Frontend Dev",
@@ -262,7 +348,7 @@ test("POST /candidate/interview/join returns 409 for ENDED interview", async () 
 });
 
 test("POST /candidate/interview/join returns 409 when candidate already has active interview", async () => {
-  const fakePrisma = makeFakePrisma([
+  const fakePrisma = makeFakePrismaWithConfirmedQuestionnaire([
     {
       id: "interview_active",
       displayName: "Active",
@@ -299,7 +385,7 @@ test("POST /candidate/interview/join returns 409 when candidate already has acti
 });
 
 test("POST /candidate/interview/join is idempotent for same candidate", async () => {
-  const fakePrisma = makeFakePrisma([
+  const fakePrisma = makeFakePrismaWithConfirmedQuestionnaire([
     {
       id: "interview_1",
       displayName: "Frontend Dev",
@@ -322,6 +408,216 @@ test("POST /candidate/interview/join is idempotent for same candidate", async ()
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.interview.id, "interview_1");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/interview/start creates questionnaire without join code", async () => {
+  const interviews: FakeInterview[] = [];
+  const fakePrisma = makeFakePrisma(interviews);
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/start`, {
+      method: "POST",
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.interview.displayName, "Моя анкета");
+    assert.equal(body.interview.status, "AWAITING_CANDIDATE");
+    assert.equal(interviews.length, 1);
+    assert.equal(interviews[0]?.candidateUserId, "candidate_1");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/interview/start returns existing active interview", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "interview_existing",
+      displayName: "Моя анкета",
+      joinCode: "ABC123",
+      candidateUserId: "candidate_1",
+      status: "AWAITING_CANDIDATE",
+      createdAt: new Date(),
+    },
+  ]);
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/start`, {
+      method: "POST",
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.id, "interview_existing");
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /candidate/interview ignores self-service questionnaire", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "interview_self",
+      displayName: "Моя анкета",
+      joinCode: "SELF01",
+      candidateUserId: "candidate_1",
+      status: "AWAITING_CANDIDATE",
+      createdAt: new Date(),
+    },
+  ]);
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview`, {
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview, null);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /candidate/questionnaire returns self-service interview", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "interview_self",
+      displayName: "Моя анкета",
+      joinCode: "SELF01",
+      candidateUserId: "candidate_1",
+      status: "AWAITING_CANDIDATE",
+      createdAt: new Date(),
+    },
+  ]);
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/questionnaire`, {
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.id, "interview_self");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/interview/join succeeds when candidate has self-service questionnaire", async () => {
+  const interviews: FakeInterview[] = [
+    confirmedQuestionnaireInterview,
+    {
+      id: "interview_hr",
+      displayName: "Test Position",
+      joinCode: "TEST01",
+      candidateUserId: null,
+      status: "AWAITING_CANDIDATE",
+      createdAt: new Date(),
+    },
+  ];
+  const fakePrisma = makeFakePrisma(interviews, {
+    candidateProfiles: [confirmedQuestionnaireProfile],
+  });
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
+      body: JSON.stringify({ joinCode: "TEST01" }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.id, "interview_hr");
+    assert.equal(interviews.find((item) => item.id === "interview_hr")?.candidateUserId, "candidate_1");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/interview/join returns 409 when questionnaire is not confirmed", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "interview_self",
+        displayName: "Моя анкета",
+        joinCode: "SELF01",
+        candidateUserId: "candidate_1",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(),
+      },
+      {
+        id: "interview_hr",
+        displayName: "Test Position",
+        joinCode: "TEST01",
+        candidateUserId: null,
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(),
+      },
+    ],
+    {
+      candidateProfiles: [{ interviewId: "interview_self", confirmedAt: null }],
+    },
+  );
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
+      body: JSON.stringify({ joinCode: "TEST01" }),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Candidate questionnaire not confirmed");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/interview/join returns 409 when questionnaire does not exist", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "interview_hr",
+      displayName: "Test Position",
+      joinCode: "TEST01",
+      candidateUserId: null,
+      status: "AWAITING_CANDIDATE",
+      createdAt: new Date(),
+    },
+  ]);
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
+      body: JSON.stringify({ joinCode: "TEST01" }),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Candidate questionnaire required");
   } finally {
     server.close();
   }

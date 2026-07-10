@@ -1,25 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
-import { fetchCandidateInterview, type CandidateInterview } from "../api/candidate-interview";
+import { fetchCandidateQuestionnaire, startCandidateQuestionnaire, type CandidateInterview } from "../api/candidate-interview";
 import {
+  confirmCandidatePrepProfile,
   deleteCandidatePrepChat,
   fetchCandidatePrepState,
   type CandidatePrepState,
   type CandidateProfile,
 } from "../api/candidate-prep";
-import JoinInterviewModal from "../components/JoinInterviewModal.vue";
+import CandidatePrepChat from "../components/CandidatePrepChat.vue";
 
 type LoadState = "loading" | "ready" | "error";
-
-const router = useRouter();
 
 const interview = ref<CandidateInterview | null>(null);
 const prepState = ref<CandidatePrepState | null>(null);
 const loadState = ref<LoadState>("loading");
 const loadError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
-const showJoinModal = ref(false);
+const showPrepChat = ref(false);
+const confirming = ref(false);
+const starting = ref(false);
 
 const profile = computed((): CandidateProfile | null => prepState.value?.profile ?? null);
 const messageCount = computed(() => prepState.value?.messages.length ?? 0);
@@ -31,7 +31,7 @@ async function loadProfile(): Promise<void> {
   loadState.value = "loading";
   loadError.value = null;
   try {
-    interview.value = await fetchCandidateInterview();
+    interview.value = await fetchCandidateQuestionnaire();
     if (interview.value) {
       prepState.value = await fetchCandidatePrepState(interview.value.id);
     } else {
@@ -44,15 +44,52 @@ async function loadProfile(): Promise<void> {
   }
 }
 
-function onJoined(joined: CandidateInterview): void {
-  interview.value = joined;
-  showJoinModal.value = false;
-  void loadProfile();
+async function startPrepChat(): Promise<void> {
+  if (interview.value) {
+    showPrepChat.value = true;
+    return;
+  }
+
+  actionError.value = null;
+  starting.value = true;
+  try {
+    interview.value = await startCandidateQuestionnaire();
+    showPrepChat.value = true;
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "Не вдалося створити анкету";
+  } finally {
+    starting.value = false;
+  }
 }
 
-function openPrep(): void {
+async function onPrepFinished(): Promise<void> {
+  showPrepChat.value = false;
+  await loadProfile();
+}
+
+async function onPrepDeleted(): Promise<void> {
+  await loadProfile();
+}
+
+async function onConfirmProfile(): Promise<void> {
   if (!interview.value) return;
-  router.push({ name: "candidate-prep", params: { interviewId: interview.value.id } });
+  if (
+    !window.confirm(
+      "Профіль буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?",
+    )
+  ) {
+    return;
+  }
+  actionError.value = null;
+  confirming.value = true;
+  try {
+    await confirmCandidatePrepProfile(interview.value.id);
+    await loadProfile();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
+  } finally {
+    confirming.value = false;
+  }
 }
 
 async function onDeletePrep(): Promise<void> {
@@ -79,7 +116,7 @@ async function onRestartConfirmed(): Promise<void> {
   actionError.value = null;
   try {
     await deleteCandidatePrepChat(interview.value.id);
-    router.push({ name: "candidate-prep", params: { interviewId: interview.value.id } });
+    showPrepChat.value = true;
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : "Не вдалося видалити чат";
   }
@@ -98,24 +135,33 @@ onMounted(loadProfile);
     <template v-else>
       <p v-if="actionError" class="error-banner">{{ actionError }}</p>
 
-      <template v-if="!interview">
-        <p class="empty">Спочатку приєднайтеся до співбесіди</p>
-        <button type="button" class="btn-primary" @click="showJoinModal = true">
-          Приєднатися до зустрічі
+      <CandidatePrepChat
+        v-if="showPrepChat && interview"
+        :interview-id="interview.id"
+        @finished="onPrepFinished"
+        @deleted="onPrepDeleted"
+      />
+
+      <template v-else-if="!interview">
+        <p class="empty">Анкета ще не створена</p>
+        <button type="button" class="btn-primary" :disabled="starting" @click="startPrepChat">
+          {{ starting ? "Створення…" : "Створити анкету" }}
         </button>
       </template>
 
       <template v-else-if="!hasMessages">
         <section class="empty-profile">
-          <p>Профіль ще не сформовано</p>
-          <button type="button" class="btn-primary" @click="openPrep">Створити профіль</button>
+          <p>Анкета ще не створена</p>
+          <button type="button" class="btn-primary" :disabled="starting" @click="startPrepChat">
+            {{ starting ? "Створення…" : "Створити анкету" }}
+          </button>
         </section>
       </template>
 
       <template v-else-if="!isClosed">
         <p class="status">Анкета в процесі ({{ messageCount }} повідомлень)</p>
         <div class="actions">
-          <button type="button" class="btn-primary" @click="openPrep">Продовжити анкету</button>
+          <button type="button" class="btn-primary" @click="startPrepChat">Продовжити анкету</button>
           <button type="button" class="btn-secondary" @click="onDeletePrep">Видалити анкету</button>
         </div>
       </template>
@@ -153,7 +199,14 @@ onMounted(loadProfile);
           </dl>
         </section>
         <div class="actions">
-          <button type="button" class="btn-primary" @click="openPrep">Підтвердити профіль</button>
+          <button
+            type="button"
+            class="btn-primary"
+            :disabled="confirming"
+            @click="onConfirmProfile"
+          >
+            Підтвердити профіль
+          </button>
           <button type="button" class="btn-secondary" @click="onDeletePrep">Видалити анкету</button>
         </div>
       </template>
@@ -198,12 +251,6 @@ onMounted(loadProfile);
         </div>
       </template>
     </template>
-
-    <JoinInterviewModal
-      :open="showJoinModal"
-      @close="showJoinModal = false"
-      @joined="onJoined"
-    />
   </div>
 </template>
 

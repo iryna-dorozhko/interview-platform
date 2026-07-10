@@ -10,10 +10,6 @@ const interview = ref<InterviewDetail | null>(null);
 const loadState = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref<string | null>(null);
 
-const canEnterRoom = computed(
-  () => interview.value?.status === "READY" || interview.value?.status === "LIVE",
-);
-
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Чернетка",
   AWAITING_CANDIDATE: "Очікує кандидата",
@@ -57,15 +53,11 @@ onMounted(loadInterview);
         Код: <strong class="join-code">{{ interview.joinCode }}</strong>
         · Статус: <strong>{{ statusLabel(interview.status) }}</strong>
       </p>
-      <RouterLink
-        v-if="canEnterRoom"
-        :to="`/interviews/${interviewId}/room`"
-        class="btn-primary"
-      >
-        Увійти в кімнату
-      </RouterLink>
-      <p v-else class="muted">
-        Кімната буде доступна, коли обидва профілі підтверджені (статус «Обидва готові»).
+      <p v-if="interview.status === 'READY'" class="muted">
+        Обидва профілі підтверджені. Спільна співбесіда буде доступна пізніше.
+      </p>
+      <p v-else-if="interview.status !== 'ENDED'" class="muted">
+        Очікуємо підтвердження профілів від обох сторін.
       </p>
     </template>
   </main>

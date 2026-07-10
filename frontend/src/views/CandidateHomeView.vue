@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { fetchCandidatePrepState, type CandidatePrepState } from "../api/candidate-prep";
-import { fetchCandidateInterview, type CandidateInterview } from "../api/candidate-interview";
+import { fetchCandidateInterview, fetchCandidateQuestionnaire, type CandidateInterview } from "../api/candidate-interview";
 import JoinInterviewModal from "../components/JoinInterviewModal.vue";
 
 type LoadState = "loading" | "ready" | "error";
@@ -14,10 +14,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function profileStatusLabel(
-  interview: CandidateInterview | null,
+  questionnaireInterview: CandidateInterview | null,
   prep: CandidatePrepState | null,
 ): string {
-  if (!interview) return "—";
+  if (!questionnaireInterview) return "—";
   if (!prep || prep.messages.length === 0) return "Не створена";
   if (!prep.isClosed) return "В процесі";
   if (!prep.profile?.confirmedAt) return "Очікує підтвердження";
@@ -32,6 +32,7 @@ function interviewStatusLabel(interview: CandidateInterview | null): string {
 const router = useRouter();
 
 const interview = ref<CandidateInterview | null>(null);
+const questionnaire = ref<CandidateInterview | null>(null);
 const prepState = ref<CandidatePrepState | null>(null);
 const loadState = ref<LoadState>("loading");
 const loadError = ref<string | null>(null);
@@ -39,16 +40,20 @@ const showJoinModal = ref(false);
 const joinedBanner = ref<CandidateInterview | null>(null);
 
 const interviewCount = computed(() => (interview.value ? 1 : 0));
-const profileStatus = computed(() => profileStatusLabel(interview.value, prepState.value));
+const profileStatus = computed(() => profileStatusLabel(questionnaire.value, prepState.value));
 const meetingStatus = computed(() => interviewStatusLabel(interview.value));
+const canJoinMeeting = computed(
+  () => interview.value === null && prepState.value?.profile?.confirmedAt != null,
+);
 
 async function loadDashboard(): Promise<void> {
   loadState.value = "loading";
   loadError.value = null;
   try {
     interview.value = await fetchCandidateInterview();
-    if (interview.value) {
-      prepState.value = await fetchCandidatePrepState(interview.value.id);
+    questionnaire.value = await fetchCandidateQuestionnaire();
+    if (questionnaire.value) {
+      prepState.value = await fetchCandidatePrepState(questionnaire.value.id);
     } else {
       prepState.value = null;
     }
@@ -66,9 +71,8 @@ function onJoined(joined: CandidateInterview): void {
   void loadDashboard();
 }
 
-function openPrep(): void {
-  if (!interview.value) return;
-  router.push({ name: "candidate-prep", params: { interviewId: interview.value.id } });
+function openProfile(): void {
+  router.push({ name: "candidate-profile" });
 }
 
 onMounted(loadDashboard);
@@ -101,13 +105,14 @@ onMounted(loadDashboard);
         <button
           type="button"
           class="btn-primary"
-          :disabled="interview !== null"
+          :disabled="!canJoinMeeting"
+          :title="canJoinMeeting ? undefined : 'Спочатку створіть і підтвердіть анкету'"
           @click="showJoinModal = true"
         >
           Приєднатися до зустрічі
         </button>
-        <button type="button" class="btn-primary" :disabled="!interview" @click="openPrep">
-          Створити профіль
+        <button type="button" class="btn-primary" @click="openProfile">
+          Заповнити анкету
         </button>
       </div>
 

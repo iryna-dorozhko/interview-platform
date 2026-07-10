@@ -1068,7 +1068,7 @@ Spec: `docs/superpowers/specs/2026-07-10-interview-tabs-live-room-design.md`
 | client → server | `room:join` | `{ interviewId: string }` |
 | client → server | `room:message` | `{ interviewId: string, content: string }` |
 | server → client | `room:messages` | `{ messages: LiveMessageDto[] }` |
-| server → client | `room:status` | `{ status: "LIVE" \| "ENDED" }` |
+| server → client | `room:status` | `{ status: "AWAITING_CANDIDATE" \| "READY" \| "LIVE" \| "ENDED" }` |
 | server → client | `room:error` | `{ error: string }` |
 
 Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStorage).
