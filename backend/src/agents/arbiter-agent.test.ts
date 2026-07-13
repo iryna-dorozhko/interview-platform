@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { LiveAuthorType } from "@prisma/client";
-import { ArbiterReplyParseError, buildArbiterMessages, parseArbiterReply } from "./arbiter-agent";
+import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import type { LlmProvider } from "../llm/types";
+import {
+  ArbiterReplyParseError,
+  buildArbiterMessages,
+  parseArbiterReply,
+  runArbiterTurn,
+} from "./arbiter-agent";
 import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from "./prompts/arbiter-agent.uk";
 
 const companyProfile = {
@@ -72,4 +78,62 @@ test("buildArbiterMessages includes profiles in system prompt and maps history",
   assert.deepEqual(messages[1], { role: "user", content: "[HR] Розкажіть про досвід." });
   assert.deepEqual(messages[2], { role: "user", content: "[Кандидат] Працював з Node.js." });
   assert.deepEqual(messages[3], { role: "assistant", content: "Короткий підсумок." });
+});
+
+test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
+  let llmCalled = false;
+  const fakeProvider: LlmProvider = {
+    name: "fake",
+    async complete(messages) {
+      llmCalled = true;
+      assert.equal(messages[0].role, "system");
+      assert.match(messages[0].content, /Backend Developer/);
+      assert.equal(messages.at(-1)?.content, "[HR] Привіт");
+      return '{ "post": true, "message": "Продовжуйте." }';
+    },
+  };
+
+  const fakePrisma = {
+    interview: {
+      findUnique: async () => ({
+        vacancy: {
+          companyProfile: {
+            role: "Backend Developer",
+            requirements: ["Node.js"],
+            culture: ["remote"],
+            expectations: ["ship features"],
+          },
+        },
+        candidateProfile: {
+          summary: "5 років",
+          experience: ["Acme"],
+          skills: { strong: ["TS"], growth: [] },
+          goals: ["grow"],
+        },
+      }),
+    },
+    liveMessage: {
+      findMany: async () => [{ authorType: "HUMAN_HR", content: "Привіт" }],
+    },
+  } as unknown as PrismaClient;
+
+  const result = await runArbiterTurn(fakePrisma, "interview_1", "session_1", fakeProvider);
+
+  assert.equal(llmCalled, true);
+  assert.deepEqual(result, { post: true, message: "Продовжуйте." });
+});
+
+test("runArbiterTurn throws when profiles are missing", async () => {
+  const fakePrisma = {
+    interview: {
+      findUnique: async () => ({ vacancy: { companyProfile: null }, candidateProfile: null }),
+    },
+  } as unknown as PrismaClient;
+
+  const fakeProvider: LlmProvider = { name: "fake", complete: async () => "" };
+
+  await assert.rejects(
+    () => runArbiterTurn(fakePrisma, "interview_1", "session_1", fakeProvider),
+    /Missing profiles/,
+  );
 });

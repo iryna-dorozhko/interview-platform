@@ -1,5 +1,5 @@
-import type { LiveAuthorType } from "@prisma/client";
-import type { ChatMessage } from "../llm/types";
+import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import type { ChatMessage, LlmProvider } from "../llm/types";
 import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from "./prompts/arbiter-agent.uk";
 
 export interface ParsedArbiterReply {
@@ -30,6 +30,13 @@ export class ArbiterReplyParseError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ArbiterReplyParseError";
+  }
+}
+
+export class ArbiterContextError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArbiterContextError";
   }
 }
 
@@ -114,4 +121,51 @@ export function buildArbiterMessages(input: {
     },
     ...input.history.map(mapHistoryItem),
   ];
+}
+
+export async function runArbiterTurn(
+  prisma: PrismaClient,
+  interviewId: string,
+  sessionId: string,
+  provider: LlmProvider,
+): Promise<ParsedArbiterReply> {
+  const interview = await prisma.interview.findUnique({
+    where: { id: interviewId },
+    include: {
+      vacancy: { include: { companyProfile: true } },
+      candidateProfile: true,
+    },
+  });
+
+  const companyProfile = interview?.vacancy?.companyProfile;
+  const candidateProfile = interview?.candidateProfile;
+
+  if (!companyProfile || !candidateProfile) {
+    throw new ArbiterContextError("Missing profiles for arbiter turn");
+  }
+
+  const history = await prisma.liveMessage.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: "asc" },
+    select: { authorType: true, content: true },
+  });
+
+  const llmMessages = buildArbiterMessages({
+    companyProfile: {
+      role: companyProfile.role,
+      requirements: companyProfile.requirements,
+      culture: companyProfile.culture,
+      expectations: companyProfile.expectations,
+    },
+    candidateProfile: {
+      summary: candidateProfile.summary,
+      experience: candidateProfile.experience,
+      skills: candidateProfile.skills,
+      goals: candidateProfile.goals,
+    },
+    history,
+  });
+
+  const rawReply = await provider.complete(llmMessages);
+  return parseArbiterReply(rawReply);
 }
