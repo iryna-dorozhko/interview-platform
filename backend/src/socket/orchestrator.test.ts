@@ -203,3 +203,121 @@ test("orchestrator does not emit message when arbiter returns post:false", async
   const thinkingEnd = emitted.filter((e) => e.event === "room:agent-thinking").at(-1);
   assert.equal((thinkingEnd!.payload as { active: boolean }).active, false);
 });
+
+test("orchestrator runs full agent chain in order", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Доброго дня!",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  const callOrder: string[] = [];
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    runArbiterTurn: async () => {
+      callOrder.push("arbiter");
+      return { post: true, message: "Давайте почнемо співбесіду." };
+    },
+    runCompanyLiveTurn: async () => {
+      callOrder.push("company");
+      return { post: true, message: "Розкажіть про досвід з Node.js." };
+    },
+    runCandidateLiveTurn: async () => {
+      callOrder.push("candidate");
+      return { post: true, message: "Я працював з Node.js 5 років." };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.deepEqual(callOrder, ["arbiter", "company", "candidate"]);
+
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.equal(agentMessages.length, 3);
+  assert.deepEqual(
+    agentMessages.map(
+      (e) =>
+        (e.payload as { messages: Array<{ authorType: string }> }).messages[0].authorType,
+    ),
+    ["AGENT_ARBITER", "AGENT_COMPANY", "AGENT_CANDIDATE"],
+  );
+
+  const thinkingEvents = emitted.filter((e) => e.event === "room:agent-thinking");
+  const activeThinking = thinkingEvents.filter(
+    (e) => (e.payload as { active: boolean }).active,
+  );
+  assert.deepEqual(
+    activeThinking.map((e) => (e.payload as { agentType?: string }).agentType),
+    ["AGENT_ARBITER", "AGENT_COMPANY", "AGENT_CANDIDATE"],
+  );
+});
+
+test("orchestrator continues chain when arbiter returns post:false", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Який досвід з TypeScript?",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    runArbiterTurn: async () => ({ post: false }),
+    runCompanyLiveTurn: async () => ({ post: false }),
+    runCandidateLiveTurn: async () => ({
+      post: true,
+      message: "Я використовую TypeScript щодня.",
+    }),
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 120));
+
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.equal(agentMessages.length, 1);
+  assert.equal(
+    (agentMessages[0].payload as { messages: Array<{ authorType: string }> }).messages[0]
+      .authorType,
+    "AGENT_CANDIDATE",
+  );
+});
+
+test("orchestrator emits no agent messages when all agents return post:false", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_CANDIDATE",
+      content: "Привіт!",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    runArbiterTurn: async () => ({ post: false }),
+    runCompanyLiveTurn: async () => ({ post: false }),
+    runCandidateLiveTurn: async () => ({ post: false }),
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.equal(emitted.filter((e) => e.event === "room:messages").length, 0);
+  const thinkingEnd = emitted.filter((e) => e.event === "room:agent-thinking").at(-1);
+  assert.equal((thinkingEnd!.payload as { active: boolean }).active, false);
+});

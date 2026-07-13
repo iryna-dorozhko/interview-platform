@@ -35,5 +35,5 @@ export type RoomErrorEvent = {
 
 export type RoomAgentThinkingEvent = {
   active: boolean;
-  agentType?: "AGENT_ARBITER";
+  agentType?: "AGENT_ARBITER" | "AGENT_COMPANY" | "AGENT_CANDIDATE";
 };
