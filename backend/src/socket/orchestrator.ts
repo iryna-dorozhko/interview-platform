@@ -1,20 +1,26 @@
 import type { Server } from "socket.io";
-import type { LiveAuthorType, LiveMessage, PrismaClient } from "@prisma/client";
-import { runStubArbiter } from "../agents/stub-arbiter";
+import type { LiveMessage, PrismaClient } from "@prisma/client";
+import type { ParsedArbiterReply } from "../agents/arbiter-agent";
+import { runArbiterTurn as defaultRunArbiterTurn } from "../agents/arbiter-agent";
+import type { LlmProvider } from "../llm/types";
 import type { LiveMessageDto, RoomAgentThinkingEvent } from "./types";
 
 export const AGENT_DEBOUNCE_MS = 2500;
-
-const HUMAN_AUTHOR_TYPES: LiveAuthorType[] = ["HUMAN_HR", "HUMAN_CANDIDATE"];
 
 type RoomState = {
   debounceTimer: ReturnType<typeof setTimeout> | null;
   generation: number;
 };
 
+export type RunArbiterTurnFn = (
+  interviewId: string,
+  sessionId: string,
+) => Promise<ParsedArbiterReply>;
+
 export type RoomOrchestratorOptions = {
   debounceMs?: number;
-  runAgent?: (lastHumanContent: string) => Promise<string>;
+  runArbiterTurn?: RunArbiterTurnFn;
+  getLlmProvider?: () => LlmProvider;
 };
 
 export interface RoomOrchestrator {
@@ -43,7 +49,18 @@ export function createRoomOrchestrator(
   options: RoomOrchestratorOptions = {},
 ): RoomOrchestrator {
   const debounceMs = options.debounceMs ?? AGENT_DEBOUNCE_MS;
-  const runAgent = options.runAgent ?? runStubArbiter;
+  const getLlmProvider = options.getLlmProvider;
+  const runArbiter =
+    options.runArbiterTurn ??
+    (getLlmProvider
+      ? (interviewId: string, sessionId: string) =>
+          defaultRunArbiterTurn(getPrisma(), interviewId, sessionId, getLlmProvider())
+      : undefined);
+
+  if (!runArbiter) {
+    throw new Error("RoomOrchestrator requires runArbiterTurn or getLlmProvider");
+  }
+
   const rooms = new Map<string, RoomState>();
 
   function getState(interviewId: string): RoomState {
@@ -67,17 +84,14 @@ export function createRoomOrchestrator(
     emitThinking(io, interviewId, { active: true, agentType: "AGENT_ARBITER" });
 
     try {
-      const lastHuman = await prisma.liveMessage.findFirst({
-        where: {
-          sessionId,
-          authorType: { in: HUMAN_AUTHOR_TYPES },
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const content = await runAgent(lastHuman?.content ?? "");
+      const reply = await runArbiter(interviewId, sessionId);
 
       if (state.generation !== capturedGeneration) {
+        emitThinking(io, interviewId, { active: false });
+        return;
+      }
+
+      if (!reply.post) {
         emitThinking(io, interviewId, { active: false });
         return;
       }
@@ -86,7 +100,7 @@ export function createRoomOrchestrator(
         data: {
           sessionId,
           authorType: "AGENT_ARBITER",
-          content,
+          content: reply.message!,
         },
       });
 

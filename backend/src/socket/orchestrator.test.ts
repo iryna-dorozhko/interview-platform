@@ -78,7 +78,7 @@ test("orchestrator runs agent after debounce and emits thinking + message", asyn
 
   const orchestrator = createRoomOrchestrator(() => prisma, {
     debounceMs: 30,
-    runAgent: async (content) => `reply:${content}`,
+    runArbiterTurn: async () => ({ post: true, message: "reply:Привіт" }),
   });
 
   orchestrator.onHumanMessage(io, "interview_1", "session_1");
@@ -92,6 +92,10 @@ test("orchestrator runs agent after debounce and emits thinking + message", asyn
   assert.equal((thinkingStart!.payload as { agentType?: string }).agentType, "AGENT_ARBITER");
   assert.ok(agentMessage);
   assert.deepEqual((agentMessage!.payload as { messages: Array<{ authorType: string }> }).messages[0].authorType, "AGENT_ARBITER");
+  assert.equal(
+    (agentMessage!.payload as { messages: Array<{ content: string }> }).messages[0].content,
+    "reply:Привіт",
+  );
   assert.equal((thinkingEnd!.payload as { active: boolean }).active, false);
   assert.equal(messages.filter((m) => m.authorType === "AGENT_ARBITER").length, 1);
 });
@@ -113,14 +117,14 @@ test("orchestrator cancels in-flight agent when new human message arrives", asyn
   let agentCallCount = 0;
   const orchestrator = createRoomOrchestrator(() => prisma, {
     debounceMs: 20,
-    runAgent: (content) => {
+    runArbiterTurn: () => {
       agentCallCount += 1;
       if (agentCallCount === 1) {
         return new Promise((resolve) => {
-          resolveAgent = () => resolve("late-reply");
+          resolveAgent = () => resolve({ post: true, message: "late-reply" });
         });
       }
-      return Promise.resolve(`reply:${content}`);
+      return Promise.resolve({ post: true, message: "reply:Друге" });
     },
   });
 
@@ -141,9 +145,9 @@ test("orchestrator cancels in-flight agent when new human message arrives", asyn
 
   const agentMessages = emitted.filter((e) => e.event === "room:messages");
   assert.equal(agentMessages.length, 1);
-  assert.match(
+  assert.equal(
     (agentMessages[0].payload as { messages: Array<{ content: string }> }).messages[0].content,
-    /reply:Друге/,
+    "reply:Друге",
   );
 });
 
@@ -162,11 +166,40 @@ test("orchestrator does not run when interview is not LIVE", async () => {
 
   const orchestrator = createRoomOrchestrator(() => prisma, {
     debounceMs: 20,
-    runAgent: async () => "should-not-run",
+    runArbiterTurn: async () => ({ post: true, message: "should-not-run" }),
   });
 
   orchestrator.onHumanMessage(io, "interview_1", "session_1");
   await new Promise((r) => setTimeout(r, 60));
 
   assert.equal(emitted.length, 0);
+});
+
+test("orchestrator does not emit message when arbiter returns post:false", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Привіт",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    runArbiterTurn: async () => ({ post: false }),
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 80));
+
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.equal(agentMessages.length, 0);
+  assert.equal(messages.filter((m) => m.authorType === "AGENT_ARBITER").length, 0);
+
+  const thinkingEnd = emitted.filter((e) => e.event === "room:agent-thinking").at(-1);
+  assert.equal((thinkingEnd!.payload as { active: boolean }).active, false);
 });
