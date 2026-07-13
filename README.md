@@ -1096,6 +1096,8 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 
 **Pipeline:** `Human message → debounce 2.5s → Arbiter stub → room:messages`
 
+> **Примітка (Day 17):** Arbiter stub замінено на LLM Arbiter — див. [День 17 — Arbiter](#день-17--arbiter).
+
 **1. Відкрити live-кімнату** (як у Day 15) у двох вкладках.
 
 **2. Написати повідомлення від HR або кандидата**
@@ -1129,10 +1131,26 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 - Максимум одне публічне повідомлення від кожного агента за один хід
 
 **Definition of Done:**
-- [ ] Демонстрація: Arbiter пише в чат осмислені коментарі (підсумки, направлення)
-- [ ] Сценарій: після повідомлення людини Arbiter відповідає не більше одного разу; коментарі модерують тему, а не повторюють попередні
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: роль Arbiter у кімнаті, промпт-файл
+- [x] Демонстрація: Arbiter пише в чат осмислені коментарі (підсумки, направлення)
+- [x] Сценарій: після повідомлення людини Arbiter відповідає не більше одного разу; коментарі модерують тему, а не повторюють попередні
+- [x] Збірка: `npm run build` проходить
+- [x] README: роль Arbiter у кімнаті, промпт-файл
+
+### Arbiter Quick Start (Day 17)
+
+**Pipeline:** `Human message → debounce 2.5s → LLM Arbiter → 0 або 1 AGENT_ARBITER message`
+
+**JSON-формат відповіді LLM:**
+- `{ "post": false }` — Arbiter проаналізував, але не публікує
+- `{ "post": true, "message": "..." }` — один коментар у чат
+
+**Промпт:** `backend/src/agents/prompts/arbiter-agent.uk.ts`
+
+**Ручна перевірка:**
+1. Відкрити live-кімнату (як Day 15) з підтвердженими профілями.
+2. Надіслати on-topic повідомлення → Arbiter може мовчати (`post:false`).
+3. Надіслати офтоп або повторити те саме кілька разів → Arbiter публікує модеруючий коментар.
+4. Швидко надіслати 3 повідомлення → Arbiter відповідає один раз (debounce).
 
 ---
 
