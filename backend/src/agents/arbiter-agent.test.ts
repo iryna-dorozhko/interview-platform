@@ -24,6 +24,12 @@ const candidateProfile = {
   goals: ["senior role"],
 };
 
+test("arbiter prompt includes interview start and end guidance", () => {
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /сигнал початку співбесіди/i);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /запропонувати завершення/i);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /Company Agent|Candidate Agent/i);
+});
+
 test("parseArbiterReply parses post:false", () => {
   const result = parseArbiterReply('{ "post": false }');
   assert.equal(result.post, false);
