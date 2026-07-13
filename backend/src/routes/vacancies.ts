@@ -145,8 +145,20 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
       return;
     }
 
-    await prisma.vacancy.delete({ where: { id: vacancy.id } });
-    res.status(200).json({ ok: true });
+    try {
+      const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId: vacancy.id } });
+      if (session) {
+        await prisma.prepMessageHr.deleteMany({ where: { sessionId: session.id } });
+        await prisma.prepSessionHr.delete({ where: { id: session.id } });
+      }
+      await prisma.companyProfile.deleteMany({ where: { vacancyId: vacancy.id } });
+      await prisma.vacancy.delete({ where: { id: vacancy.id } });
+      res.status(200).json({ ok: true });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[vacancies:delete] failed:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+    }
   });
 
   return router;
