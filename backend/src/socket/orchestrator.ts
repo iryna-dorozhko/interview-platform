@@ -49,15 +49,14 @@ export function createRoomOrchestrator(
   options: RoomOrchestratorOptions = {},
 ): RoomOrchestrator {
   const debounceMs = options.debounceMs ?? AGENT_DEBOUNCE_MS;
-  const getLlmProvider = options.getLlmProvider;
-  const runArbiter =
-    options.runArbiterTurn ??
-    (getLlmProvider
-      ? (interviewId: string, sessionId: string) =>
-          defaultRunArbiterTurn(getPrisma(), interviewId, sessionId, getLlmProvider())
-      : undefined);
-
-  if (!runArbiter) {
+  let runArbiter: RunArbiterTurnFn;
+  if (options.runArbiterTurn) {
+    runArbiter = options.runArbiterTurn;
+  } else if (options.getLlmProvider) {
+    const getLlmProvider = options.getLlmProvider;
+    runArbiter = (interviewId: string, sessionId: string) =>
+      defaultRunArbiterTurn(getPrisma(), interviewId, sessionId, getLlmProvider());
+  } else {
     throw new Error("RoomOrchestrator requires runArbiterTurn or getLlmProvider");
   }
 

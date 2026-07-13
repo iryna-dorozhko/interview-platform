@@ -52,7 +52,9 @@ const io = new Server(httpServer, {
   },
 });
 
-const orchestrator = createRoomOrchestrator(() => prisma);
+const orchestrator = createRoomOrchestrator(() => prisma, {
+  getLlmProvider: () => createLlmProvider(),
+});
 registerRoomHandlers(io, () => prisma, orchestrator);
 
 httpServer.listen(port, () => {
