@@ -71,3 +71,24 @@ export async function deleteInterview(id: string): Promise<void> {
     throw await parseError(response, "Не вдалося видалити співбесіду");
   }
 }
+
+export type EndInterviewResult = {
+  reportId: string;
+  recommendation: "HIRE" | "MAYBE" | "REJECT";
+  matchScore: number;
+};
+
+export async function endInterview(id: string): Promise<EndInterviewResult> {
+  const response = await fetchWithAuth(`/api/interviews/${id}/end`, { method: "POST" });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося завершити співбесіду");
+  }
+  const body = (await response.json()) as {
+    report: { id: string; recommendation: EndInterviewResult["recommendation"]; matchScore: number };
+  };
+  return {
+    reportId: body.report.id,
+    recommendation: body.report.recommendation,
+    matchScore: body.report.matchScore,
+  };
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import LiveChatPanel from "./LiveChatPanel.vue";
+import { endInterview } from "../api/interviews";
 import { useInterviewRoom } from "../composables/useInterviewRoom";
 
 const props = defineProps<{
@@ -19,6 +20,14 @@ const {
   interviewStatus,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 
+const ending = ref(false);
+const endSuccess = ref<string | null>(null);
+const endError = ref<string | null>(null);
+
+const showEndButton = computed(
+  () => props.currentRole === "HR" && interviewStatus.value === "LIVE",
+);
+
 const phaseBanner = computed(() => {
   const status = interviewStatus.value;
   if (!status || status === "LIVE") return null;
@@ -33,9 +42,36 @@ const phaseBanner = computed(() => {
   }
   return null;
 });
+
+async function onEndInterview(): Promise<void> {
+  if (!window.confirm("Завершити співбесіду? Буде згенеровано фінальний звіт.")) return;
+  ending.value = true;
+  endError.value = null;
+  endSuccess.value = null;
+  try {
+    const result = await endInterview(props.interviewId);
+    endSuccess.value = `Звіт згенеровано. Рекомендація: ${result.recommendation}`;
+  } catch (error) {
+    endError.value = error instanceof Error ? error.message : "Не вдалося завершити співбесіду";
+  } finally {
+    ending.value = false;
+  }
+}
 </script>
 
 <template>
+  <div v-if="showEndButton" class="room-toolbar">
+    <button
+      type="button"
+      class="btn-danger"
+      :disabled="ending"
+      @click="onEndInterview"
+    >
+      {{ ending ? "Завершення…" : "Завершити співбесіду" }}
+    </button>
+  </div>
+  <p v-if="endSuccess" class="success-banner">{{ endSuccess }}</p>
+  <p v-if="endError" class="error-banner">{{ endError }}</p>
   <p v-if="phaseBanner" class="phase-banner">{{ phaseBanner }}</p>
   <LiveChatPanel
     :messages="messages"
@@ -49,6 +85,41 @@ const phaseBanner = computed(() => {
 </template>
 
 <style scoped>
+.room-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+.btn-danger {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid #fca5a5;
+  background: #fff;
+  color: #b00020;
+  cursor: pointer;
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.success-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: #ecfdf5;
+  color: #065f46;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+.error-banner {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #fde8e8;
+  color: #b00020;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
 .phase-banner {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
