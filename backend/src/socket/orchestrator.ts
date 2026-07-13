@@ -130,7 +130,10 @@ export function createRoomOrchestrator(
           return;
         }
 
-        emitThinking(io, interviewId, { active: true, agentType: step.agentType });
+        emitThinking(io, interviewId, {
+          active: true,
+          agentType: step.agentType as RoomAgentThinkingEvent["agentType"],
+        });
 
         try {
           const reply = await step.run();

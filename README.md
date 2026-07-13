@@ -1164,10 +1164,28 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 - Порядок: Людина → Arbiter → Company → Candidate
 
 **Definition of Done:**
-- [ ] Демонстрація: повний ланцюжок агентів після кожного повідомлення людини
-- [ ] Сценарій: Company посилається на профіль компанії; Candidate — лише на профіль кандидата (без вигаданих фактів); порядок відповідей дотримується
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: повний agent pipeline `Human → Arbiter → Company → Candidate`
+- [x] Демонстрація: повний ланцюжок агентів після кожного повідомлення людини
+- [x] Сценарій: Company посилається на профіль компанії; Candidate — лише на профіль кандидата (без вигаданих фактів); порядок відповідей дотримується
+- [x] Збірка: `npm run build` проходить
+- [x] README: повний agent pipeline `Human → Arbiter → Company → Candidate`
+
+### Live Agents Quick Start (Day 18)
+
+**Pipeline:** `Human message → debounce 2.5s → Arbiter → Company → Candidate`
+
+Кожен агент публікує 0 або 1 повідомлення за хід (JSON `{ post, message }`).
+
+**Промпти:**
+- `backend/src/agents/prompts/arbiter-agent.uk.ts`
+- `backend/src/agents/prompts/company-live-agent.uk.ts`
+- `backend/src/agents/prompts/candidate-live-agent.uk.ts`
+
+**Ручна перевірка:**
+1. Live-кімната з підтвердженими профілями.
+2. Вітання → Arbiter дає сигнал старту.
+3. Company ставить питання → Candidate відповідає з профілю.
+4. HR ставить питання → Candidate відповідає, якщо знає.
+5. Питання поза профілем → Candidate просить відповісти живого кандидата.
 
 ---
 

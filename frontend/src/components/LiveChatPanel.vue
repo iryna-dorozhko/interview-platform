@@ -39,9 +39,18 @@ function labelFor(authorType: LiveMessage["authorType"]): string {
   }
 }
 
-const thinkingLabel = computed(() =>
-  props.agentThinking?.agentType === "AGENT_ARBITER" ? "Arbiter" : "Агент",
-);
+const thinkingLabel = computed(() => {
+  switch (props.agentThinking?.agentType) {
+    case "AGENT_ARBITER":
+      return "Arbiter";
+    case "AGENT_COMPANY":
+      return "Компанія";
+    case "AGENT_CANDIDATE":
+      return "Кандидат (AI)";
+    default:
+      return "Агент";
+  }
+});
 
 async function scrollToBottom(): Promise<void> {
   await nextTick();
