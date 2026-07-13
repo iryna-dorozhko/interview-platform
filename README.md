@@ -1152,6 +1152,8 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 3. Надіслати офтоп або повторити те саме кілька разів → Arbiter публікує модеруючий коментар.
 4. Швидко надіслати 3 повідомлення → Arbiter відповідає один раз (debounce).
 
+> **Примітка (Day 18):** Orchestrator розширено до ланцюжка Arbiter → Company → Candidate — див. [День 18](#день-18--company-і-candidate-agent-у-кімнаті).
+
 ---
 
 ## День 18 — Company і Candidate Agent у кімнаті
@@ -1173,19 +1175,64 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 
 **Pipeline:** `Human message → debounce 2.5s → Arbiter → Company → Candidate`
 
-Кожен агент публікує 0 або 1 повідомлення за хід (JSON `{ post, message }`).
+Кожен агент аналізує розмову і публікує **0 або 1** повідомлення за хід. Порядок фіксований; наступний агент бачить повідомлення попередніх у тому ж ході.
+
+**JSON-формат відповіді LLM** (спільний для всіх трьох агентів):
+- `{ "post": false }` — агент проаналізував, але не публікує
+- `{ "post": true, "message": "..." }` — одне повідомлення у чат
+
+**Ролі агентів у live-кімнаті:**
+
+| Агент | `authorType` | Що робить |
+|-------|--------------|-----------|
+| Arbiter | `AGENT_ARBITER` | Модерує розмову, дає сигнал старту після вітання, стежить за зацикленням, може запропонувати завершення |
+| Company | `AGENT_COMPANY` | Ставить одне інтерв'ю-питання з профілю компанії (після сигналу Arbiter) |
+| Candidate (AI) | `AGENT_CANDIDATE` | Відповідає від імені кандидата з профілю; на питання HR теж; якщо даних немає — просить живого кандидата |
 
 **Промпти:**
 - `backend/src/agents/prompts/arbiter-agent.uk.ts`
 - `backend/src/agents/prompts/company-live-agent.uk.ts`
 - `backend/src/agents/prompts/candidate-live-agent.uk.ts`
 
-**Ручна перевірка:**
-1. Live-кімната з підтвердженими профілями.
-2. Вітання → Arbiter дає сигнал старту.
-3. Company ставить питання → Candidate відповідає з профілю.
-4. HR ставить питання → Candidate відповідає, якщо знає.
-5. Питання поза профілем → Candidate просить відповісти живого кандидата.
+**Ключові файли:**
+
+| Файл | Відповідальність |
+|------|------------------|
+| `backend/src/agents/agent-post-reply.ts` | Спільний парсер JSON `{ post, message }` |
+| `backend/src/agents/company-live-agent.ts` | Company Agent у live-чаті |
+| `backend/src/agents/candidate-live-agent.ts` | Candidate Agent у live-чаті |
+| `backend/src/socket/orchestrator.ts` | Ланцюжок агентів після debounce |
+
+**1. Відкрити live-кімнату** (як у Day 15) у двох вкладках — HR і кандидат, з підтвердженими профілями.
+
+**2. Вітання та старт співбесіди**
+
+- HR і кандидат вітаються
+- Через ~2.5 с з'являється «Arbiter думає…» → можливо «Компанія думає…» → «Кандидат (AI) думає…»
+- Arbiter публікує сигнал старту (напр. «Давайте почнемо співбесіду»)
+- Company ставить питання з профілю вакансії
+- Candidate відповідає з профілю кандидата
+
+**3. HR ставить питання напряму**
+
+- Company може `post:false` (HR уже веде діалог)
+- Candidate відповідає на питання HR, якщо відповідь є в профілі
+
+**4. Питання поза профілем кандидата**
+
+- Candidate просить живого кандидата відповісти самому (природна мова, без окремого типу повідомлення)
+
+**5. Перевірити debounce**
+
+- Швидко надіслати 3 повідомлення → ланцюжок спрацьовує один раз (на останнє)
+
+**Індикатор «думає»** (`room:agent-thinking`):
+
+| Напрям | Подія | Payload |
+|--------|-------|---------|
+| server → client | `room:agent-thinking` | `{ active: boolean; agentType?: "AGENT_ARBITER" \| "AGENT_COMPANY" \| "AGENT_CANDIDATE" }` |
+
+Агентські повідомлення зберігаються в `LiveMessage` з `authorType`: `AGENT_ARBITER`, `AGENT_COMPANY`, `AGENT_CANDIDATE`.
 
 ---
 
