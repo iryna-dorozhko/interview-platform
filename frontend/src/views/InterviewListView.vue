@@ -123,6 +123,14 @@ onMounted(loadInterviews);
             <td>{{ formatDate(interview.createdAt) }}</td>
             <td>{{ statusLabel(interview.status) }}</td>
             <td class="actions-cell">
+              <button
+                v-if="interview.status === 'READY' || interview.status === 'LIVE'"
+                type="button"
+                class="btn-primary"
+                @click="goToRoom(interview.id)"
+              >
+                Увійти в співбесіду
+              </button>
               <button type="button" class="btn-danger" @click="onDelete(interview.id)">
                 Видалити
               </button>

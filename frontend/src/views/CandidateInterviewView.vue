@@ -71,7 +71,7 @@ onMounted(loadInterview);
         class="btn-primary"
         @click="router.push({ name: 'candidate-interview-room' })"
       >
-        Увійти в кімнату
+        Увійти в співбесіду
       </button>
       <p v-else class="muted">
         Очікуємо підтвердження профілів від обох сторін.
