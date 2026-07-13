@@ -1241,15 +1241,63 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 **Задача:** зручна кімната для обох сторін.
 
 **Що робиш:**
-- Кнопки «Увійти в співбесіду» у HR і кандидата (коли статус «готові»)
+- Кнопки «Увійти в співбесіду» у HR і кандидата (коли статус `READY`/`LIVE`)
 - Різні кольори/мітки: HR, кандидат, кожен агент
-- Кнопка HR «Завершити співбесіду»
+- Кнопка HR «Завершити співбесіду» (лише при `LIVE`)
 
 **Definition of Done:**
-- [ ] Демонстрація: повноцінна live-співбесіда з UI — обидві сторони бачать кімнату з кольоровими мітками
-- [ ] Сценарій: вхід доступний лише при статусі `READY`/`LIVE`; кнопка «Завершити» видна тільки HR; повідомлення різних учасників візуально відрізняються
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: UI кімнати співбесіди, хто може завершити сесію
+- [x] Демонстрація: повноцінна live-співбесіда з UI — обидві сторони бачать кімнату з кольоровими мітками
+- [x] Сценарій: вхід доступний лише при статусі `READY`/`LIVE`; кнопка «Завершити» видна тільки HR; повідомлення різних учасників візуально відрізняються
+- [x] Збірка: `npm run build` проходить
+- [x] README: UI кімнати співбесіди, хто може завершити сесію
+
+### Interview Room Quick Start (Day 19+20)
+
+**1. Увійти в кімнату**
+
+| Роль | Маршрут | Кнопка | Коли видна |
+|------|---------|--------|------------|
+| HR | `/interviews` | «Увійти в співбесіду» | `READY` або `LIVE` |
+| HR | `/interviews` | клік по назві співбесіди | будь-який статус (ранній доступ) |
+| Кандидат | `/candidate/interview` | «Увійти в співбесіду» | `READY` або `LIVE` |
+
+Після натискання — live-чат з кольоровими мітками учасників і агентів (як у Day 15–18).
+
+**2. Кольори учасників**
+
+| `authorType` | Мітка | Колір (accent) |
+|--------------|-------|----------------|
+| `HUMAN_HR` | HR | блакитний (`#dbeafe`) |
+| `HUMAN_CANDIDATE` | Кандидат | зелений (`#d1fae5`) |
+| `AGENT_ARBITER` | Arbiter | фіолетовий (`#ede9fe`) |
+| `AGENT_COMPANY` | Компанія | помаранчевий (`#ffedd5`) |
+| `AGENT_CANDIDATE` | Кандидат (AI) | рожевий (`#fce7f3`) |
+
+Власні повідомлення людини — accent-колір; чужі людські — нейтральний сірий. Агенти завжди з accent-кольором.
+
+**3. Завершити співбесіду (HR, лише `LIVE`)**
+
+- Кнопка «Завершити співбесіду» у верхній панелі кімнати
+- Підтвердження → `POST /api/interviews/:id/end`
+- Статус → `ENDED`, чат read-only для обох; socket `room:status` → `{ status: "ENDED" }`
+- Успіх: banner з рекомендацією; у таблиці `/interviews` колонка «Звіт» показує `recommendation`
+
+**4. Перегляд звіту в UI**
+
+> Сторінка `/report/:id` — **День 21**. Зараз звіт зберігається в БД; HR бачить рекомендацію в списку співбесід.
+
+**Ключові файли:**
+
+| Файл | Відповідальність |
+|------|------------------|
+| `frontend/src/utils/live-message-styles.ts` | Кольори та мітки 5 типів учасників |
+| `frontend/src/components/LiveChatPanel.vue` | Live-чат з кольоровими бульбашками |
+| `frontend/src/components/InterviewRoomContent.vue` | Кнопка «Завершити», banner після end |
+| `frontend/src/views/InterviewListView.vue` | HR: «Увійти в співбесіду» при `READY`/`LIVE` |
+| `frontend/src/views/CandidateInterviewView.vue` | Кандидат: «Увійти в співбесіду» |
+| `frontend/src/api/interviews.ts` | `endInterview()` |
+| `backend/src/agents/final-report-agent.ts` | AI-звіт: prompt, парсинг JSON |
+| `backend/src/routes/interviews.ts` | `POST /interviews/:id/end` |
 
 ✅ Спільна частина готова.
 
@@ -1263,14 +1311,61 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 
 **Що робиш:**
 - AI аналізує весь чат + обидва профілі
-- Генерує markdown-звіт: match-score, ризики, рекомендація (hire / maybe / reject)
+- Генерує markdown-звіт: match-score, ризики, рекомендація (`HIRE` / `MAYBE` / `REJECT`)
 - Зберігає в базі
 
+> **Примітка:** backend завершення і генерація звіту реалізовані разом із Day 19 — див. [Interview Room Quick Start (Day 19+20)](#interview-room-quick-start-day-1920).
+
 **Definition of Done:**
-- [ ] Демонстрація: HR натиснув «Завершити» → звіт згенеровано і збережено в `FinalReport`
-- [ ] Сценарій: звіт містить match-score, ризики та рекомендацію; статус співбесіди → `ENDED`; повторне завершення неможливе
-- [ ] Збірка: `npm run build` проходить
-- [ ] README: endpoint `POST /interviews/:id/end`, структура звіту
+- [x] Демонстрація: HR натиснув «Завершити» → звіт згенеровано і збережено в `FinalReport`
+- [x] Сценарій: звіт містить match-score, ризики та рекомендацію; статус співбесіди → `ENDED`; повторне завершення неможливе
+- [x] Збірка: `npm run build` проходить
+- [x] README: endpoint `POST /interviews/:id/end`, структура звіту
+
+### Final Report API (Day 20)
+
+**Endpoint:** `POST /api/interviews/:id/end`
+
+| Умова | Значення |
+|-------|----------|
+| Auth | HR (JWT), лише власник співбесіди |
+| Статус | `LIVE` → `ENDED` |
+| LLM | Аналіз transcript + профілі компанії та кандидата |
+
+**Успіх (201):**
+
+```json
+{
+  "report": {
+    "id": "...",
+    "recommendation": "HIRE",
+    "matchScore": 78
+  }
+}
+```
+
+**Помилки:**
+
+| HTTP | error | Значення |
+|------|-------|----------|
+| 403 | `Forbidden` | Не HR або не власник |
+| 404 | `Interview not found` | Невірний id |
+| 409 | `Interview is not live` | Статус не `LIVE` |
+| 409 | `Interview already ended` | Звіт уже існує |
+| 409 | `Profiles not ready` | Немає confirmed профілів |
+| 502/503 | `LLM unavailable` | LLM не відповів або невалідний JSON |
+
+**Модель `FinalReport`:**
+
+| Поле | Тип | Опис |
+|------|-----|------|
+| `reportMarkdown` | `string` | Повний markdown-звіт |
+| `recommendation` | `HIRE` \| `MAYBE` \| `REJECT` | Рекомендація HR |
+| `matchScore` | `int` (0–100) | Оцінка відповідності |
+| `strengths` | `string[]` (JSON) | Сильні сторони кандидата |
+| `risks` | `string[]` (JSON) | Ризики / застереження |
+
+> Перегляд звіту в браузері (`/report/:id`) — **День 21**.
 
 ---
 
