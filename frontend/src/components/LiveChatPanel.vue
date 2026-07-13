@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import type { AgentThinkingState, LiveMessage } from "../composables/useInterviewRoom";
+import { labelFor, messageStyles } from "../utils/live-message-styles";
 
 const props = defineProps<{
   messages: LiveMessage[];
@@ -17,27 +18,6 @@ const emit = defineEmits<{
 
 const input = ref("");
 const messagesEl = ref<HTMLElement | null>(null);
-
-const ownAuthorType = computed(() =>
-  props.currentRole === "HR" ? "HUMAN_HR" : "HUMAN_CANDIDATE",
-);
-
-function labelFor(authorType: LiveMessage["authorType"]): string {
-  switch (authorType) {
-    case "HUMAN_HR":
-      return "HR";
-    case "HUMAN_CANDIDATE":
-      return "Кандидат";
-    case "AGENT_ARBITER":
-      return "Arbiter";
-    case "AGENT_COMPANY":
-      return "Компанія";
-    case "AGENT_CANDIDATE":
-      return "Кандидат (AI)";
-    default:
-      return "Учасник";
-  }
-}
 
 const thinkingLabel = computed(() => {
   switch (props.agentThinking?.agentType) {
@@ -95,13 +75,20 @@ function onKeydown(event: KeyboardEvent): void {
         v-for="message in messages"
         :key="message.id"
         class="message"
-        :class="{
-          own: message.authorType === ownAuthorType,
-          agent: message.authorType.startsWith('AGENT_'),
-        }"
+        :class="{ own: messageStyles(message.authorType, currentRole).own }"
       >
-        <span class="message-label">{{ labelFor(message.authorType) }}</span>
-        <p class="message-text">{{ message.content }}</p>
+        <span
+          class="message-label"
+          :style="messageStyles(message.authorType, currentRole).label"
+        >
+          {{ labelFor(message.authorType) }}
+        </span>
+        <p
+          class="message-text"
+          :style="messageStyles(message.authorType, currentRole).bubble"
+        >
+          {{ message.content }}
+        </p>
       </div>
       <p v-if="agentThinking?.active" class="thinking">{{ thinkingLabel }} думає…</p>
     </div>
@@ -158,9 +145,10 @@ function onKeydown(event: KeyboardEvent): void {
   text-align: right;
 }
 .message-label {
-  display: block;
+  display: inline-block;
   font-size: 0.75rem;
-  color: #666;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
   margin-bottom: 0.25rem;
 }
 .message-text {
@@ -169,16 +157,6 @@ function onKeydown(event: KeyboardEvent): void {
   border-radius: 0.5rem;
   white-space: pre-wrap;
   word-break: break-word;
-  background: #e5e7eb;
-  color: #1f2937;
-}
-.message.own .message-text {
-  background: #dbeafe;
-  color: #1e3a5f;
-}
-.message.agent .message-text {
-  background: #ede9fe;
-  color: #4c1d95;
 }
 .thinking {
   margin: 0;
