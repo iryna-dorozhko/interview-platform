@@ -1,8 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express, { type NextFunction, type Request, type Response } from "express";
+import type { Server } from "socket.io";
 import type { AuthUser } from "../auth/middleware";
+import type { LlmProvider } from "../llm/types";
 import { createInterviewsRouter } from "./interviews";
+
+type EmittedEvent = { room: string; event: string; payload: unknown };
+
+function makeMockIo(): { io: Server; emitted: EmittedEvent[] } {
+  const emitted: EmittedEvent[] = [];
+  const io = {
+    to: (room: string) => ({
+      emit: (event: string, payload: unknown) => {
+        emitted.push({ room, event, payload });
+      },
+    }),
+  } as unknown as Server;
+  return { io, emitted };
+}
+
+function makeMockProvider(reply: string): LlmProvider {
+  return { name: "test-provider", complete: async () => reply };
+}
 
 type FakeVacancy = { id: string; hrUserId: string; title: string; status: string };
 type FakeInterview = {
@@ -135,12 +155,28 @@ function withUser(user: AuthUser) {
   };
 }
 
-function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, user: AuthUser) {
+function makeAppWithEnd(
+  fakePrisma: ReturnType<typeof makeFakePrisma>,
+  user: AuthUser,
+  options?: { provider?: LlmProvider; io?: Server },
+) {
+  const { io } = makeMockIo();
   const app = express();
   app.use(express.json());
   app.use(withUser(user));
-  app.use("/api", createInterviewsRouter(() => fakePrisma as never));
+  app.use(
+    "/api",
+    createInterviewsRouter(
+      () => fakePrisma as never,
+      () => options?.io ?? io,
+      () => options?.provider ?? makeMockProvider("{}"),
+    ),
+  );
   return app;
+}
+
+function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, user: AuthUser) {
+  return makeAppWithEnd(fakePrisma, user);
 }
 
 const confirmedVacancy: FakeVacancy = {
@@ -157,6 +193,140 @@ function postInterview(port: number, vacancyId?: string) {
     body: JSON.stringify({ vacancyId }),
   });
 }
+
+test("POST /interviews/:id/end returns 201 and creates FinalReport when LIVE", async () => {
+  const validReport = JSON.stringify({
+    reportMarkdown: "## Підсумок\n\nOK",
+    recommendation: "HIRE",
+    matchScore: 78,
+    strengths: ["Досвід"],
+    risks: ["Невідомо"],
+  });
+
+  const interviews = [
+    {
+      id: "int_live",
+      hrUserId: "hr_1",
+      vacancyId: "v1",
+      displayName: "Backend",
+      joinCode: "ABC123",
+      status: "LIVE",
+      createdAt: new Date(),
+    },
+  ];
+
+  let updatedStatus: string | null = null;
+  let createdReport: Record<string, unknown> | null = null;
+
+  const fakePrisma = makeFakePrisma(interviews, [confirmedVacancy]) as ReturnType<
+    typeof makeFakePrisma
+  > & {
+    interview: ReturnType<typeof makeFakePrisma>["interview"] & {
+      update: (args: { where: { id: string }; data: { status: string } }) => Promise<unknown>;
+      findUnique: (args: { where: { id: string }; include?: unknown }) => Promise<unknown>;
+    };
+    finalReport: {
+      create: (args: { data: Record<string, unknown> }) => Promise<{
+        id: string;
+        recommendation: string;
+        matchScore: number;
+      }>;
+    };
+    $transaction: (fn: (tx: typeof fakePrisma) => Promise<unknown>) => Promise<unknown>;
+  };
+
+  fakePrisma.interview.findUnique = async ({ where }) => {
+    const interview = interviews.find((item) => item.id === where.id);
+    if (!interview) return null;
+    return {
+      ...interview,
+      finalReport: null,
+      liveSession: {
+        id: "ls_1",
+        messages: [{ authorType: "HUMAN_HR", content: "Привіт", createdAt: new Date() }],
+      },
+      vacancy: {
+        ...confirmedVacancy,
+        companyProfile: { role: "Backend", requirements: [], culture: [], expectations: [] },
+      },
+      candidateProfile: { skills: [], experience: [], goals: [], summary: "Dev" },
+    };
+  };
+  fakePrisma.interview.update = async ({ data }) => {
+    updatedStatus = data.status;
+    interviews[0].status = data.status;
+    return interviews[0];
+  };
+  fakePrisma.finalReport = {
+    create: async ({ data }) => {
+      createdReport = data;
+      return { id: "rep_1", recommendation: "HIRE", matchScore: 78 };
+    },
+  };
+  fakePrisma.$transaction = async (fn) => fn(fakePrisma);
+
+  const { io, emitted } = makeMockIo();
+  const app = makeAppWithEnd(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" }, {
+    provider: makeMockProvider(validReport),
+    io,
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/int_live/end`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 201);
+    const body = (await response.json()) as {
+      report: { id: string; recommendation: string; matchScore: number };
+    };
+    assert.equal(body.report.id, "rep_1");
+    assert.equal(body.report.recommendation, "HIRE");
+    assert.equal(body.report.matchScore, 78);
+    assert.equal(updatedStatus, "ENDED");
+    assert.equal(createdReport?.recommendation, "HIRE");
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].event, "room:status");
+    assert.deepEqual(emitted[0].payload, { status: "ENDED" });
+    assert.equal(emitted[0].room, "interview:int_live");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /interviews/:id/end returns 409 when status is not LIVE", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "int_ready",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Backend",
+        joinCode: "ABC123",
+        status: "READY",
+        createdAt: new Date(),
+      },
+    ],
+    [confirmedVacancy],
+  );
+  const app = makeAppWithEnd(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/int_ready/end`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 409);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
 
 test("GET /interviews/mine returns interviews for the current HR only, newest first", async () => {
   const fakePrisma = makeFakePrisma(

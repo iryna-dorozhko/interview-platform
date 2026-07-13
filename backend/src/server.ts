@@ -42,7 +42,7 @@ app.use(
 app.use("/api/candidate", createCandidateInterviewRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
-app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma));
+app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, () => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 
 const httpServer = createServer(app);

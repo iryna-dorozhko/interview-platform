@@ -1,12 +1,25 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import type { Server } from "socket.io";
+import {
+  buildFinalReportMessages,
+  formatLiveTranscript,
+  parseFinalReport,
+} from "../agents/final-report-agent";
+import { LlmError, LlmUnavailableError } from "../llm/errors";
+import type { LlmProvider } from "../llm/types";
+import { roomName } from "../socket/maybe-transition-live";
 import { generateJoinCode } from "../utils/joinCode";
 
 const MAX_CREATE_ATTEMPTS = 5;
 
 type CreateBody = { vacancyId?: unknown };
 
-export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
+export function createInterviewsRouter(
+  getPrisma: () => PrismaClient,
+  getIo: () => Server,
+  getProvider: () => LlmProvider,
+): Router {
   const router = Router();
 
   router.get("/interviews/mine", async (req: Request, res: Response) => {
@@ -167,6 +180,126 @@ export function createInterviewsRouter(getPrisma: () => PrismaClient): Router {
     });
 
     res.status(204).end();
+  });
+
+  router.post("/interviews/:id/end", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const interviewId = req.params.id;
+
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: {
+        finalReport: true,
+        liveSession: { include: { messages: { orderBy: { createdAt: "asc" } } } },
+        vacancy: { include: { companyProfile: true } },
+        candidateProfile: true,
+      },
+    });
+
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (interview.status !== "LIVE") {
+      res.status(409).json({ error: "Interview is not live" });
+      return;
+    }
+    if (interview.finalReport) {
+      res.status(409).json({ error: "Interview already ended" });
+      return;
+    }
+
+    const messages = interview.liveSession?.messages ?? [];
+    const companyProfile = interview.vacancy.companyProfile;
+    const candidateProfile = interview.candidateProfile;
+
+    if (!companyProfile || !candidateProfile) {
+      res.status(409).json({ error: "Profiles not ready" });
+      return;
+    }
+
+    const llmMessages = buildFinalReportMessages({
+      transcript: formatLiveTranscript(messages),
+      companyProfile,
+      candidateProfile,
+    });
+
+    let provider: LlmProvider;
+    try {
+      provider = getProvider();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[interviews:end] provider init failed:", detail);
+      res.status(503).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    let rawReply: string;
+    try {
+      rawReply = await provider.complete(llmMessages);
+    } catch (error) {
+      if (error instanceof LlmUnavailableError) {
+        res.status(503).json({ error: "LLM unavailable", detail: error.message });
+        return;
+      }
+      if (error instanceof LlmError && error.code === "empty_response") {
+        res.status(502).json({ error: "LLM unavailable", detail: error.message });
+        return;
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[interviews:end:${provider.name}] unexpected error:`, detail);
+      res.status(503).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    let extracted;
+    try {
+      extracted = parseFinalReport(rawReply);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[interviews:end] failed to parse final report:", detail);
+      res.status(502).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    let report;
+    try {
+      report = await prisma.$transaction(async (tx) => {
+        await tx.interview.update({
+          where: { id: interviewId },
+          data: { status: "ENDED" },
+        });
+        return tx.finalReport.create({
+          data: {
+            interviewId,
+            reportMarkdown: extracted.reportMarkdown,
+            recommendation: extracted.recommendation,
+            matchScore: extracted.matchScore,
+            strengths: extracted.strengths,
+            risks: extracted.risks,
+          },
+        });
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[interviews:end] failed to persist report:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    getIo().to(roomName(interviewId)).emit("room:status", { status: "ENDED" });
+
+    res.status(201).json({
+      report: {
+        id: report.id,
+        recommendation: report.recommendation,
+        matchScore: report.matchScore,
+      },
+    });
   });
 
   return router;
