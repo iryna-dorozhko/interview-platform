@@ -1369,20 +1369,48 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 
 ---
 
-## День 21 — Сторінка звіту + друга AI
+## День 21 — Сторінка звіту + хмарна модель
 
 **Задача:** звіт у браузері + можливість хмарної моделі.
 
 **Що робиш:**
-- Сторінка /report/:id — красивий перегляд звіту
-- Підключення LiteLLM (зовнішня LLM)
-- Перемикач у .env: ollama або litellm
+- Сторінка `/report/:id` — структурований перегляд звіту (match-score, рекомендація, strengths/risks, markdown)
+- Посилання на звіт зі списку співбесід, live-кімнати та деталей співбесіди
+- Перемикач у `.env`: `omlx` (локально) або `gemini` (хмара)
 
 **Definition of Done:**
-- [ ] Демонстрація: звіт читається в UI; перемикання `LLM_PROVIDER=litellm` у `.env` працює (за наявності ключа)
-- [ ] Сценарій: `/report/:id` рендерить markdown; при `LLM_PROVIDER=ollama` і `litellm` обидва провайдери відповідають на тестовий запит
+- [ ] Демонстрація: звіт читається в UI за `/report/:id`
+- [ ] Сценарій: посилання на звіт працює зі списку, кімнати (після завершення) і `/interviews/:id`
+- [ ] `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` — `npm run llm:test --workspace backend` відповідає
 - [ ] Збірка: `npm run build` проходить
-- [ ] README: змінні `LITELLM_*`, як перемкнути провайдера
+- [ ] README: змінні `GEMINI_*`, як перемкнути провайдера
+
+### Report API (Day 21)
+
+**Endpoint:** `GET /api/reports/:id`
+
+| Умова | Значення |
+|-------|----------|
+| Auth | HR (JWT), лише власник співбесіди |
+| `:id` | `FinalReport.id` |
+
+**Успіх (200):** повний звіт (`reportMarkdown`, `recommendation`, `matchScore`, `strengths`, `risks`).
+
+**Помилки:** 403 (не власник), 404 (звіт не знайдено).
+
+### Перемикання LLM-провайдера
+
+```env
+# Локально (за замовчуванням)
+LLM_PROVIDER=omlx
+
+# Хмара (Google Gemini)
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your-key-here
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+Після зміни `.env` — рестарт backend. Тест: `npm run llm:test --workspace backend`.
 
 ---
 
