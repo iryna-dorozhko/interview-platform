@@ -66,6 +66,7 @@ function onInterviewCreated(interview: CreatedInterview): void {
     joinCode: interview.joinCode,
     status: interview.status,
     createdAt: interview.createdAt,
+    reportId: null,
     reportSummary: null,
   });
 }

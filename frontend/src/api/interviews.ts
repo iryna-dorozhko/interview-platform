@@ -8,6 +8,7 @@ export type InterviewSummary = {
   joinCode: string;
   status: string;
   createdAt: string;
+  reportId: string | null;
   reportSummary: string | null;
 };
 
