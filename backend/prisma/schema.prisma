@@ -48,6 +48,13 @@ enum Recommendation {
   REJECT
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 model User {
   id             String      @id @default(cuid())
   email          String      @unique
@@ -84,6 +91,7 @@ model Interview {
   candidateUserId  String?
   joinCode         String               @unique @db.Char(6)
   status           InterviewStatus      @default(AWAITING_CANDIDATE)
+  scheduledAt      DateTime?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   hrUser           User                 @relation("HrInterviews", fields: [hrUserId], references: [id])
@@ -93,6 +101,7 @@ model Interview {
   prepSessionCd    PrepSessionCandidate?
   liveSession      LiveSession?
   finalReport      FinalReport?
+  invitations      Invitation[]
 
   @@index([hrUserId, createdAt(sort: Desc)])
   @@index([candidateUserId])
@@ -187,6 +196,19 @@ model LiveMessage {
   session    LiveSession    @relation(fields: [sessionId], references: [id])
 
   @@index([sessionId, createdAt])
+}
+
+model Invitation {
+  id          String           @id @default(cuid())
+  interviewId String
+  email       String
+  status      InvitationStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  interview   Interview        @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([email, status])
+  @@index([interviewId, status])
 }
 
 model FinalReport {
