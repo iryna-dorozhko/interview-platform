@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { RouterLink } from "vue-router";
 import LiveChatPanel from "./LiveChatPanel.vue";
 import { endInterview } from "../api/interviews";
 import { useInterviewRoom } from "../composables/useInterviewRoom";
@@ -8,6 +9,7 @@ const props = defineProps<{
   interviewId: string;
   currentRole: "HR" | "CANDIDATE";
   joinCode?: string | null;
+  reportId?: string | null;
 }>();
 
 const {
@@ -23,9 +25,17 @@ const {
 const ending = ref(false);
 const endSuccess = ref<string | null>(null);
 const endError = ref<string | null>(null);
+const endedReportId = ref<string | null>(null);
 
 const showEndButton = computed(
   () => props.currentRole === "HR" && interviewStatus.value === "LIVE",
+);
+
+const activeReportId = computed(
+  () => endedReportId.value ?? props.reportId ?? null,
+);
+const showReportLink = computed(
+  () => activeReportId.value !== null && interviewStatus.value === "ENDED",
 );
 
 const phaseBanner = computed(() => {
@@ -50,6 +60,7 @@ async function onEndInterview(): Promise<void> {
   endSuccess.value = null;
   try {
     const result = await endInterview(props.interviewId);
+    endedReportId.value = result.reportId;
     endSuccess.value = `Звіт згенеровано. Рекомендація: ${result.recommendation}`;
   } catch (error) {
     endError.value = error instanceof Error ? error.message : "Не вдалося завершити співбесіду";
@@ -71,6 +82,13 @@ async function onEndInterview(): Promise<void> {
     </button>
   </div>
   <p v-if="endSuccess" class="success-banner">{{ endSuccess }}</p>
+  <RouterLink
+    v-if="showReportLink && activeReportId"
+    :to="{ name: 'report', params: { id: activeReportId } }"
+    class="report-link"
+  >
+    Переглянути звіт →
+  </RouterLink>
   <p v-if="endError" class="error-banner">{{ endError }}</p>
   <p v-if="phaseBanner" class="phase-banner">{{ phaseBanner }}</p>
   <LiveChatPanel
@@ -111,6 +129,16 @@ async function onEndInterview(): Promise<void> {
   color: #065f46;
   border-radius: 0.375rem;
   font-size: 0.875rem;
+}
+.report-link {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+.report-link:hover {
+  text-decoration: underline;
 }
 .error-banner {
   margin: 0 0 1rem;

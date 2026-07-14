@@ -7,6 +7,7 @@ import { fetchInterview } from "../api/interviews";
 const route = useRoute();
 const interviewId = computed(() => String(route.params.id));
 const joinCode = ref<string | null>(null);
+const reportId = ref<string | null>(null);
 const loadState = ref<"loading" | "ready" | "error">("loading");
 const loadError = ref<string | null>(null);
 
@@ -14,6 +15,7 @@ onMounted(async () => {
   try {
     const interview = await fetchInterview(interviewId.value);
     joinCode.value = interview.joinCode;
+    reportId.value = interview.reportId;
     loadState.value = "ready";
   } catch (error) {
     loadState.value = "error";
@@ -38,6 +40,7 @@ onMounted(async () => {
       :interview-id="interviewId"
       current-role="HR"
       :join-code="joinCode"
+      :report-id="reportId"
     />
   </main>
 </template>

@@ -53,6 +53,16 @@ onMounted(loadInterview);
         Код: <strong class="join-code">{{ interview.joinCode }}</strong>
         · Статус: <strong>{{ statusLabel(interview.status) }}</strong>
       </p>
+      <section v-if="interview.reportId" class="report-section">
+        <h2>Фінальний звіт</h2>
+        <p>
+          Рекомендація:
+          <strong>{{ interview.reportSummary }}</strong>
+        </p>
+        <RouterLink :to="{ name: 'report', params: { id: interview.reportId } }">
+          Переглянути повний звіт →
+        </RouterLink>
+      </section>
       <p v-if="interview.status === 'READY'" class="muted">
         Обидва профілі підтверджені. Спільна співбесіда буде доступна пізніше.
       </p>
@@ -87,6 +97,29 @@ h1 {
   margin: 0 0 1rem;
   color: #555;
   font-size: 0.875rem;
+}
+.report-section {
+  margin: 0 0 1.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+.report-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.report-section p {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+.report-section a {
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+.report-section a:hover {
+  text-decoration: underline;
 }
 .join-code {
   font-family: monospace;

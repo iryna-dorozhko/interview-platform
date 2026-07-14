@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import CreateInterviewModal from "../components/CreateInterviewModal.vue";
 import {
   deleteInterview,
@@ -50,6 +50,13 @@ function formatDate(iso: string): string {
 
 function reportLabel(reportSummary: string | null): string {
   return reportSummary ?? "—";
+}
+
+function badgeClass(reportSummary: string): string {
+  if (reportSummary === "HIRE") return "badge-hire";
+  if (reportSummary === "MAYBE") return "badge-maybe";
+  if (reportSummary === "REJECT") return "badge-reject";
+  return "";
 }
 
 function goToRoom(id: string): void {
@@ -120,7 +127,17 @@ onMounted(loadInterviews);
                 {{ interview.displayName }}
               </button>
             </td>
-            <td>{{ reportLabel(interview.reportSummary) }}</td>
+            <td>
+              <RouterLink
+                v-if="interview.reportId"
+                :to="{ name: 'report', params: { id: interview.reportId } }"
+                class="report-badge"
+                :class="badgeClass(interview.reportSummary ?? '')"
+              >
+                {{ reportLabel(interview.reportSummary) }}
+              </RouterLink>
+              <span v-else>—</span>
+            </td>
             <td>{{ formatDate(interview.createdAt) }}</td>
             <td>{{ statusLabel(interview.status) }}</td>
             <td class="actions-cell">
@@ -221,4 +238,15 @@ onMounted(loadInterviews);
   color: #b00020;
   border-color: #fca5a5;
 }
+.report-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.report-badge.badge-hire { background: #dcfce7; color: #16a34a; }
+.report-badge.badge-maybe { background: #fef9c3; color: #ca8a04; }
+.report-badge.badge-reject { background: #fee2e2; color: #dc2626; }
 </style>
