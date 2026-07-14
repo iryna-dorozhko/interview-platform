@@ -18,6 +18,15 @@ type FakeInterview = {
   vacancyId?: string;
 };
 
+type FakeInvitation = {
+  id: string;
+  interviewId: string;
+  email: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 function matchesFindFirstWhere(item: FakeInterview, where: Record<string, unknown>): boolean {
   const candidateUserId = where.candidateUserId as string | undefined;
   if (candidateUserId != null && item.candidateUserId !== candidateUserId) return false;
@@ -53,11 +62,13 @@ function makeFakePrisma(
     hrUserId?: string;
     vacancyId?: string;
     candidateProfiles?: FakeCandidateProfile[];
+    invitations?: FakeInvitation[];
   },
 ) {
   const hrUserId = options?.hrUserId ?? "hr_1";
   const vacancyId = options?.vacancyId ?? "vacancy_1";
   const candidateProfiles = (options?.candidateProfiles ?? []).map((item) => ({ ...item }));
+  const invitations = options?.invitations ?? [];
 
   return {
     user: {
@@ -69,6 +80,25 @@ function makeFakePrisma(
     candidateProfile: {
       findUnique: async ({ where }: { where: { interviewId: string } }) =>
         candidateProfiles.find((item) => item.interviewId === where.interviewId) ?? null,
+    },
+    invitation: {
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { interviewId: string; status: string };
+        data: { status: string };
+      }) => {
+        let count = 0;
+        for (const invitation of invitations) {
+          if (invitation.interviewId === where.interviewId && invitation.status === where.status) {
+            invitation.status = data.status;
+            invitation.updatedAt = new Date();
+            count++;
+          }
+        }
+        return { count };
+      },
     },
     interview: {
       findFirst: async ({ where }: { where: Record<string, unknown> }) =>
@@ -177,9 +207,13 @@ const confirmedQuestionnaireProfile: FakeCandidateProfile = {
   confirmedAt: new Date(),
 };
 
-function makeFakePrismaWithConfirmedQuestionnaire(interviews: FakeInterview[] = []) {
+function makeFakePrismaWithConfirmedQuestionnaire(
+  interviews: FakeInterview[] = [],
+  invitations: FakeInvitation[] = [],
+) {
   return makeFakePrisma([confirmedQuestionnaireInterview, ...interviews], {
     candidateProfiles: [confirmedQuestionnaireProfile],
+    invitations,
   });
 }
 
@@ -233,6 +267,47 @@ test("GET /candidate/interview returns linked interview for current candidate", 
     const body = await response.json();
     assert.equal(body.interview.id, "interview_1");
     assert.equal(body.interview.displayName, "Frontend Dev");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/interview/join cancels PENDING invitation", async () => {
+  const invitations: FakeInvitation[] = [
+    {
+      id: "inv_1",
+      interviewId: "interview_1",
+      email: "candidate@test.com",
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+  const fakePrisma = makeFakePrismaWithConfirmedQuestionnaire(
+    [
+      {
+        id: "interview_1",
+        displayName: "Frontend Dev",
+        joinCode: "TEST01",
+        candidateUserId: null,
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(),
+      },
+    ],
+    invitations,
+  );
+  const app = makeApp(fakePrisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/interview/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(candidateUser) },
+      body: JSON.stringify({ joinCode: "TEST01" }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(invitations[0]?.status, "CANCELLED");
   } finally {
     server.close();
   }

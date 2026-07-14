@@ -8,6 +8,7 @@ import {
   canCandidateJoinInterview,
   maybeTransitionToReady,
 } from "../utils/interview-readiness";
+import { cancelPendingInvitations } from "../utils/invitation";
 
 const MAX_CREATE_ATTEMPTS = 5;
 
@@ -191,6 +192,8 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
         return;
       }
     }
+
+    await cancelPendingInvitations(prisma, interview.id);
 
     const finalInterview = (await maybeTransitionToReady(prisma, linked.id)) ?? linked;
 
