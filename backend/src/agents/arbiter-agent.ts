@@ -1,5 +1,5 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
-import type { ChatMessage, LlmProvider } from "../llm/types";
+import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "../llm/types";
 import {
   AgentPostReplyParseError,
   parsePostReply,
@@ -15,13 +15,6 @@ export interface ArbiterCompanyProfileContext {
   requirements: unknown;
   culture: unknown;
   expectations: unknown;
-}
-
-export interface ArbiterCandidateProfileContext {
-  summary: string;
-  experience: unknown;
-  skills: unknown;
-  goals: unknown;
 }
 
 export interface LiveHistoryItem {
@@ -41,19 +34,18 @@ export function parseArbiterReply(rawText: string): ParsedArbiterReply {
 }
 
 function formatProfileBlock(label: string, data: unknown): string {
-  return `${label}:\n${JSON.stringify(data, null, 2)}`;
+  return `${label}: ${JSON.stringify(data)}`;
 }
 
-function buildSystemPrompt(
-  companyProfile: ArbiterCompanyProfileContext,
-  candidateProfile: ArbiterCandidateProfileContext,
-): string {
+const ARBITER_LLM_OPTIONS: LlmCompleteOptions = {
+  maxTokens: 128,
+  temperature: 0,
+};
+
+function buildSystemPrompt(companyProfile: ArbiterCompanyProfileContext): string {
   return ARBITER_AGENT_SYSTEM_PROMPT_UK.replace(
     "{{COMPANY_PROFILE}}",
     formatProfileBlock("Company", companyProfile),
-  ).replace(
-    "{{CANDIDATE_PROFILE}}",
-    formatProfileBlock("Candidate", candidateProfile),
   );
 }
 
@@ -76,13 +68,12 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 
 export function buildArbiterMessages(input: {
   companyProfile: ArbiterCompanyProfileContext;
-  candidateProfile: ArbiterCandidateProfileContext;
   history: LiveHistoryItem[];
 }): ChatMessage[] {
   return [
     {
       role: "system",
-      content: buildSystemPrompt(input.companyProfile, input.candidateProfile),
+      content: buildSystemPrompt(input.companyProfile),
     },
     ...input.history.map(mapHistoryItem),
   ];
@@ -98,15 +89,13 @@ export async function runArbiterTurn(
     where: { id: interviewId },
     include: {
       vacancy: { include: { companyProfile: true } },
-      candidateProfile: true,
     },
   });
 
   const companyProfile = interview?.vacancy?.companyProfile;
-  const candidateProfile = interview?.candidateProfile;
 
-  if (!companyProfile || !candidateProfile) {
-    throw new ArbiterContextError("Missing profiles for arbiter turn");
+  if (!companyProfile) {
+    throw new ArbiterContextError("Missing company profile for arbiter turn");
   }
 
   const history = await prisma.liveMessage.findMany({
@@ -122,15 +111,10 @@ export async function runArbiterTurn(
       culture: companyProfile.culture,
       expectations: companyProfile.expectations,
     },
-    candidateProfile: {
-      summary: candidateProfile.summary,
-      experience: candidateProfile.experience,
-      skills: candidateProfile.skills,
-      goals: candidateProfile.goals,
-    },
     history,
   });
 
-  const rawReply = await provider.complete(llmMessages);
+  const rawReply = await provider.complete(llmMessages, ARBITER_LLM_OPTIONS);
+
   return parseArbiterReply(rawReply);
 }

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { LlmEmptyResponseError } from "./errors";
-import type { ChatMessage, LlmProvider } from "./types";
+import { LlmEmptyResponseError, LlmUnavailableError } from "./errors";
+import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "./types";
 
 type GeminiConfig = {
   apiKey: string;
@@ -8,8 +8,49 @@ type GeminiConfig = {
 };
 
 const HISTORY_START_PLACEHOLDER = "(start)";
+const HISTORY_CONTINUE_PLACEHOLDER = "(continue)";
+const MAX_RATE_LIMIT_ATTEMPTS = 3;
+const DEFAULT_RATE_LIMIT_DELAY_MS = 10_000;
+const MAX_RATE_LIMIT_DELAY_MS = 60_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isGeminiRateLimitError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes("429") || msg.includes("Too Many Requests") || /quota exceeded/i.test(msg);
+}
+
+export function parseGeminiRetryDelayMs(error: unknown): number {
+  const msg = error instanceof Error ? error.message : String(error);
+  const match = msg.match(/Please retry in (\d+(?:\.\d+)?)s/i);
+  if (match) {
+    return Math.min(Math.ceil(parseFloat(match[1]) * 1000) + 500, MAX_RATE_LIMIT_DELAY_MS);
+  }
+  return DEFAULT_RATE_LIMIT_DELAY_MS;
+}
 
 type GeminiTurn = { role: "user" | "model"; parts: [{ text: string }] };
+
+/** Gemini sendMessage requires a user turn; use a placeholder when history ends with assistant. */
+export function resolveGeminiPrompt(chatMessages: ChatMessage[]): {
+  historyMessages: ChatMessage[];
+  promptContent: string;
+} {
+  const lastMessage = chatMessages[chatMessages.length - 1];
+  if (lastMessage.role === "user") {
+    return {
+      historyMessages: chatMessages.slice(0, -1),
+      promptContent: lastMessage.content,
+    };
+  }
+
+  return {
+    historyMessages: chatMessages,
+    promptContent: HISTORY_CONTINUE_PLACEHOLDER,
+  };
+}
 
 /**
  * Gemini requires chat history passed to startChat() to begin with a "user"
@@ -34,7 +75,7 @@ export function createGeminiProvider(config: GeminiConfig): LlmProvider {
   return {
     name: "gemini",
 
-    async complete(messages: ChatMessage[]): Promise<string> {
+    async complete(messages: ChatMessage[], options?: LlmCompleteOptions): Promise<string> {
       if (messages.length === 0) {
         throw new Error("at least one message required");
       }
@@ -50,28 +91,47 @@ export function createGeminiProvider(config: GeminiConfig): LlmProvider {
         throw new Error("at least one user or assistant message required");
       }
 
-      const lastMessage = chatMessages[chatMessages.length - 1];
-      if (lastMessage.role !== "user") {
-        throw new Error("last message must be from user");
-      }
+      const { historyMessages, promptContent } = resolveGeminiPrompt(chatMessages);
 
       const genAI = new GoogleGenerativeAI(config.apiKey);
       const model = genAI.getGenerativeModel({
         model: config.model,
         ...(systemInstruction ? { systemInstruction } : {}),
+        ...(options?.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
       });
 
-      const history = buildGeminiHistory(chatMessages.slice(0, -1));
+      const history = buildGeminiHistory(historyMessages);
 
-      const chat = model.startChat({ history });
-      const result = await chat.sendMessage(lastMessage.content);
-      const text = result.response.text().trim();
+      let lastError: unknown;
+      for (let attempt = 0; attempt < MAX_RATE_LIMIT_ATTEMPTS; attempt++) {
+        try {
+          const chat = model.startChat({ history });
+          const result = await chat.sendMessage(promptContent);
+          const text = result.response.text().trim();
 
-      if (!text) {
-        throw new LlmEmptyResponseError();
+          if (!text) {
+            throw new LlmEmptyResponseError();
+          }
+
+          return text;
+        } catch (error) {
+          lastError = error;
+          const canRetry =
+            isGeminiRateLimitError(error) && attempt < MAX_RATE_LIMIT_ATTEMPTS - 1;
+          if (!canRetry) break;
+          const retryDelayMs = parseGeminiRetryDelayMs(error);
+          await sleep(retryDelayMs);
+        }
       }
 
-      return text;
+      if (isGeminiRateLimitError(lastError)) {
+        throw new LlmUnavailableError(
+          "Gemini API: перевищено ліміт запитів. Змініть LLM_PROVIDER у .env або зачекайте.",
+        );
+      }
+
+      throw lastError;
     },
   };
 }

@@ -17,13 +17,6 @@ const companyProfile = {
   expectations: ["ownership"],
 };
 
-const candidateProfile = {
-  summary: "5 років досвіду",
-  experience: ["Acme Corp"],
-  skills: { strong: ["TypeScript"], growth: ["DevOps"] },
-  goals: ["senior role"],
-};
-
 test("arbiter prompt includes interview start and end guidance", () => {
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /сигнал початку співбесіди/i);
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /запропонуй завершення співбесіди/i);
@@ -63,18 +56,18 @@ test("parseArbiterReply throws when post field is missing", () => {
   assert.throws(() => parseArbiterReply('{ "message": "hi" }'), ArbiterReplyParseError);
 });
 
-test("buildArbiterMessages includes profiles in system prompt and maps history", () => {
+test("buildArbiterMessages includes company profile in system prompt and maps history", () => {
   const history: Array<{ authorType: LiveAuthorType; content: string }> = [
     { authorType: "HUMAN_HR", content: "Розкажіть про досвід." },
     { authorType: "HUMAN_CANDIDATE", content: "Працював з Node.js." },
     { authorType: "AGENT_ARBITER", content: "Короткий підсумок." },
   ];
 
-  const messages = buildArbiterMessages({ companyProfile, candidateProfile, history });
+  const messages = buildArbiterMessages({ companyProfile, history });
 
   assert.equal(messages[0].role, "system");
   assert.match(messages[0].content, /Backend Developer/);
-  assert.match(messages[0].content, /5 років досвіду/);
+  assert.doesNotMatch(messages[0].content, /5 років досвіду/);
   assert.ok(
     messages[0].content.includes(
       ARBITER_AGENT_SYSTEM_PROMPT_UK.split("{{COMPANY_PROFILE}}")[0].trimEnd(),
@@ -90,11 +83,12 @@ test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
   let llmCalled = false;
   const fakeProvider: LlmProvider = {
     name: "fake",
-    async complete(messages) {
+    async complete(messages, options) {
       llmCalled = true;
       assert.equal(messages[0].role, "system");
       assert.match(messages[0].content, /Backend Developer/);
       assert.equal(messages.at(-1)?.content, "[HR] Привіт");
+      assert.deepEqual(options, { maxTokens: 128, temperature: 0 });
       return '{ "post": true, "message": "Продовжуйте." }';
     },
   };
@@ -110,12 +104,6 @@ test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
             expectations: ["ship features"],
           },
         },
-        candidateProfile: {
-          summary: "5 років",
-          experience: ["Acme"],
-          skills: { strong: ["TS"], growth: [] },
-          goals: ["grow"],
-        },
       }),
     },
     liveMessage: {
@@ -129,10 +117,10 @@ test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
   assert.deepEqual(result, { post: true, message: "Продовжуйте." });
 });
 
-test("runArbiterTurn throws when profiles are missing", async () => {
+test("runArbiterTurn throws when company profile is missing", async () => {
   const fakePrisma = {
     interview: {
-      findUnique: async () => ({ vacancy: { companyProfile: null }, candidateProfile: null }),
+      findUnique: async () => ({ vacancy: { companyProfile: null } }),
     },
   } as unknown as PrismaClient;
 
@@ -140,6 +128,6 @@ test("runArbiterTurn throws when profiles are missing", async () => {
 
   await assert.rejects(
     () => runArbiterTurn(fakePrisma, "interview_1", "session_1", fakeProvider),
-    /Missing profiles/,
+    /Missing company profile/,
   );
 });

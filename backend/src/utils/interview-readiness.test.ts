@@ -4,6 +4,7 @@ import {
   canCandidateJoinInterview,
   isCandidateQuestionnaireConfirmed,
   maybeTransitionToReady,
+  resolveCandidateProfileForInterview,
 } from "./interview-readiness";
 
 type FakeInterview = {
@@ -23,6 +24,10 @@ type FakeVacancy = {
 type FakeCandidateProfile = {
   interviewId: string;
   confirmedAt: Date | null;
+  summary?: string;
+  experience?: unknown;
+  skills?: unknown;
+  goals?: unknown;
 };
 
 function makeFakePrisma(seed: {
@@ -364,4 +369,40 @@ test("isCandidateQuestionnaireConfirmed returns true only for confirmed question
   });
 
   assert.equal(await isCandidateQuestionnaireConfirmed(fakePrisma as never, "cd_1"), true);
+});
+
+test("resolveCandidateProfileForInterview returns profile from questionnaire interview", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [
+      {
+        id: "i_hr",
+        status: "LIVE",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+      },
+      {
+        id: "i_self",
+        status: "AWAITING_CANDIDATE",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        displayName: "Моя анкета",
+      },
+    ],
+    vacancies: [],
+    candidateProfiles: [
+      {
+        interviewId: "i_self",
+        confirmedAt: new Date(1),
+        summary: "5 років досвіду",
+        experience: ["Acme"],
+        skills: { strong: ["TS"] },
+        goals: ["grow"],
+      },
+    ],
+  });
+
+  const profile = await resolveCandidateProfileForInterview(fakePrisma as never, "i_hr");
+  assert.ok(profile);
+  assert.equal(profile?.summary, "5 років досвіду");
 });

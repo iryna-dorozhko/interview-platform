@@ -168,7 +168,7 @@
 
 ## Демо-референс
 
-Brainstorming companion mockup live-кімнати: `.superpowers/brainstorm/.../content/demo-live-room.html` (локальна сесія; не частинa runtime продукту).
+Brainstorming companion mockup live-кімнати: `.superpowers/brainstorm/.../content/demo-live-room.html` (локальна сесія; не частина runtime продукту).
 
 ---
 

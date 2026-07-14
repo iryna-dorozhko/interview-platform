@@ -10,6 +10,7 @@ import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 import { roomName } from "../socket/maybe-transition-live";
 import { generateJoinCode } from "../utils/joinCode";
+import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
 
 const MAX_CREATE_ATTEMPTS = 5;
 
@@ -217,7 +218,7 @@ export function createInterviewsRouter(
 
     const messages = interview.liveSession?.messages ?? [];
     const companyProfile = interview.vacancy.companyProfile;
-    const candidateProfile = interview.candidateProfile;
+    const candidateProfile = await resolveCandidateProfileForInterview(prisma, interviewId);
 
     if (!companyProfile || !candidateProfile) {
       res.status(409).json({ error: "Profiles not ready" });

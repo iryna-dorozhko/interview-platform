@@ -95,7 +95,10 @@ export function registerRoomHandlers(
         trackJoin(room, role);
         const session = await ensureLiveSession(prisma, interviewId);
 
-        await maybeTransitionToLive(io, prisma, interviewId, getPresence(room));
+        const transitioned = await maybeTransitionToLive(io, prisma, interviewId, getPresence(room));
+        if (transitioned) {
+          orchestrator.onLiveStart(io, interviewId, session.id);
+        }
 
         const messages = await prisma.liveMessage.findMany({
           where: { sessionId: session.id },

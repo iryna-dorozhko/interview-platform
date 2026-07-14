@@ -63,6 +63,27 @@ function makePrisma(messages: LiveMessage[], interviewStatus: "LIVE" | "READY" =
   } as unknown as PrismaClient;
 }
 
+test("orchestrator onLiveStart runs agent chain when interview is LIVE", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    runArbiterTurn: async () => ({ post: true, message: "Давайте почнемо співбесіду." }),
+  });
+
+  orchestrator.onLiveStart(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 80));
+
+  const agentMessage = emitted.find((e) => e.event === "room:messages");
+  assert.ok(agentMessage);
+  assert.equal(
+    (agentMessage!.payload as { messages: Array<{ content: string }> }).messages[0].content,
+    "Давайте почнемо співбесіду.",
+  );
+});
+
 test("orchestrator runs agent after debounce and emits thinking + message", async () => {
   const messages: LiveMessage[] = [
     {

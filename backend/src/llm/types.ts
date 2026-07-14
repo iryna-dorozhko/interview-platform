@@ -5,9 +5,14 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface LlmCompleteOptions {
+  maxTokens?: number;
+  temperature?: number;
+}
+
 export interface LlmProvider {
   readonly name: string;
-  complete(messages: ChatMessage[]): Promise<string>;
+  complete(messages: ChatMessage[], options?: LlmCompleteOptions): Promise<string>;
 }
 
 export interface LlmEnvConfig {

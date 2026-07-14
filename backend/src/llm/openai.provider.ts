@@ -1,5 +1,5 @@
 import { LlmEmptyResponseError, LlmUnavailableError } from "./errors";
-import type { ChatMessage, LlmProvider } from "./types";
+import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "./types";
 
 const REQUEST_TIMEOUT_MS = 120_000;
 
@@ -19,7 +19,7 @@ export function createOpenAiProvider(config: OpenAiConfig): LlmProvider {
   return {
     name: "openai",
 
-    async complete(messages: ChatMessage[]): Promise<string> {
+    async complete(messages: ChatMessage[], options?: LlmCompleteOptions): Promise<string> {
       const url = `${baseUrl}/chat/completions`;
 
       let response: Response;
@@ -34,6 +34,8 @@ export function createOpenAiProvider(config: OpenAiConfig): LlmProvider {
             model: config.model,
             messages,
             stream: false,
+            ...(options?.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+            ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
           }),
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });

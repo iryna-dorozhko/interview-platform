@@ -9,6 +9,13 @@ type JoinCheckInterview = Pick<Interview, "id" | "status" | "candidateUserId">;
 
 export type JoinCheckResult = { ok: true } | { ok: false; error: string };
 
+export type ResolvedCandidateProfile = {
+  summary: string;
+  experience: unknown;
+  skills: unknown;
+  goals: unknown;
+};
+
 async function findQuestionnaireInterview(prisma: PrismaClient, candidateUserId: string) {
   return prisma.interview.findFirst({
     where: {
@@ -18,6 +25,43 @@ async function findQuestionnaireInterview(prisma: PrismaClient, candidateUserId:
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function resolveCandidateProfileForInterview(
+  prisma: PrismaClient,
+  interviewId: string,
+): Promise<ResolvedCandidateProfile | null> {
+  const interview = await prisma.interview.findUnique({
+    where: { id: interviewId },
+    include: { candidateProfile: true },
+  });
+  if (!interview) return null;
+
+  if (interview.candidateProfile) {
+    return {
+      summary: interview.candidateProfile.summary,
+      experience: interview.candidateProfile.experience,
+      skills: interview.candidateProfile.skills,
+      goals: interview.candidateProfile.goals,
+    };
+  }
+
+  if (!interview.candidateUserId) return null;
+
+  const questionnaire = await findQuestionnaireInterview(prisma, interview.candidateUserId);
+  if (!questionnaire) return null;
+
+  const profile = await prisma.candidateProfile.findUnique({
+    where: { interviewId: questionnaire.id },
+  });
+  if (!profile) return null;
+
+  return {
+    summary: profile.summary,
+    experience: profile.experience,
+    skills: profile.skills,
+    goals: profile.goals,
+  };
 }
 
 export async function isCandidateQuestionnaireConfirmed(

@@ -69,7 +69,7 @@ function onKeydown(event: KeyboardEvent): void {
 
     <div ref="messagesEl" class="messages" role="log" aria-live="polite">
       <p v-if="messages.length === 0" class="empty-hint">
-        Напишіть перше повідомлення, щоб почати діалог.
+        Очікуйте початку співбесіди або напишіть повідомлення.
       </p>
       <div
         v-for="message in messages"

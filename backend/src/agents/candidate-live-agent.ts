@@ -6,6 +6,7 @@ import {
   type ParsedPostReply,
 } from "./agent-post-reply";
 import { CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/candidate-live-agent.uk";
+import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
 
 export type ParsedCandidateLiveReply = ParsedPostReply;
 export { AgentPostReplyParseError as CandidateLiveReplyParseError };
@@ -61,17 +62,27 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
   }
 }
 
+export const COMPANY_QUESTION_NUDGE_UK =
+  "[Система] Company Agent поставив питання. Відповідай від імені кандидата згідно з профілем.";
+
 export function buildCandidateLiveMessages(input: {
   candidateProfile: CandidateLiveProfileContext;
   history: LiveHistoryItem[];
 }): ChatMessage[] {
-  return [
+  const messages: ChatMessage[] = [
     {
       role: "system",
       content: buildSystemPrompt(input.candidateProfile),
     },
     ...input.history.map(mapHistoryItem),
   ];
+
+  const last = input.history[input.history.length - 1];
+  if (last?.authorType === "AGENT_COMPANY") {
+    messages.push({ role: "user", content: COMPANY_QUESTION_NUDGE_UK });
+  }
+
+  return messages;
 }
 
 export async function runCandidateLiveTurn(
@@ -82,12 +93,13 @@ export async function runCandidateLiveTurn(
 ): Promise<ParsedCandidateLiveReply> {
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },
-    include: {
-      candidateProfile: true,
-    },
   });
 
-  const candidateProfile = interview?.candidateProfile;
+  if (!interview) {
+    throw new CandidateLiveContextError("Missing interview for candidate live turn");
+  }
+
+  const candidateProfile = await resolveCandidateProfileForInterview(prisma, interviewId);
 
   if (!candidateProfile) {
     throw new CandidateLiveContextError("Missing candidate profile for candidate live turn");

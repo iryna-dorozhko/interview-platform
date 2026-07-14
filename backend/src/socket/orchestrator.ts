@@ -7,11 +7,12 @@ import { runCandidateLiveTurn as defaultRunCandidateLiveTurn } from "../agents/c
 import type { LlmProvider } from "../llm/types";
 import type { LiveMessageDto, RoomAgentThinkingEvent } from "./types";
 
-export const AGENT_DEBOUNCE_MS = 2500;
+export const AGENT_DEBOUNCE_MS = 1000;
 
 type RoomState = {
   debounceTimer: ReturnType<typeof setTimeout> | null;
   generation: number;
+  candidateRecoveryTimer: ReturnType<typeof setTimeout> | null;
 };
 
 export type RunArbiterTurnFn = (
@@ -32,6 +33,7 @@ export type RoomOrchestratorOptions = {
 
 export interface RoomOrchestrator {
   onHumanMessage(io: Server, interviewId: string, sessionId: string): void;
+  onLiveStart(io: Server, interviewId: string, sessionId: string): void;
 }
 
 type AgentStep = {
@@ -56,6 +58,21 @@ function toDto(message: LiveMessage): LiveMessageDto {
 
 function emitThinking(io: Server, interviewId: string, payload: RoomAgentThinkingEvent): void {
   io.to(roomName(interviewId)).emit("room:agent-thinking", payload);
+}
+
+function emitAgentError(
+  io: Server,
+  interviewId: string,
+  agentType: LiveAuthorType,
+  error: unknown,
+): void {
+  const raw = error instanceof Error ? error.message : String(error);
+  io.to(roomName(interviewId)).emit("room:agent-error", {
+    agentType: agentType as RoomAgentThinkingEvent["agentType"],
+    error: raw.includes("перевищено ліміт")
+      ? raw
+      : "AI-агент тимчасово недоступний. Спробуйте надіслати повідомлення ще раз.",
+  });
 }
 
 export function createRoomOrchestrator(
@@ -102,7 +119,7 @@ export function createRoomOrchestrator(
   function getState(interviewId: string): RoomState {
     let state = rooms.get(interviewId);
     if (!state) {
-      state = { debounceTimer: null, generation: 0 };
+      state = { debounceTimer: null, generation: 0, candidateRecoveryTimer: null };
       rooms.set(interviewId, state);
     }
     return state;
@@ -122,6 +139,10 @@ export function createRoomOrchestrator(
       { agentType: "AGENT_COMPANY", run: () => runCompany(interviewId, sessionId) },
       { agentType: "AGENT_CANDIDATE", run: () => runCandidate(interviewId, sessionId) },
     ];
+
+    let companyPostedThisTurn = false;
+    let candidatePostedThisTurn = false;
+    let candidateStepFailed = false;
 
     try {
       for (const step of steps) {
@@ -152,11 +173,18 @@ export function createRoomOrchestrator(
               },
             });
 
+            if (step.agentType === "AGENT_COMPANY") companyPostedThisTurn = true;
+            if (step.agentType === "AGENT_CANDIDATE") candidatePostedThisTurn = true;
+
             io.to(roomName(interviewId)).emit("room:messages", {
               messages: [toDto(saved)],
             });
           }
         } catch (error) {
+          if (step.agentType === "AGENT_CANDIDATE") {
+            candidateStepFailed = true;
+          }
+          emitAgentError(io, interviewId, step.agentType, error);
           console.error(
             `[orchestrator] ${step.agentType} turn failed:`,
             error instanceof Error ? error.message : error,
@@ -166,6 +194,19 @@ export function createRoomOrchestrator(
     } finally {
       if (state.generation === capturedGeneration) {
         emitThinking(io, interviewId, { active: false });
+      }
+
+      if (
+        companyPostedThisTurn &&
+        !candidatePostedThisTurn &&
+        candidateStepFailed &&
+        state.generation === capturedGeneration &&
+        !state.candidateRecoveryTimer
+      ) {
+        state.candidateRecoveryTimer = setTimeout(() => {
+          state.candidateRecoveryTimer = null;
+          scheduleTurn(io, interviewId, sessionId);
+        }, 60_000);
       }
     }
   }
@@ -180,6 +221,7 @@ export function createRoomOrchestrator(
     state.generation += 1;
     emitThinking(io, interviewId, { active: false });
 
+
     const capturedGeneration = state.generation;
     state.debounceTimer = setTimeout(() => {
       state.debounceTimer = null;
@@ -189,6 +231,20 @@ export function createRoomOrchestrator(
 
   return {
     onHumanMessage(io: Server, interviewId: string, sessionId: string): void {
+      void (async () => {
+        const interview = await getPrisma().interview.findUnique({
+          where: { id: interviewId },
+          select: { status: true },
+        });
+        if (!interview || interview.status !== "LIVE") {
+          return;
+        }
+
+        scheduleTurn(io, interviewId, sessionId);
+      })();
+    },
+
+    onLiveStart(io: Server, interviewId: string, sessionId: string): void {
       void (async () => {
         const interview = await getPrisma().interview.findUnique({
           where: { id: interviewId },

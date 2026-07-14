@@ -22,10 +22,10 @@ export async function maybeTransitionToLive(
   prisma: PrismaClient,
   interviewId: string,
   presence: RoomPresence,
-): Promise<void> {
+): Promise<boolean> {
   const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
   if (!interview || !shouldTransitionToLive(interview.status, presence)) {
-    return;
+    return false;
   }
 
   await prisma.interview.update({
@@ -34,4 +34,5 @@ export async function maybeTransitionToLive(
   });
 
   io.to(roomName(interviewId)).emit("room:status", { status: "LIVE" });
+  return true;
 }

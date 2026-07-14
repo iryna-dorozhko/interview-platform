@@ -121,7 +121,7 @@ async function startRoomServer(prisma: PrismaClient): Promise<{
 }> {
   const httpServer = createServer();
   const io = new Server(httpServer);
-  const noopOrchestrator = { onHumanMessage: () => {} };
+  const noopOrchestrator = { onHumanMessage: () => {}, onLiveStart: () => {} };
   registerRoomHandlers(io, () => prisma, noopOrchestrator);
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
   const port = (httpServer.address() as AddressInfo).port;

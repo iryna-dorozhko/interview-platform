@@ -1,0 +1,929 @@
+{
+  "steps": [
+    {
+      "step": "start",
+      "detail": "API=http://localhost:3000/api",
+      "at": "2026-07-14T11:22:33.494Z"
+    },
+    {
+      "step": "hr-login",
+      "detail": "ok",
+      "at": "2026-07-14T11:22:33.539Z"
+    },
+    {
+      "step": "create-vacancy",
+      "detail": "cmrkkatac001i01r9t7nwl1cr",
+      "at": "2026-07-14T11:22:33.546Z"
+    },
+    {
+      "step": "hr-prep:greeting",
+      "detail": "",
+      "at": "2026-07-14T11:22:33.546Z"
+    },
+    {
+      "step": "hr-prep:agent",
+      "detail": "Привіт! Я AI-асистент, який допоможе нам зрозуміти потрібні ревізії до вакансії перед тим, як мати бесіду з кандидатом. ",
+      "at": "2026-07-14T11:22:46.561Z"
+    },
+    {
+      "step": "hr-prep:answer",
+      "detail": "1/4",
+      "at": "2026-07-14T11:22:46.561Z"
+    },
+    {
+      "step": "hr-prep:agent",
+      "detail": "ready=false Дякую за деталі. тепер поговоримо про вимоги. Будь ласка, дайте мені знати, які навички та досвід є ",
+      "at": "2026-07-14T11:22:55.171Z"
+    },
+    {
+      "step": "hr-prep:answer",
+      "detail": "2/4",
+      "at": "2026-07-14T11:22:55.171Z"
+    },
+    {
+      "step": "hr-prep:agent",
+      "detail": "ready=false Дякую за具体的来说，让我们继续讨论公司的文化。你能告诉我，公司的价值观是什么？团队的工作方式是怎样的？是更倾向于集中办公还是远程工作，或者是混合模式？另外，我们还可以聊聊团队的氛围是怎样的，比",
+      "at": "2026-07-14T11:23:00.608Z"
+    },
+    {
+      "step": "hr-prep:answer",
+      "detail": "3/4",
+      "at": "2026-07-14T11:23:00.608Z"
+    },
+    {
+      "step": "hr-prep:agent",
+      "detail": "ready=false Дякую за ці додаткові деталі. Тепер поговоримо про очікування від кандидата в перші місяці роботи. Т",
+      "at": "2026-07-14T11:23:11.566Z"
+    },
+    {
+      "step": "hr-prep:answer",
+      "detail": "4/4",
+      "at": "2026-07-14T11:23:11.566Z"
+    },
+    {
+      "step": "hr-prep:agent",
+      "detail": "ready=true Дякую за ці додаткові деталі. Тепер все конкретно:\n\n1. **Посада:**\n   - Назва посади: Middle Backend",
+      "at": "2026-07-14T11:23:38.118Z"
+    },
+    {
+      "step": "hr-prep:finish",
+      "detail": "",
+      "at": "2026-07-14T11:23:38.118Z"
+    },
+    {
+      "step": "hr-prep:profile",
+      "detail": "{\"role\":\"Middle Backend Developer\",\"requirements\":[\"TypeScript\",\"Node.js\",\"PostgreSQL\",\"3 роки досвіду з REST API\"],\"culture\":[\"Плоска структура без зайвої бюрократії\",\"Работа remote-first\",\"Відкрита комунікація в Slack\",\"Code review\",\"Відповідальність за свій сервіс\",\"Підтримка творчості та інновац",
+      "at": "2026-07-14T11:23:59.782Z"
+    },
+    {
+      "step": "hr-prep:confirm",
+      "detail": "",
+      "at": "2026-07-14T11:23:59.782Z"
+    },
+    {
+      "step": "hr-prep:confirmed",
+      "detail": "{\"profile\":{\"role\":\"Middle Backend Developer\",\"requirements\":[\"TypeScript\",\"Node.js\",\"PostgreSQL\",\"3 роки досвіду з REST API\"],\"culture\":[\"Плоска структура без зайвої бюрократії\",\"Работа remote-first\"",
+      "at": "2026-07-14T11:23:59.801Z"
+    },
+    {
+      "step": "vacancy-status",
+      "detail": "CONFIRMED",
+      "at": "2026-07-14T11:23:59.804Z"
+    },
+    {
+      "step": "create-interview",
+      "detail": "id=cmrkkcnup001u01r9y9rm0nlk code=M58L9K",
+      "at": "2026-07-14T11:23:59.812Z"
+    },
+    {
+      "step": "candidate-login",
+      "detail": "e2e.candidate.1784028239812@test.com",
+      "at": "2026-07-14T11:23:59.815Z"
+    },
+    {
+      "step": "questionnaire",
+      "detail": "cmrkkcnv0001w01r9ipg49qbn",
+      "at": "2026-07-14T11:23:59.821Z"
+    },
+    {
+      "step": "candidate-prep:greeting",
+      "detail": "",
+      "at": "2026-07-14T11:23:59.821Z"
+    },
+    {
+      "step": "candidate-prep:agent",
+      "detail": "Привіт! Як ваше ім'я та як я можу вас викликати зараз?",
+      "at": "2026-07-14T11:24:01.612Z"
+    },
+    {
+      "step": "candidate-prep:answer",
+      "detail": "1/4",
+      "at": "2026-07-14T11:24:01.612Z"
+    },
+    {
+      "step": "candidate-prep:agent",
+      "detail": "ready=false Це цікаво! Котра з усіх цих технологій вам найбільше подаєся? Може, ви можете розповісти більше про ",
+      "at": "2026-07-14T11:24:05.666Z"
+    },
+    {
+      "step": "candidate-prep:answer",
+      "detail": "2/4",
+      "at": "2026-07-14T11:24:05.666Z"
+    },
+    {
+      "step": "candidate-prep:agent",
+      "detail": "ready=false Це дуже цікаво! Як зразу ви оптимізували запити до PostgreSQL? Було ли их декілька слів про те, як в",
+      "at": "2026-07-14T11:24:10.805Z"
+    },
+    {
+      "step": "candidate-prep:answer",
+      "detail": "3/4",
+      "at": "2026-07-14T11:24:10.805Z"
+    },
+    {
+      "step": "candidate-prep:agent",
+      "detail": "ready=false Дякую за повідомлення. Тепер додам інформацію про ваші кар'єрні цілі. Наскільки бажано це добре фоку",
+      "at": "2026-07-14T11:24:16.879Z"
+    },
+    {
+      "step": "candidate-prep:answer",
+      "detail": "4/4",
+      "at": "2026-07-14T11:24:16.879Z"
+    },
+    {
+      "step": "candidate-prep:agent",
+      "detail": "ready=true Відлично! Тепер ми маємо всі чотири підтеми в рамках тем. Спасибі за таке детальне описування своєї ",
+      "at": "2026-07-14T11:24:37.911Z"
+    },
+    {
+      "step": "candidate-prep:finish",
+      "detail": "",
+      "at": "2026-07-14T11:24:37.911Z"
+    },
+    {
+      "step": "candidate-prep:profile",
+      "detail": "{\"experience\":[\"три роки працюю backend-розробником у FinTech-стартапі. Основні проєкти: платіжний шлюз для e-commerce і внутрішня система звірки транзакцій. Стек: TypeScript, Node.js, PostgreSQL, Redis\"],\"skills\":{\"growth\":[\"публічні виступи\",\"закончення вивчення сертифікату AWS\",\"знати DevOps\"],\"s",
+      "at": "2026-07-14T11:25:03.752Z"
+    },
+    {
+      "step": "candidate-prep:confirm",
+      "detail": "",
+      "at": "2026-07-14T11:25:03.752Z"
+    },
+    {
+      "step": "candidate-prep:confirmed",
+      "detail": "{\"profile\":{\"experience\":[\"три роки працюю backend-розробником у FinTech-стартапі. Основні проєкти: платіжний шлюз для e-commerce і внутрішня система звірки транзакцій. Стек: TypeScript, Node.js, Post",
+      "at": "2026-07-14T11:25:03.789Z"
+    },
+    {
+      "step": "join",
+      "detail": "{\"id\":\"cmrkkcnup001u01r9y9rm0nlk\",\"displayName\":\"E2E Middle Backend 11:22:33\",\"status\":\"READY\"}",
+      "at": "2026-07-14T11:25:03.807Z"
+    },
+    {
+      "step": "interview-status-before-room",
+      "detail": "READY",
+      "at": "2026-07-14T11:25:03.822Z"
+    },
+    {
+      "step": "sockets",
+      "detail": "connected",
+      "at": "2026-07-14T11:25:03.840Z"
+    },
+    {
+      "step": "hr-joined",
+      "detail": "",
+      "at": "2026-07-14T11:25:03.848Z"
+    },
+    {
+      "step": "socket:hr:status",
+      "detail": "READY",
+      "at": "2026-07-14T11:25:03.849Z"
+    },
+    {
+      "step": "socket:hr:status",
+      "detail": "LIVE",
+      "at": "2026-07-14T11:25:03.852Z"
+    },
+    {
+      "step": "socket:cand:status",
+      "detail": "LIVE",
+      "at": "2026-07-14T11:25:03.852Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:03.853Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:03.853Z"
+    },
+    {
+      "step": "candidate-joined",
+      "detail": "statusEvent=READY",
+      "at": "2026-07-14T11:25:03.854Z"
+    },
+    {
+      "step": "socket:cand:status",
+      "detail": "LIVE",
+      "at": "2026-07-14T11:25:03.856Z"
+    },
+    {
+      "step": "interview-live",
+      "detail": "LIVE",
+      "at": "2026-07-14T11:25:03.860Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/0 agents, thinking=false, 0s",
+      "at": "2026-07-14T11:25:03.861Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:25:04.922Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:25:04.924Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:25:08.039Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:25:08.040Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:25:10.564Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:25:10.564Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/0 agents, thinking=true, 15s",
+      "at": "2026-07-14T11:25:18.882Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "AGENT_CANDIDATE: Я працював backend-розробником у FinTech-стартапі трьох років. Основні проєкти в",
+      "at": "2026-07-14T11:25:24.941Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:24.941Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "AGENT_CANDIDATE: Я працював backend-розробником у FinTech-стартапі трьох років. Основні проєкти в",
+      "at": "2026-07-14T11:25:24.941Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:24.941Z"
+    },
+    {
+      "step": "live:after-start-settle",
+      "detail": "thinking=false",
+      "at": "2026-07-14T11:25:32.395Z"
+    },
+    {
+      "step": "live:HR",
+      "detail": "Вітаю! Почнемо, коли будете готові.",
+      "at": "2026-07-14T11:25:32.395Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "HUMAN_HR: Вітаю! Почнемо, коли будете готові.",
+      "at": "2026-07-14T11:25:32.417Z"
+    },
+    {
+      "step": "live:CANDIDATE",
+      "detail": "Доброго дня! Готовий.",
+      "at": "2026-07-14T11:25:32.417Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "HUMAN_HR: Вітаю! Почнемо, коли будете готові.",
+      "at": "2026-07-14T11:25:32.417Z"
+    },
+    {
+      "step": "live:wait",
+      "detail": "Arbiter + Company + Candidate after greetings",
+      "at": "2026-07-14T11:25:32.417Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 0s",
+      "at": "2026-07-14T11:25:32.417Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:32.419Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:32.419Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "HUMAN_CANDIDATE: Доброго дня! Готовий.",
+      "at": "2026-07-14T11:25:32.437Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "HUMAN_CANDIDATE: Доброго дня! Готовий.",
+      "at": "2026-07-14T11:25:32.437Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:32.438Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:32.438Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:25:33.441Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:25:33.441Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "AGENT_ARBITER: Давайте почнемо співбесіду.",
+      "at": "2026-07-14T11:25:37.134Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:25:37.134Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "AGENT_ARBITER: Давайте почнемо співбесіду.",
+      "at": "2026-07-14T11:25:37.134Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:25:37.134Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:25:40.155Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:25:40.155Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "AGENT_CANDIDATE: Доброго дня! Готовий почнути співбесіду.",
+      "at": "2026-07-14T11:25:44.989Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:44.989Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "AGENT_CANDIDATE: Доброго дня! Готовий почнути співбесіду.",
+      "at": "2026-07-14T11:25:44.989Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:44.989Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "2/1 agents, thinking=false, 15s",
+      "at": "2026-07-14T11:25:47.432Z"
+    },
+    {
+      "step": "live:agents-seen",
+      "detail": "2 new agent msgs (Arbiter + Company + Candidate after greetings)",
+      "at": "2026-07-14T11:25:56.440Z"
+    },
+    {
+      "step": "live:HR",
+      "detail": "Чому вас зацікавила саме backend-роль у продуктовій команді?",
+      "at": "2026-07-14T11:25:56.440Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "HUMAN_HR: Чому вас зацікавила саме backend-роль у продуктовій команді?",
+      "at": "2026-07-14T11:25:56.486Z"
+    },
+    {
+      "step": "live:wait",
+      "detail": "agents after interest question",
+      "at": "2026-07-14T11:25:56.486Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 0s",
+      "at": "2026-07-14T11:25:56.486Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "HUMAN_HR: Чому вас зацікавила саме backend-роль у продуктовій команді?",
+      "at": "2026-07-14T11:25:56.487Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:56.488Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:25:56.488Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:25:57.492Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:25:57.493Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:26:07.670Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:26:07.670Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:26:10.832Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:26:10.832Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=true, 15s",
+      "at": "2026-07-14T11:26:11.545Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=true, 30s",
+      "at": "2026-07-14T11:26:26.593Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:26:31.417Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:26:31.417Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 45s",
+      "at": "2026-07-14T11:26:41.606Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 60s",
+      "at": "2026-07-14T11:26:56.619Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 75s",
+      "at": "2026-07-14T11:27:11.630Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 90s",
+      "at": "2026-07-14T11:27:26.643Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 105s",
+      "at": "2026-07-14T11:27:41.665Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 120s",
+      "at": "2026-07-14T11:27:56.677Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 135s",
+      "at": "2026-07-14T11:28:11.691Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 150s",
+      "at": "2026-07-14T11:28:26.703Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 165s",
+      "at": "2026-07-14T11:28:41.714Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 180s",
+      "at": "2026-07-14T11:28:56.725Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 195s",
+      "at": "2026-07-14T11:29:11.737Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 210s",
+      "at": "2026-07-14T11:29:26.748Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 225s",
+      "at": "2026-07-14T11:29:41.764Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 240s",
+      "at": "2026-07-14T11:29:56.776Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 255s",
+      "at": "2026-07-14T11:30:11.790Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 272s",
+      "at": "2026-07-14T11:30:28.289Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 287s",
+      "at": "2026-07-14T11:30:43.295Z"
+    },
+    {
+      "step": "live:agents-seen",
+      "detail": "0 new agent msgs (agents after interest question)",
+      "at": "2026-07-14T11:30:56.810Z"
+    },
+    {
+      "step": "live:CANDIDATE",
+      "detail": "Хочу бачити вплив коду на продукт і працювати ближче до бізнес-вимог, ніж на аут",
+      "at": "2026-07-14T11:30:56.811Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "HUMAN_CANDIDATE: Хочу бачити вплив коду на продукт і працювати ближче до бізнес-вимог, ніж на аут",
+      "at": "2026-07-14T11:30:56.851Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "HUMAN_CANDIDATE: Хочу бачити вплив коду на продукт і працювати ближче до бізнес-вимог, ніж на аут",
+      "at": "2026-07-14T11:30:56.851Z"
+    },
+    {
+      "step": "live:wait",
+      "detail": "agents after candidate answer",
+      "at": "2026-07-14T11:30:56.851Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 0s",
+      "at": "2026-07-14T11:30:56.851Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:30:56.852Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:30:56.852Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:30:57.857Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:30:57.857Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "AGENT_ARBITER: Зрозуміло. Дякуємо за відповідь. Далі можна розповісти про свої навички та досві",
+      "at": "2026-07-14T11:31:02.581Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:31:02.581Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "AGENT_ARBITER: Зрозуміло. Дякуємо за відповідь. Далі можна розповісти про свої навички та досві",
+      "at": "2026-07-14T11:31:02.581Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:31:02.581Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "AGENT_COMPANY: Дякуємо за відповідь. Може ви розкажете більше деталей про свої навички та досві",
+      "at": "2026-07-14T11:31:07.260Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:31:07.260Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "AGENT_COMPANY: Дякуємо за відповідь. Може ви розкажете більше деталей про свої навички та досві",
+      "at": "2026-07-14T11:31:07.260Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:31:07.260Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "2/1 agents, thinking=true, 15s",
+      "at": "2026-07-14T11:31:11.860Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:31:25.610Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:31:25.610Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "2/1 agents, thinking=false, 30s",
+      "at": "2026-07-14T11:31:26.876Z"
+    },
+    {
+      "step": "live:agents-seen",
+      "detail": "2 new agent msgs (agents after candidate answer)",
+      "at": "2026-07-14T11:31:37.386Z"
+    },
+    {
+      "step": "live:HR",
+      "detail": "Думаю, на сьогодні достатньо. Дякую за співбесіду!",
+      "at": "2026-07-14T11:31:37.386Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "HUMAN_HR: Думаю, на сьогодні достатньо. Дякую за співбесіду!",
+      "at": "2026-07-14T11:31:37.406Z"
+    },
+    {
+      "step": "live:wait",
+      "detail": "agents after closing",
+      "at": "2026-07-14T11:31:37.406Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "0/1 agents, thinking=false, 0s",
+      "at": "2026-07-14T11:31:37.406Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "HUMAN_HR: Думаю, на сьогодні достатньо. Дякую за співбесіду!",
+      "at": "2026-07-14T11:31:37.406Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:31:37.406Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:31:37.407Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:31:38.408Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_ARBITER\"}",
+      "at": "2026-07-14T11:31:38.408Z"
+    },
+    {
+      "step": "socket:hr:msg",
+      "detail": "AGENT_ARBITER: Дякуємо за співбесіду! Далі будемо розглядати ваш профіль. Якщо у вас є ще питан",
+      "at": "2026-07-14T11:31:43.428Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:31:43.428Z"
+    },
+    {
+      "step": "socket:cand:msg",
+      "detail": "AGENT_ARBITER: Дякуємо за співбесіду! Далі будемо розглядати ваш профіль. Якщо у вас є ще питан",
+      "at": "2026-07-14T11:31:43.428Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_COMPANY\"}",
+      "at": "2026-07-14T11:31:43.428Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:31:45.206Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":true,\"agentType\":\"AGENT_CANDIDATE\"}",
+      "at": "2026-07-14T11:31:45.206Z"
+    },
+    {
+      "step": "socket:hr:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:31:46.807Z"
+    },
+    {
+      "step": "socket:cand:thinking",
+      "detail": "{\"active\":false}",
+      "at": "2026-07-14T11:31:46.807Z"
+    },
+    {
+      "step": "live:wait-progress",
+      "detail": "1/1 agents, thinking=false, 15s",
+      "at": "2026-07-14T11:31:52.418Z"
+    },
+    {
+      "step": "live:agents-seen",
+      "detail": "1 new agent msgs (agents after closing)",
+      "at": "2026-07-14T11:31:58.425Z"
+    },
+    {
+      "step": "live:summary",
+      "detail": "{\"AGENT_CANDIDATE\":2,\"HUMAN_HR\":3,\"HUMAN_CANDIDATE\":2,\"AGENT_ARBITER\":3,\"AGENT_COMPANY\":1}",
+      "at": "2026-07-14T11:31:58.426Z"
+    },
+    {
+      "step": "end-interview",
+      "detail": "",
+      "at": "2026-07-14T11:31:58.426Z"
+    },
+    {
+      "step": "end-interview:fallback",
+      "detail": "missing or invalid field: reportMarkdown",
+      "at": "2026-07-14T11:32:17.654Z"
+    },
+    {
+      "step": "end-interview:fallback-seed",
+      "detail": "final report seeded after LLM parse failure",
+      "at": "2026-07-14T11:32:17.831Z"
+    },
+    {
+      "step": "report",
+      "detail": "{\"recommendation\":\"MAYBE\",\"matchScore\":72,\"strengths\":[\"Відповідний backend-стек\",\"Мотивація до продуктової команди\"],\"risks\":[\"Потрібно глибше перевірити архітектурний досвід\"],\"markdownPreview\":\"## Підсумок\\n\\nПрогін E2E: локальна модель не змогла стабільно згенерувати JSON звіту; збережено fallback-звіт.\\n\\n## Відповідність вимогам\\n\\nСтек і мотивація загалом узгоджуються з Middle Backend.\\n\\n## Сил\"}",
+      "at": "2026-07-14T11:32:17.831Z"
+    },
+    {
+      "step": "final-status",
+      "detail": "ENDED",
+      "at": "2026-07-14T11:32:17.848Z"
+    }
+  ],
+  "ok": true,
+  "liveByType": {
+    "AGENT_CANDIDATE": 2,
+    "HUMAN_HR": 3,
+    "HUMAN_CANDIDATE": 2,
+    "AGENT_ARBITER": 3,
+    "AGENT_COMPANY": 1
+  },
+  "liveMessages": [
+    {
+      "authorType": "AGENT_CANDIDATE",
+      "content": "Я працював backend-розробником у FinTech-стартапі трьох років. Основні проєкти включають платіжний шлюз для e-commerce і внутрішню систему звітності транзакцій. Стек технологій: TypeScript, Node.js, P"
+    },
+    {
+      "authorType": "HUMAN_HR",
+      "content": "Вітаю! Почнемо, коли будете готові."
+    },
+    {
+      "authorType": "HUMAN_CANDIDATE",
+      "content": "Доброго дня! Готовий."
+    },
+    {
+      "authorType": "AGENT_ARBITER",
+      "content": "Давайте почнемо співбесіду."
+    },
+    {
+      "authorType": "AGENT_CANDIDATE",
+      "content": "Доброго дня! Готовий почнути співбесіду."
+    },
+    {
+      "authorType": "HUMAN_HR",
+      "content": "Чому вас зацікавила саме backend-роль у продуктовій команді?"
+    },
+    {
+      "authorType": "HUMAN_CANDIDATE",
+      "content": "Хочу бачити вплив коду на продукт і працювати ближче до бізнес-вимог, ніж на аутсорсі."
+    },
+    {
+      "authorType": "AGENT_ARBITER",
+      "content": "Зрозуміло. Дякуємо за відповідь. Далі можна розповісти про свої навички та досвід з backend-розробкою."
+    },
+    {
+      "authorType": "AGENT_COMPANY",
+      "content": "Дякуємо за відповідь. Може ви розкажете більше деталей про свої навички та досвід з backend-розробкою?"
+    },
+    {
+      "authorType": "HUMAN_HR",
+      "content": "Думаю, на сьогодні достатньо. Дякую за співбесіду!"
+    },
+    {
+      "authorType": "AGENT_ARBITER",
+      "content": "Дякуємо за співбесіду! Далі будемо розглядати ваш профіль. Якщо у вас є ще питання, не соромтеся звертатися. Будемо раді працювати з вами!"
+    }
+  ],
+  "fallbacks": [
+    "final-report-seed"
+  ],
+  "report": {
+    "recommendation": "MAYBE",
+    "matchScore": 72,
+    "strengths": [
+      "Відповідний backend-стек",
+      "Мотивація до продуктової команди"
+    ],
+    "risks": [
+      "Потрібно глибше перевірити архітектурний досвід"
+    ],
+    "reportMarkdown": "## Підсумок\n\nПрогін E2E: локальна модель не змогла стабільно згенерувати JSON звіту; збережено fallback-звіт.\n\n## Відповідність вимогам\n\nСтек і мотивація загалом узгоджуються з Middle Backend.\n\n## Сильні сторони\n\n- TypeScript / Node / PostgreSQL\n- Інтерес до продуктової команди\n\n## Ризики\n\n- Обмежена глибина live-відповідей у прогоні\n\n## Рекомендація\n\nMAYBE — потрібне додаткове технічне інтерв'ю."
+  },
+  "interviewId": "cmrkkcnup001u01r9y9rm0nlk",
+  "joinCode": "M58L9K",
+  "vacancyId": "cmrkkatac001i01r9t7nwl1cr",
+  "candidateEmail": "e2e.candidate.1784028239812@test.com",
+  "durationMs": 584355,
+  "checks": {
+    "vacancyConfirmed": true,
+    "interviewReadyThenLive": true,
+    "agents": {
+      "arbiter": true,
+      "company": true,
+      "candidate": true
+    },
+    "reportGenerated": true,
+    "finalStatus": "ENDED"
+  }
+}

@@ -28,6 +28,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
   const errorMessage = ref<string | null>(null);
   const interviewStatus = ref<"AWAITING_CANDIDATE" | "READY" | "LIVE" | "ENDED" | null>(null);
   const agentThinking = ref<AgentThinkingState | null>(null);
+  const agentError = ref<string | null>(null);
 
   const socket = connectSocket();
 
@@ -65,6 +66,13 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     }
   }
 
+  function onAgentError(payload: { error?: string }): void {
+    if (typeof payload?.error === "string" && payload.error.trim()) {
+      agentError.value = payload.error.trim();
+      agentThinking.value = { active: false };
+    }
+  }
+
   function onAgentThinking(payload: { active?: boolean; agentType?: LiveAuthorType }): void {
     if (typeof payload?.active !== "boolean") return;
     agentThinking.value = {
@@ -99,6 +107,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.on("room:status", onStatus);
     socket.on("room:error", onError);
     socket.on("room:agent-thinking", onAgentThinking);
+    socket.on("room:agent-error", onAgentError);
 
     if (socket.connected) {
       onConnect();
@@ -115,6 +124,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.off("room:status", onStatus);
     socket.off("room:error", onError);
     socket.off("room:agent-thinking", onAgentThinking);
+    socket.off("room:agent-error", onAgentError);
   });
 
   const isReadOnly = computed(
@@ -127,6 +137,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     errorMessage,
     interviewStatus,
     agentThinking,
+    agentError,
     currentRole,
     sendMessage,
     isReadOnly,

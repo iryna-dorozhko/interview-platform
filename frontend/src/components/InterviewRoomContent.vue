@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
 import LiveChatPanel from "./LiveChatPanel.vue";
+import AgentStatusPanel from "./AgentStatusPanel.vue";
 import { endInterview } from "../api/interviews";
 import { useInterviewRoom } from "../composables/useInterviewRoom";
 
@@ -20,6 +21,7 @@ const {
   isReadOnly,
   agentThinking,
   interviewStatus,
+  agentError,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 
 const ending = ref(false);
@@ -91,6 +93,11 @@ async function onEndInterview(): Promise<void> {
   </RouterLink>
   <p v-if="endError" class="error-banner">{{ endError }}</p>
   <p v-if="phaseBanner" class="phase-banner">{{ phaseBanner }}</p>
+  <p v-if="agentError" class="agent-error-banner" role="alert">{{ agentError }}</p>
+  <AgentStatusPanel
+    v-if="currentRole === 'HR'"
+    :agent-thinking="agentThinking"
+  />
   <LiveChatPanel
     :messages="messages"
     :current-role="currentRole"
@@ -153,6 +160,14 @@ async function onEndInterview(): Promise<void> {
   padding: 0.75rem 1rem;
   background: var(--warning-soft);
   color: var(--warning);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+.agent-error-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--danger-soft);
+  color: var(--danger);
   border-radius: 6px;
   font-size: 0.875rem;
 }
