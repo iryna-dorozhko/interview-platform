@@ -417,11 +417,11 @@ onMounted(loadPrepState);
   white-space: nowrap;
 }
 .btn-primary {
-  background: #16a34a;
+  background: var(--accent);
   color: #fff;
 }
 .btn-primary:disabled {
-  background: #86efac;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 .btn-secondary {
