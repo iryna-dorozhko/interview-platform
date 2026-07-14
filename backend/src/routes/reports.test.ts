@@ -267,3 +267,155 @@ test("GET /reports returns only current HR reports with summary fields", async (
     );
   }
 });
+
+const maybeReport: FakeReport = {
+  ...sampleReport,
+  id: "rep_2",
+  interviewId: "i2",
+  candidateEmail: "ivan@co.ua",
+  vacancyId: "vac_2",
+  vacancyTitle: "Frontend",
+  recommendation: "MAYBE",
+  matchScore: 61,
+  createdAt: new Date("2026-07-12T12:00:00.000Z"),
+};
+
+test("GET /reports filters by recommendation", async () => {
+  const app = makeApp(makeFakePrisma([sampleReport, maybeReport]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/reports?recommendation=MAYBE`,
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.reports.length, 1);
+    assert.equal(body.reports[0].id, "rep_2");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports returns 400 for invalid recommendation", async () => {
+  const app = makeApp(makeFakePrisma([sampleReport]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/reports?recommendation=YES`,
+    );
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Invalid recommendation");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports filters by vacancyId", async () => {
+  const app = makeApp(makeFakePrisma([sampleReport, maybeReport]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/reports?vacancyId=vac_1`,
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.reports.length, 1);
+    assert.equal(body.reports[0].id, "rep_1");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports filters by email contains (case-insensitive)", async () => {
+  const app = makeApp(makeFakePrisma([sampleReport, maybeReport]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports?email=ANNA`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.reports.length, 1);
+    assert.equal(body.reports[0].candidateEmail, "anna@co.ua");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports filters by dateFrom and dateTo (UTC day bounds)", async () => {
+  const app = makeApp(makeFakePrisma([sampleReport, maybeReport]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/reports?dateFrom=2026-07-14&dateTo=2026-07-14`,
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.reports.length, 1);
+    assert.equal(body.reports[0].id, "rep_1");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports returns 400 for invalid dateFrom", async () => {
+  const app = makeApp(makeFakePrisma([sampleReport]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/reports?dateFrom=14-07-2026`,
+    );
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Invalid dateFrom");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});

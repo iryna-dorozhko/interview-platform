@@ -8,9 +8,64 @@ export function createReportsRouter(getPrisma: () => PrismaClient): Router {
     const prisma = getPrisma();
     const hrUserId = req.user!.id;
 
+    const recommendationRaw = typeof req.query.recommendation === "string"
+      ? req.query.recommendation
+      : undefined;
+    const vacancyId =
+      typeof req.query.vacancyId === "string" && req.query.vacancyId.length > 0
+        ? req.query.vacancyId
+        : undefined;
+    const email =
+      typeof req.query.email === "string" && req.query.email.trim().length > 0
+        ? req.query.email.trim()
+        : undefined;
+    const dateFromRaw =
+      typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
+    const dateToRaw =
+      typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
+
+    const ALLOWED = new Set(["HIRE", "MAYBE", "REJECT"]);
+    if (recommendationRaw !== undefined && !ALLOWED.has(recommendationRaw)) {
+      res.status(400).json({ error: "Invalid recommendation" });
+      return;
+    }
+
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    let createdAt: { gte?: Date; lte?: Date } | undefined;
+    if (dateFromRaw !== undefined) {
+      if (!DATE_RE.test(dateFromRaw)) {
+        res.status(400).json({ error: "Invalid dateFrom" });
+        return;
+      }
+      createdAt = {
+        ...(createdAt ?? {}),
+        gte: new Date(`${dateFromRaw}T00:00:00.000Z`),
+      };
+    }
+    if (dateToRaw !== undefined) {
+      if (!DATE_RE.test(dateToRaw)) {
+        res.status(400).json({ error: "Invalid dateTo" });
+        return;
+      }
+      createdAt = {
+        ...(createdAt ?? {}),
+        lte: new Date(`${dateToRaw}T23:59:59.999Z`),
+      };
+    }
+
     const reports = await prisma.finalReport.findMany({
       where: {
-        interview: { hrUserId },
+        interview: {
+          hrUserId,
+          ...(vacancyId ? { vacancyId } : {}),
+          ...(email
+            ? { candidateUser: { email: { contains: email, mode: "insensitive" } } }
+            : {}),
+        },
+        ...(recommendationRaw
+          ? { recommendation: recommendationRaw as "HIRE" | "MAYBE" | "REJECT" }
+          : {}),
+        ...(createdAt ? { createdAt } : {}),
       },
       include: {
         interview: {
