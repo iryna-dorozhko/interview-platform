@@ -8,7 +8,7 @@ export type LiveAuthorType =
 type BubbleStyle = { background: string; color: string };
 type LabelStyle = { background: string; color: string };
 
-const NEUTRAL_BUBBLE: BubbleStyle = { background: "#e5e7eb", color: "#1f2937" };
+const NEUTRAL_BUBBLE: BubbleStyle = { background: "#f3f4f6", color: "#111827" };
 
 const STYLES: Record<
   LiveAuthorType,
@@ -16,28 +16,28 @@ const STYLES: Record<
 > = {
   HUMAN_HR: {
     label: "HR",
-    accent: { background: "#dbeafe", color: "#1e3a5f" },
-    labelStyle: { background: "#dbeafe", color: "#1e40af" },
+    accent: { background: "#ecfdf5", color: "#115e59" },
+    labelStyle: { background: "#ecfdf5", color: "#0f766e" },
   },
   HUMAN_CANDIDATE: {
     label: "Кандидат",
-    accent: { background: "#d1fae5", color: "#065f46" },
-    labelStyle: { background: "#d1fae5", color: "#047857" },
+    accent: { background: "#f0fdfa", color: "#134e4a" },
+    labelStyle: { background: "#f0fdfa", color: "#0f766e" },
   },
   AGENT_ARBITER: {
     label: "Arbiter",
-    accent: { background: "#ede9fe", color: "#5b21b6" },
-    labelStyle: { background: "#ede9fe", color: "#6d28d9" },
+    accent: { background: "#f3f4f6", color: "#374151" },
+    labelStyle: { background: "#e5e7eb", color: "#374151" },
   },
   AGENT_COMPANY: {
     label: "Компанія",
-    accent: { background: "#ffedd5", color: "#9a3412" },
-    labelStyle: { background: "#ffedd5", color: "#c2410c" },
+    accent: { background: "#ecfdf5", color: "#0f766e" },
+    labelStyle: { background: "#d1fae5", color: "#065f46" },
   },
   AGENT_CANDIDATE: {
     label: "Кандидат (AI)",
-    accent: { background: "#fce7f3", color: "#9d174d" },
-    labelStyle: { background: "#fce7f3", color: "#be185d" },
+    accent: { background: "#f0fdfa", color: "#115e59" },
+    labelStyle: { background: "#ccfbf1", color: "#0f766e" },
   },
 };
 
@@ -72,7 +72,7 @@ export function messageStyles(
 
   return {
     bubble: NEUTRAL_BUBBLE,
-    label: { background: "#f3f4f6", color: "#4b5563" },
+    label: { background: "#f3f4f6", color: "#6b7280" },
     own: false,
   };
 }
