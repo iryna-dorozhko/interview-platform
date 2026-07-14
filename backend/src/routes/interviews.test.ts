@@ -184,6 +184,20 @@ function makeFakePrisma(
         interviews.push(created);
         return created;
       },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { scheduledAt?: Date | null };
+      }) => {
+        const interview = interviews.find((item) => item.id === where.id);
+        if (!interview) throw new Error("Interview not found");
+        if (data.scheduledAt !== undefined) {
+          interview.scheduledAt = data.scheduledAt;
+        }
+        return { ...interview, scheduledAt: interview.scheduledAt ?? null };
+      },
     },
     vacancy: {
       findUnique: async ({ where }: { where: { id: string } }) =>
@@ -1276,5 +1290,183 @@ test("DELETE /interviews/:id cascades and returns 204", async () => {
     assert.equal(interviews.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+function patchInterviewSchedule(port: number, interviewId: string, scheduledAt: string | null) {
+  return fetch(`http://127.0.0.1:${port}/api/interviews/${interviewId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scheduledAt }),
+  });
+}
+
+function patchInterviewInvitation(
+  port: number,
+  interviewId: string,
+  candidateEmail: string | null,
+) {
+  return fetch(`http://127.0.0.1:${port}/api/interviews/${interviewId}/invitation`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateEmail }),
+  });
+}
+
+const awaitingInterview: FakeInterview = {
+  id: "int_await",
+  hrUserId: "hr_1",
+  vacancyId: "v1",
+  displayName: "Frontend Dev",
+  joinCode: "AAAAAA",
+  status: "AWAITING_CANDIDATE",
+  createdAt: new Date(1),
+  scheduledAt: null,
+};
+
+test("PATCH /interviews/:id updates scheduledAt", async () => {
+  const scheduledAt = "2026-07-20T10:00:00.000Z";
+  const fakePrisma = makeFakePrisma([{ ...awaitingInterview }], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await patchInterviewSchedule(port, "int_await", scheduledAt);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.scheduledAt, scheduledAt);
+    assert.equal(body.interview.id, "int_await");
+    assert.equal(body.interview.invitation, null);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH /interviews/:id rejects ENDED with 409", async () => {
+  const fakePrisma = makeFakePrisma(
+    [{ ...awaitingInterview, id: "int_ended", status: "ENDED" }],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await patchInterviewSchedule(
+      port,
+      "int_ended",
+      "2026-07-20T10:00:00.000Z",
+    );
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Cannot update schedule");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH /interviews/:id/invitation sets PENDING email", async () => {
+  const fakePrisma = makeFakePrisma([{ ...awaitingInterview }], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await patchInterviewInvitation(port, "int_await", "Anna@Mail.com");
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.invitation.email, "anna@mail.com");
+    assert.equal(body.invitation.status, "PENDING");
+    assert.equal(typeof body.invitation.id, "string");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH /interviews/:id/invitation replaces previous PENDING", async () => {
+  const fakePrisma = makeFakePrisma([{ ...awaitingInterview }], [confirmedVacancy]);
+  await fakePrisma.invitation.create({
+    data: { interviewId: "int_await", email: "old@mail.com", status: "PENDING" },
+  });
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await patchInterviewInvitation(port, "int_await", "new@mail.com");
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.invitation.email, "new@mail.com");
+    assert.equal(body.invitation.status, "PENDING");
+
+    const oldInvitation = await fakePrisma.invitation.findFirst({
+      where: { interviewId: "int_await", status: "CANCELLED" },
+    });
+    assert.ok(oldInvitation);
+    assert.equal(oldInvitation.email, "old@mail.com");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH /interviews/:id/invitation with null cancels PENDING", async () => {
+  const fakePrisma = makeFakePrisma([{ ...awaitingInterview }], [confirmedVacancy]);
+  await fakePrisma.invitation.create({
+    data: { interviewId: "int_await", email: "pending@mail.com", status: "PENDING" },
+  });
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await patchInterviewInvitation(port, "int_await", null);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.invitation, null);
+
+    const pending = await fakePrisma.invitation.findFirst({
+      where: { interviewId: "int_await", status: "PENDING" },
+    });
+    assert.equal(pending, null);
+
+    const cancelled = await fakePrisma.invitation.findFirst({
+      where: { interviewId: "int_await", status: "CANCELLED" },
+    });
+    assert.ok(cancelled);
+    assert.equal(cancelled.email, "pending@mail.com");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH invitation when candidate already joined returns 409", async () => {
+  const fakePrisma = makeFakePrisma(
+    [{ ...awaitingInterview, candidateUserId: "cand_1" }],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await patchInterviewInvitation(port, "int_await", "new@mail.com");
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Cannot update invitation");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
   }
 });

@@ -11,9 +11,16 @@ import type { LlmProvider } from "../llm/types";
 import { roomName } from "../socket/maybe-transition-live";
 import { generateJoinCode } from "../utils/joinCode";
 import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
-import { assertInviteableEmail } from "../utils/invitation";
+import { assertInviteableEmail, cancelPendingInvitations } from "../utils/invitation";
 
 const MAX_CREATE_ATTEMPTS = 5;
+const EDITABLE_STATUSES = new Set(["AWAITING_CANDIDATE", "READY"]);
+
+const interviewDetailInclude = {
+  vacancy: { select: { title: true } },
+  finalReport: { select: { id: true, recommendation: true } },
+  invitations: { where: { status: "PENDING" as const }, take: 1 },
+};
 
 type CreateBody = {
   vacancyId?: unknown;
@@ -229,6 +236,104 @@ export function createInterviewsRouter(
         return;
       }
     }
+  });
+
+  router.patch("/interviews/:id/invitation", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const interviewId = req.params.id;
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (!EDITABLE_STATUSES.has(interview.status) || interview.candidateUserId != null) {
+      res.status(409).json({ error: "Cannot update invitation" });
+      return;
+    }
+
+    const body = req.body ?? {};
+    if (!("candidateEmail" in body)) {
+      res.status(400).json({ error: "candidateEmail is required" });
+      return;
+    }
+    const rawEmail = body.candidateEmail;
+    if (rawEmail !== null && typeof rawEmail !== "string") {
+      res.status(400).json({ error: "Invalid email" });
+      return;
+    }
+
+    if (rawEmail === null) {
+      await cancelPendingInvitations(prisma, interviewId);
+      res.status(200).json({ invitation: null });
+      return;
+    }
+
+    const check = await assertInviteableEmail(prisma, rawEmail);
+    if (!check.ok) {
+      res.status(check.status).json({ error: check.error });
+      return;
+    }
+
+    const invitation = await prisma.$transaction(async (tx) => {
+      await cancelPendingInvitations(tx, interviewId);
+      return tx.invitation.create({
+        data: {
+          interviewId,
+          email: check.email,
+          status: "PENDING",
+        },
+      });
+    });
+
+    res.status(200).json({ invitation: serializeInvitation(invitation) });
+  });
+
+  router.patch("/interviews/:id", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const interviewId = req.params.id;
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+    if (interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (!EDITABLE_STATUSES.has(interview.status)) {
+      res.status(409).json({ error: "Cannot update schedule" });
+      return;
+    }
+
+    const body = req.body ?? {};
+    if (!("scheduledAt" in body)) {
+      res.status(400).json({ error: "scheduledAt is required" });
+      return;
+    }
+
+    const scheduledAt = parseOptionalScheduledAt(body.scheduledAt);
+    if (scheduledAt === "invalid") {
+      res.status(400).json({ error: "Invalid scheduledAt" });
+      return;
+    }
+
+    await prisma.interview.update({
+      where: { id: interviewId },
+      data: { scheduledAt },
+    });
+
+    const updated = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: interviewDetailInclude,
+    });
+
+    res.status(200).json({ interview: mapInterviewDetail(updated!) });
   });
 
   router.delete("/interviews/:id", async (req: Request, res: Response) => {
