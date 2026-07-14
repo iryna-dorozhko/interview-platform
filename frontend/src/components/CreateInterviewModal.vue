@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { createInterview, type CreatedInterview } from "../api/interviews";
 import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
+import { formatScheduledAtUk } from "../utils/invite-message";
+import InviteCopyActions from "./InviteCopyActions.vue";
 
 const props = defineProps<{
   open: boolean;
@@ -19,10 +21,16 @@ const step = ref<"form" | "code">("form");
 const createdInterview = ref<CreatedInterview | null>(null);
 const confirmedVacancies = ref<VacancySummary[]>([]);
 const selectedVacancyId = ref("");
+const candidateEmail = ref("");
+const scheduledAtLocal = ref("");
 const loading = ref(false);
 const submitting = ref(false);
 const error = ref<string | null>(null);
 const loadError = ref<string | null>(null);
+
+const formattedScheduledAt = computed(() =>
+  createdInterview.value ? formatScheduledAtUk(createdInterview.value.scheduledAt) : null,
+);
 
 watch(
   () => props.open,
@@ -32,6 +40,8 @@ watch(
     step.value = "form";
     createdInterview.value = null;
     selectedVacancyId.value = "";
+    candidateEmail.value = "";
+    scheduledAtLocal.value = "";
     error.value = null;
     loadError.value = null;
     submitting.value = false;
@@ -76,7 +86,16 @@ async function onSubmit(): Promise<void> {
   error.value = null;
   submitting.value = true;
   try {
-    const interview = await createInterview(selectedVacancyId.value);
+    const options: { candidateEmail?: string; scheduledAt?: string } = {};
+    const email = candidateEmail.value.trim();
+    if (email) options.candidateEmail = email;
+    if (scheduledAtLocal.value) {
+      options.scheduledAt = new Date(scheduledAtLocal.value).toISOString();
+    }
+    const interview = await createInterview(
+      selectedVacancyId.value,
+      Object.keys(options).length > 0 ? options : undefined,
+    );
     createdInterview.value = interview;
     step.value = "code";
   } catch (err) {
@@ -93,7 +112,15 @@ async function onSubmit(): Promise<void> {
       <template v-if="step === 'code' && createdInterview">
         <h2 id="create-interview-title">Код для кандидата</h2>
         <p class="join-code">{{ createdInterview.joinCode }}</p>
-        <p class="hint">Надішліть цей код кандидату</p>
+        <p v-if="formattedScheduledAt" class="hint">Запланований час: {{ formattedScheduledAt }}</p>
+        <InviteCopyActions
+          :join-code="createdInterview.joinCode"
+          :display-name="createdInterview.displayName"
+          :scheduled-at="createdInterview.scheduledAt"
+        />
+        <p v-if="createdInterview.invitation" class="invitation-info">
+          Запрошення: {{ createdInterview.invitation.email }} · очікує
+        </p>
         <div class="actions">
           <button type="button" class="btn-secondary" @click="finishCreated">Закрити</button>
           <button type="button" class="btn-primary" @click="onContinue">Далі</button>
@@ -116,6 +143,19 @@ async function onSubmit(): Promise<void> {
                 {{ vacancy.title }}
               </option>
             </select>
+          </label>
+          <label class="field">
+            <span>Email кандидата</span>
+            <input
+              v-model="candidateEmail"
+              type="email"
+              autocomplete="off"
+              :disabled="submitting"
+            />
+          </label>
+          <label class="field">
+            <span>Запланований час</span>
+            <input v-model="scheduledAtLocal" type="datetime-local" :disabled="submitting" />
           </label>
           <p v-if="error" class="fail">{{ error }}</p>
           <div class="actions">
@@ -174,10 +214,21 @@ async function onSubmit(): Promise<void> {
   font-size: 0.875rem;
   text-align: center;
 }
+.invitation-info {
+  margin: 0 0 0.5rem;
+  color: #555;
+  font-size: 0.875rem;
+  text-align: center;
+}
 .empty-message {
   margin: 0;
   color: #555;
   font-size: 0.875rem;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 .field {
   display: flex;
@@ -185,7 +236,8 @@ async function onSubmit(): Promise<void> {
   gap: 0.375rem;
   font-size: 0.875rem;
 }
-.field select {
+.field select,
+.field input {
   font-family: inherit;
   font-size: 0.875rem;
   padding: 0.5rem 0.625rem;
