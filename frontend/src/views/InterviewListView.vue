@@ -73,6 +73,8 @@ function onInterviewCreated(interview: CreatedInterview): void {
     joinCode: interview.joinCode,
     status: interview.status,
     createdAt: interview.createdAt,
+    scheduledAt: interview.scheduledAt,
+    invitation: interview.invitation,
     reportId: null,
     reportSummary: null,
   });

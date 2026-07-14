@@ -1,5 +1,11 @@
 import { fetchWithAuth } from "./client";
 
+export type InterviewInvitation = {
+  id: string;
+  email: string;
+  status: string;
+};
+
 export type InterviewSummary = {
   id: string;
   vacancyId: string;
@@ -8,6 +14,8 @@ export type InterviewSummary = {
   joinCode: string;
   status: string;
   createdAt: string;
+  scheduledAt: string | null;
+  invitation: InterviewInvitation | null;
   reportId: string | null;
   reportSummary: string | null;
 };
@@ -21,6 +29,8 @@ export type CreatedInterview = {
   joinCode: string;
   status: string;
   createdAt: string;
+  scheduledAt: string | null;
+  invitation: InterviewInvitation | null;
 };
 
 type ErrorBody = { error?: string; detail?: string };
@@ -54,16 +64,52 @@ export async function fetchMyInterviews(): Promise<InterviewSummary[]> {
   return body.interviews;
 }
 
-export async function createInterview(vacancyId: string): Promise<CreatedInterview> {
+export async function createInterview(
+  vacancyId: string,
+  options?: { candidateEmail?: string; scheduledAt?: string | null },
+): Promise<CreatedInterview> {
   const response = await fetchWithAuth("/api/interviews", {
     method: "POST",
-    body: JSON.stringify({ vacancyId }),
+    body: JSON.stringify({
+      vacancyId,
+      ...(options?.candidateEmail ? { candidateEmail: options.candidateEmail } : {}),
+      ...(options?.scheduledAt !== undefined ? { scheduledAt: options.scheduledAt } : {}),
+    }),
   });
   if (!response.ok) {
     throw await parseError(response, "Не вдалося створити співбесіду");
   }
   const body = (await response.json()) as { interview: CreatedInterview };
   return body.interview;
+}
+
+export async function updateInterviewSchedule(
+  id: string,
+  scheduledAt: string | null,
+): Promise<InterviewDetail> {
+  const response = await fetchWithAuth(`/api/interviews/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ scheduledAt }),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося оновити час співбесіди");
+  }
+  const body = (await response.json()) as { interview: InterviewDetail };
+  return body.interview;
+}
+
+export async function updateInterviewInvitation(
+  id: string,
+  candidateEmail: string | null,
+): Promise<{ invitation: InterviewInvitation | null }> {
+  const response = await fetchWithAuth(`/api/interviews/${id}/invitation`, {
+    method: "PATCH",
+    body: JSON.stringify({ candidateEmail }),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося оновити запрошення");
+  }
+  return (await response.json()) as { invitation: InterviewInvitation | null };
 }
 
 export async function deleteInterview(id: string): Promise<void> {
