@@ -38,38 +38,56 @@ function logout(): void {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
 }
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 0.9rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 .header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 .subtitle {
   margin: 0.25rem 0 0;
-  color: #555;
-  font-size: 0.875rem;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 .user-bar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.user-bar button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
 }
 .body {
   display: flex;
   flex: 1;
+  min-height: 0;
 }
 .content {
   flex: 1;
-  padding: 1.5rem;
+  padding: 1.25rem;
   max-width: 56rem;
 }
 </style>

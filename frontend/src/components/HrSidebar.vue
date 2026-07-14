@@ -14,17 +14,14 @@ function isHomeActive(): boolean {
 
 <template>
   <nav class="sidebar" aria-label="HR navigation">
-    <RouterLink to="/" class="nav-item" :class="{ active: isHomeActive() }" title="Головна">
-      <span class="icon" aria-hidden="true">🏠</span>
-      <span class="label">Головна</span>
+    <RouterLink to="/" class="nav-item" :class="{ active: isHomeActive() }">
+      Головна
     </RouterLink>
-    <RouterLink to="/vacancies" class="nav-item" :class="{ active: isActive('/vacancies') }" title="Профіль вакансії">
-      <span class="icon" aria-hidden="true">📋</span>
-      <span class="label">Анкети</span>
+    <RouterLink to="/vacancies" class="nav-item" :class="{ active: isActive('/vacancies') }">
+      Анкети
     </RouterLink>
-    <RouterLink to="/interviews" class="nav-item" :class="{ active: isActive('/interviews') }" title="Список співбесід">
-      <span class="icon" aria-hidden="true">🎤</span>
-      <span class="label">Співбесіди</span>
+    <RouterLink to="/interviews" class="nav-item" :class="{ active: isActive('/interviews') }">
+      Співбесіди
     </RouterLink>
   </nav>
 </template>
@@ -33,27 +30,23 @@ function isHomeActive(): boolean {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem;
   padding: 1rem 0.75rem;
-  border-right: 1px solid #e5e7eb;
-  min-width: 5rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface-muted);
+  min-width: 8.5rem;
 }
 .nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem;
-  border-radius: 0.375rem;
+  display: block;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
   text-decoration: none;
   color: #374151;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
 }
 .nav-item.active {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-.icon {
-  font-size: 1.25rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 </style>
