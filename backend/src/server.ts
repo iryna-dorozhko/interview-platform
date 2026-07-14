@@ -16,6 +16,7 @@ import { createLlmRouter } from "./routes/llm";
 import { createPrepRouter } from "./routes/prep";
 import { createCandidatePrepRouter } from "./routes/candidate-prep";
 import { createCandidateInterviewRouter } from "./routes/candidate-interview";
+import { createCandidateInvitationsRouter } from "./routes/candidate-invitations";
 import { createRoomOrchestrator } from "./socket/orchestrator";
 import { registerRoomHandlers } from "./socket/room";
 
@@ -41,6 +42,7 @@ app.use(
   createCandidatePrepRouter(() => prisma, () => createLlmProvider()),
 );
 app.use("/api/candidate", createCandidateInterviewRouter(() => prisma));
+app.use("/api/candidate", createCandidateInvitationsRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createLlmRouter(() => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, () => createLlmProvider()));
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, () => createLlmProvider()));
