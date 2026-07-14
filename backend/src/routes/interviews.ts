@@ -29,7 +29,7 @@ export function createInterviewsRouter(
       orderBy: { createdAt: "desc" },
       include: {
         vacancy: { select: { title: true } },
-        finalReport: { select: { recommendation: true } },
+        finalReport: { select: { id: true, recommendation: true } },
       },
     });
 
@@ -43,6 +43,7 @@ export function createInterviewsRouter(
         status: item.status,
         createdAt: item.createdAt,
         reportSummary: item.finalReport?.recommendation ?? null,
+        reportId: item.finalReport?.id ?? null,
       })),
     });
   });
@@ -53,7 +54,7 @@ export function createInterviewsRouter(
       where: { id: req.params.id },
       include: {
         vacancy: { select: { title: true } },
-        finalReport: { select: { recommendation: true } },
+        finalReport: { select: { id: true, recommendation: true } },
       },
     });
 
@@ -76,6 +77,7 @@ export function createInterviewsRouter(
         status: interview.status,
         createdAt: interview.createdAt,
         reportSummary: interview.finalReport?.recommendation ?? null,
+        reportId: interview.finalReport?.id ?? null,
       },
     });
   });
