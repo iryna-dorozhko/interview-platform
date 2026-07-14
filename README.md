@@ -1005,7 +1005,62 @@ curl -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/confirm" \
 | 404 | `Invalid join code` | Невірний код |
 | 409 | `Interview already taken` | Код зайнятий іншим кандидатом |
 | 409 | `Interview is not joinable` | LIVE або ENDED |
-| 409 | `Candidate already has active interview` | У кандидата вже є активна співбесідa |
+| 409 | `Candidate already has active interview` | У кандидата вже є активна співбесіда |
+
+### Запрошення кандидата (dual channel)
+
+HR може запросити кандидата **двома незалежними каналами** — зовнішнім (код/посилання) і внутрішнім (запрошення в кабінеті). SMTP не використовується: HR копіює код, посилання або готовий текст і надсилає кандидату самостійно (месенджер, email тощо).
+
+**Зовнішній канал (завжди доступний):**
+- Після створення співбесіди HR бачить 6-символьний `joinCode` і кнопки «Скопіювати код», «Скопіювати посилання», «Скопіювати текст запрошення»
+- Посилання: `/join?code=XXXXXX` (публічна сторінка; після логіну кандидат потрапляє на join-флоу)
+- Текст запрошення містить назву співбесіди, код, посилання та (за наявності) запланований час
+
+**Кабінетний канал (опційно):**
+- При створенні або на сторінці `/interviews/:id` HR може вказати `candidateEmail`
+- Створюється `Invitation` зі статусом `PENDING` для email кандидата (нормалізованого до lowercase)
+- Кандидат з таким email після входу бачить блок «Запрошення» на `/candidate` → **Прийняти** / **Відхилити**
+- Accept прив’язує кандидата до співбесіди (`candidateUserId`) так само, як join за кодом; інші PENDING-запрошення для цієї співбесіди скасовуються
+- Decline переводить запрошення в `DECLINED`
+
+**Опційний `scheduledAt`:**
+- ISO-дата/час при створенні (`POST /api/interviews`) або пізніше (`PATCH /api/interviews/:id`)
+- Відображається в UI HR і кандидата; входить у текст запрошення
+
+**Ключові endpoint-и:**
+
+| Метод | Шлях | Опис |
+|-------|------|------|
+| `POST` | `/api/interviews` | `{ vacancyId, candidateEmail?, scheduledAt? }` → співбесіда + опційне PENDING-запрошення |
+| `PATCH` | `/api/interviews/:id/invitation` | `{ candidateEmail: string \| null }` — створити/замінити або скасувати запрошення |
+| `PATCH` | `/api/interviews/:id` | `{ scheduledAt: string \| null }` — оновити запланований час |
+| `GET` | `/api/candidate/invitations` | Список PENDING-запрошень для email поточного кандидата |
+| `POST` | `/api/candidate/invitations/:id/accept` | Прийняти → `{ interview }` |
+| `POST` | `/api/candidate/invitations/:id/decline` | Відхилити → `{ invitation }` |
+
+> Join за кодом (`POST /api/candidate/interview/join`) працює паралельно — кандидат може приєднатися і без запрошення в кабінеті.
+
+**Приклад створення з email і часом:**
+
+```bash
+curl -X POST http://localhost:3000/api/interviews \
+  -H "Authorization: Bearer $HR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vacancyId": "vac_...",
+    "candidateEmail": "candidate@test.com",
+    "scheduledAt": "2026-07-15T14:00:00.000Z"
+  }'
+```
+
+**Ручний чекліст:**
+- [ ] HR створює співбесіду без email → код і кнопки копіювання працюють; `invitation: null`
+- [ ] HR створює з `candidateEmail` → у відповіді `invitation.status === "PENDING"`; на `/interviews/:id` видно email «очікує»
+- [ ] HR задає `scheduledAt` → час видно в модалці створення, деталях співбесіди та тексті запрошення
+- [ ] Кандидат з іншим email не бачить чуже запрошення; з відповідним email — блок «Запрошення» на `/candidate`
+- [ ] Accept запрошення → кандидат прив’язаний до співбесіди; Decline → запрошення зникає зі списку
+- [ ] Посилання `/join?code=TEST01` відкриває join-флоу після логіну кандидата
+- [ ] `PATCH .../invitation` з `null` скасовує PENDING; з новим email — замінює попереднє
 
 ✅ Кабінет кандидата готовий.
 
