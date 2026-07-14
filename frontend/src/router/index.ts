@@ -20,6 +20,7 @@ import CandidateProfileView from "../views/CandidateProfileView.vue";
 import CandidateInterviewView from "../views/CandidateInterviewView.vue";
 import CandidatePrepView from "../views/CandidatePrepView.vue";
 import HrInterviewRoomView from "../views/HrInterviewRoomView.vue";
+import ReportView from "../views/ReportView.vue";
 import CandidateInterviewRoomView from "../views/CandidateInterviewRoomView.vue";
 
 function homeByRole(role: "HR" | "CANDIDATE"): RouteLocationRaw {
@@ -90,6 +91,11 @@ export const router = createRouter({
           path: "interviews/:id/room",
           name: "interview-room",
           component: HrInterviewRoomView,
+        },
+        {
+          path: "report/:id",
+          name: "report",
+          component: ReportView,
         },
       ],
     },
