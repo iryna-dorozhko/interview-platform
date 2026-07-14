@@ -683,6 +683,24 @@ test("POST /interviews rejects invalid email with 400", async () => {
   }
 });
 
+test("POST /interviews rejects invalid scheduledAt with 400", async () => {
+  const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1", { scheduledAt: "not-a-date" });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Invalid scheduledAt");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
 test("POST /interviews rejects HR email with 400", async () => {
   const fakePrisma = makeFakePrisma(
     [],
@@ -814,6 +832,170 @@ test("interview created via POST /interviews appears in GET /interviews/mine", a
     assert.equal(body.interviews[0].reportSummary, null);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/mine returns scheduledAt and pending invitation", async () => {
+  const scheduledAt = new Date("2026-07-15T14:00:00.000Z");
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+        scheduledAt,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  await fakePrisma.invitation.create({
+    data: { interviewId: "i1", email: "anna@mail.com", status: "PENDING" },
+  });
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/mine`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interviews.length, 1);
+    assert.equal(body.interviews[0].scheduledAt, scheduledAt.toISOString());
+    assert.equal(body.interviews[0].invitation.email, "anna@mail.com");
+    assert.equal(body.interviews[0].invitation.status, "PENDING");
+    assert.equal(typeof body.interviews[0].invitation.id, "string");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /interviews/:id returns scheduledAt and pending invitation", async () => {
+  const scheduledAt = new Date("2026-07-15T14:00:00.000Z");
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+        scheduledAt,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  await fakePrisma.invitation.create({
+    data: { interviewId: "i1", email: "anna@mail.com", status: "PENDING" },
+  });
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/i1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.scheduledAt, scheduledAt.toISOString());
+    assert.equal(body.interview.invitation.email, "anna@mail.com");
+    assert.equal(body.interview.invitation.status, "PENDING");
+    assert.equal(typeof body.interview.invitation.id, "string");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /interviews/mine returns null invitation when not PENDING", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i_cancelled",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(2),
+        scheduledAt: null,
+      },
+      {
+        id: "i_accepted",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "BBBBBB",
+        status: "READY",
+        createdAt: new Date(1),
+        scheduledAt: null,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  await fakePrisma.invitation.create({
+    data: { interviewId: "i_cancelled", email: "cancelled@mail.com", status: "CANCELLED" },
+  });
+  await fakePrisma.invitation.create({
+    data: { interviewId: "i_accepted", email: "accepted@mail.com", status: "ACCEPTED" },
+  });
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/mine`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interviews.length, 2);
+    assert.equal(body.interviews[0].invitation, null);
+    assert.equal(body.interviews[1].invitation, null);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /interviews/:id returns null invitation when not PENDING", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Frontend Dev",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+        scheduledAt: null,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  await fakePrisma.invitation.create({
+    data: { interviewId: "i1", email: "cancelled@mail.com", status: "CANCELLED" },
+  });
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/i1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.invitation, null);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
   }
 });
 
