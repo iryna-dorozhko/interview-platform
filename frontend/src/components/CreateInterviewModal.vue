@@ -195,7 +195,7 @@ async function onSubmit(): Promise<void> {
 }
 .fail {
   margin: 0.75rem 0 0;
-  color: #b00020;
+  color: var(--danger);
   font-size: 0.875rem;
 }
 .actions {
@@ -214,11 +214,11 @@ async function onSubmit(): Promise<void> {
   cursor: pointer;
 }
 .btn-primary {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-primary:disabled {
-  background: #93c5fd;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 .btn-secondary {

@@ -124,7 +124,7 @@ h1 {
   margin: 0;
   padding: 0.5rem 0.75rem;
   background: #fde8e8;
-  color: #b00020;
+  color: var(--danger);
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
@@ -137,11 +137,11 @@ h1 {
   text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-primary:disabled {
-  background: #93c5fd;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 </style>

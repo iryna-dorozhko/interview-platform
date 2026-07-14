@@ -96,14 +96,13 @@ onMounted(loadReport);
 
 <style scoped>
 .report-page {
-  font-family: system-ui, sans-serif;
   max-width: 48rem;
 }
 .header {
   margin-bottom: 1rem;
 }
 .back-link {
-  color: #2563eb;
+  color: var(--accent);
   text-decoration: none;
   font-size: 0.875rem;
 }
@@ -111,7 +110,7 @@ onMounted(loadReport);
   text-decoration: underline;
 }
 .error-banner {
-  color: #b91c1c;
+  color: var(--danger);
   background: #fee2e2;
   padding: 0.75rem 1rem;
   border-radius: 0.375rem;
@@ -135,7 +134,7 @@ onMounted(loadReport);
 .score-value {
   font-size: 2rem;
   font-weight: 700;
-  color: #1d4ed8;
+  color: var(--accent);
 }
 .score-label,
 .recommendation-label {

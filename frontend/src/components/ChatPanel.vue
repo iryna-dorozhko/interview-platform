@@ -170,8 +170,8 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 .message.user .message-text {
-  background: #dbeafe;
-  color: #1e3a5f;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .message.assistant .message-text {
@@ -197,7 +197,7 @@ function onKeydown(event: KeyboardEvent): void {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
   background: #fde8e8;
-  color: #b00020;
+  color: var(--danger);
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
@@ -234,12 +234,12 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 
 .btn-primary:disabled {
-  background: #93c5fd;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 

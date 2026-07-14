@@ -303,7 +303,6 @@ onMounted(loadPrepState);
 
 <style scoped>
 .page {
-  font-family: system-ui, sans-serif;
   max-width: 40rem;
   margin: 2rem auto;
   padding: 0 1rem;
@@ -371,8 +370,8 @@ onMounted(loadPrepState);
   display: inline-block;
 }
 .message.user .message-text {
-  background: #dbeafe;
-  color: #1e3a5f;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .message.assistant .message-text {
   background: #e5e7eb;
@@ -388,7 +387,7 @@ onMounted(loadPrepState);
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
   background: #fde8e8;
-  color: #b00020;
+  color: var(--danger);
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }

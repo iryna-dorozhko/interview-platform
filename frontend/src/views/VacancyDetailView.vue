@@ -107,14 +107,13 @@ onMounted(loadVacancy);
 
 <style scoped>
 .page {
-  font-family: system-ui, sans-serif;
   max-width: 40rem;
 }
 .header {
   margin-bottom: 1rem;
 }
 .back-link {
-  color: #2563eb;
+  color: var(--accent);
   text-decoration: none;
   font-size: 0.875rem;
 }
@@ -134,7 +133,7 @@ h1 {
   margin: 0;
   padding: 0.5rem 0.75rem;
   background: #fde8e8;
-  color: #b00020;
+  color: var(--danger);
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
@@ -188,7 +187,7 @@ h1 {
   cursor: pointer;
 }
 .btn-primary {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-secondary {

@@ -130,15 +130,12 @@ onMounted(loadDashboard);
 </template>
 
 <style scoped>
-.home {
-  font-family: system-ui, sans-serif;
-}
 .page-title {
   margin: 0 0 1rem;
   font-size: 1.25rem;
 }
 .fail {
-  color: #b00020;
+  color: var(--danger);
 }
 .overview-cards {
   display: grid;
@@ -177,11 +174,11 @@ onMounted(loadDashboard);
   border-radius: 0.375rem;
   border: 1px solid transparent;
   cursor: pointer;
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-primary:disabled {
-  background: #93c5fd;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 .recent {

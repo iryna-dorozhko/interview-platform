@@ -182,7 +182,7 @@ onMounted(loadInterviews);
   color: #6b7280;
 }
 .fail {
-  color: #b00020;
+  color: var(--danger);
 }
 .interviews-table {
   width: 100%;
@@ -207,7 +207,7 @@ onMounted(loadInterviews);
   padding: 0;
   border: none;
   background: none;
-  color: #2563eb;
+  color: var(--accent);
   cursor: pointer;
   text-align: left;
 }
@@ -230,12 +230,12 @@ onMounted(loadInterviews);
   white-space: nowrap;
 }
 .btn-primary {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-danger {
   background: #fff;
-  color: #b00020;
+  color: var(--danger);
   border-color: #fca5a5;
 }
 .report-badge {

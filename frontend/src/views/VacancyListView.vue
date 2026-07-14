@@ -158,7 +158,7 @@ onMounted(loadVacancies);
   color: #6b7280;
 }
 .fail {
-  color: #b00020;
+  color: var(--danger);
 }
 .vacancies-table {
   width: 100%;
@@ -194,7 +194,7 @@ onMounted(loadVacancies);
   white-space: nowrap;
 }
 .btn-primary {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-secondary {
@@ -204,7 +204,7 @@ onMounted(loadVacancies);
 }
 .btn-danger {
   background: #fff;
-  color: #b00020;
+  color: var(--danger);
   border-color: #fca5a5;
 }
 </style>

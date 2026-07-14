@@ -62,7 +62,6 @@ async function onSubmit(): Promise<void> {
 
 <style scoped>
 .page {
-  font-family: system-ui, sans-serif;
   max-width: 24rem;
   margin: 2rem auto;
   padding: 0 1rem;
@@ -82,7 +81,7 @@ input {
   font-size: 1rem;
 }
 .error {
-  color: #b00020;
+  color: var(--danger);
 }
 button {
   padding: 0.5rem 1rem;

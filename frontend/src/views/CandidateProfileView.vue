@@ -263,7 +263,7 @@ onMounted(loadProfile);
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
   background: #fde8e8;
-  color: #b00020;
+  color: var(--danger);
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
@@ -328,7 +328,7 @@ onMounted(loadProfile);
   cursor: pointer;
 }
 .btn-primary {
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
 }
 .btn-secondary {
