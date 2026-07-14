@@ -455,13 +455,24 @@ export function createCandidateInvitationsRouter(getPrisma: () => PrismaClient):
 }
 ```
 
-In `server.ts` (alongside candidate interview):
+In `server.ts` (same mount style as interview router — auth **inside** the router):
 
 ```typescript
-app.use("/api/candidate", requireAuth, requireCandidate, createCandidateInvitationsRouter(() => prisma));
+import { createCandidateInvitationsRouter } from "./routes/candidate-invitations";
+// ...
+app.use("/api/candidate", createCandidateInterviewRouter(() => prisma));
+app.use("/api/candidate", createCandidateInvitationsRouter(() => prisma));
 ```
 
-Check how `createCandidateInterviewRouter` is mounted — if it already has auth middleware outside, match that pattern exactly from `server.ts`.
+Inside `createCandidateInvitationsRouter`:
+
+```typescript
+const router = Router();
+router.use(requireAuth, requireCandidate);
+// routes: /invitations, /invitations/:id/accept, /invitations/:id/decline
+```
+
+Do **not** wrap with `requireAuth` again at `server.ts` (that would differ from `candidate-interview.ts`).
 
 - [ ] **Step 4: Tests PASS; register in package.json test script; commit**
 
