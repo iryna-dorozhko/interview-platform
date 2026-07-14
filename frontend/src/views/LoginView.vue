@@ -75,6 +75,21 @@ async function onSubmit(): Promise<void> {
   margin: 2rem auto;
   padding: 0 1rem;
 }
+h1 {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  grid-template-rows: repeat(1, 1fr);
+  column-gap: 0;
+  row-gap: 0;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 70px;
+  padding-bottom: 70px;
+  text-align: center;
+  font-family: var(--font);
+  background-color: var(--surface);
+}
 .form {
   display: flex;
   flex-direction: column;
