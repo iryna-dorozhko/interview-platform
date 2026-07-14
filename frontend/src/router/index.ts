@@ -50,6 +50,11 @@ export const router = createRouter({
       meta: { guestRole: "CANDIDATE" },
     },
     {
+      path: "/join",
+      name: "join",
+      component: () => import("../views/JoinInterviewView.vue"),
+    },
+    {
       path: "/candidate",
       component: CandidateLayout,
       meta: { requiresAuth: true, requiredRole: "CANDIDATE" },

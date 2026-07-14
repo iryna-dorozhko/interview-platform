@@ -10,6 +10,7 @@ import {
   type CandidateInvitation,
 } from "../api/candidate-invitations";
 import JoinInterviewModal from "../components/JoinInterviewModal.vue";
+import { consumeJoinedBanner } from "../utils/join-banner";
 import { formatScheduledAtUk } from "../utils/invite-message";
 
 type LoadState = "loading" | "ready" | "error";
@@ -127,7 +128,15 @@ function openProfile(): void {
   router.push({ name: "candidate-profile" });
 }
 
-onMounted(loadDashboard);
+function restoreJoinedBanner(): void {
+  const stored = consumeJoinedBanner();
+  if (stored) joinedBanner.value = stored;
+}
+
+onMounted(() => {
+  restoreJoinedBanner();
+  void loadDashboard();
+});
 </script>
 
 <template>

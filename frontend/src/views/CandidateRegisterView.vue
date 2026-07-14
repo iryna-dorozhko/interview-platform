@@ -1,11 +1,28 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ApiError } from "../api/client";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+
+function sanitizeRedirect(value: unknown, fallback: string): string {
+  return typeof value === "string" &&
+    value.startsWith("/") &&
+    !value.startsWith("//")
+    ? value
+    : fallback;
+}
+
+const loginLink = computed(() => {
+  const redirect = route.query.redirect;
+  if (typeof redirect !== "string" || !redirect) {
+    return { path: "/candidate/login" };
+  }
+  return { path: "/candidate/login", query: { redirect } };
+});
 
 const email = ref("");
 const password = ref("");
@@ -17,7 +34,7 @@ async function onSubmit(): Promise<void> {
   loading.value = true;
   try {
     await auth.registerCandidate(email.value.trim(), password.value);
-    await router.push("/candidate");
+    await router.push(sanitizeRedirect(route.query.redirect, "/candidate"));
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 409) {
@@ -55,7 +72,7 @@ async function onSubmit(): Promise<void> {
     </form>
     <p class="helper">
       Вже є акаунт?
-      <RouterLink to="/candidate/login">Увійти</RouterLink>
+      <RouterLink :to="loginLink">Увійти</RouterLink>
     </p>
   </main>
 </template>

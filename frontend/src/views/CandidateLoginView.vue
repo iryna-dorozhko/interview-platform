@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ApiError } from "../api/client";
 import { useAuthStore } from "../stores/auth";
@@ -20,6 +20,14 @@ function sanitizeRedirect(value: unknown, fallback: string): string {
     ? value
     : fallback;
 }
+
+const registerLink = computed(() => {
+  const redirect = route.query.redirect;
+  if (typeof redirect !== "string" || !redirect) {
+    return { path: "/candidate/register" };
+  }
+  return { path: "/candidate/register", query: { redirect } };
+});
 
 async function onSubmit(): Promise<void> {
   errorMessage.value = null;
@@ -64,7 +72,7 @@ async function onSubmit(): Promise<void> {
     </form>
     <p class="helper">
       Немає акаунта?
-      <RouterLink to="/candidate/register">Зареєструватися</RouterLink>
+      <RouterLink :to="registerLink">Зареєструватися</RouterLink>
     </p>
   </main>
 </template>
