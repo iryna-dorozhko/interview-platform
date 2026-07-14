@@ -125,10 +125,10 @@ function onKeydown(event: KeyboardEvent): void {
 .messages {
   max-height: 24rem;
   overflow-y: auto;
-  border: 1px solid #eee;
-  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 0.75rem;
-  background: #fafafa;
+  background: var(--surface);
   margin-bottom: 0.75rem;
 }
 .empty-hint {
@@ -167,9 +167,9 @@ function onKeydown(event: KeyboardEvent): void {
 .error-banner {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
-  background: #fde8e8;
-  color: #b00020;
-  border-radius: 0.375rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius);
   font-size: 0.875rem;
 }
 .composer {
@@ -182,23 +182,29 @@ function onKeydown(event: KeyboardEvent): void {
   font-family: inherit;
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   resize: vertical;
   min-height: 2.5rem;
+  background: var(--surface);
+}
+.composer-input:focus {
+  outline: 2px solid var(--accent-focus);
+  border-color: var(--accent);
 }
 .btn-primary {
   font-family: inherit;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  border: 1px solid transparent;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
   cursor: pointer;
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
+  font-weight: 600;
 }
 .btn-primary:disabled {
-  background: #93c5fd;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 </style>

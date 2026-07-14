@@ -112,10 +112,10 @@ async function onEndInterview(): Promise<void> {
   font-family: inherit;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
+  border-radius: 6px;
   border: 1px solid #fca5a5;
-  background: #fff;
-  color: #b00020;
+  background: var(--surface);
+  color: var(--danger);
   cursor: pointer;
 }
 .btn-danger:disabled {
@@ -125,15 +125,15 @@ async function onEndInterview(): Promise<void> {
 .success-banner {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
-  background: #ecfdf5;
+  background: var(--accent-soft);
   color: #065f46;
-  border-radius: 0.375rem;
+  border-radius: 6px;
   font-size: 0.875rem;
 }
 .report-link {
   display: inline-block;
   margin-bottom: 0.75rem;
-  color: #2563eb;
+  color: var(--accent);
   text-decoration: none;
   font-size: 0.875rem;
 }
@@ -143,17 +143,17 @@ async function onEndInterview(): Promise<void> {
 .error-banner {
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
-  background: #fde8e8;
-  color: #b00020;
-  border-radius: 0.375rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: 6px;
   font-size: 0.875rem;
 }
 .phase-banner {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
-  background: #fef3c7;
-  color: #92400e;
-  border-radius: 0.375rem;
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-radius: 6px;
   font-size: 0.875rem;
 }
 </style>
