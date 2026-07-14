@@ -20,6 +20,7 @@ import CandidateProfileView from "../views/CandidateProfileView.vue";
 import CandidateInterviewView from "../views/CandidateInterviewView.vue";
 import CandidatePrepView from "../views/CandidatePrepView.vue";
 import HrInterviewRoomView from "../views/HrInterviewRoomView.vue";
+import ReportListView from "../views/ReportListView.vue";
 import ReportView from "../views/ReportView.vue";
 import CandidateInterviewRoomView from "../views/CandidateInterviewRoomView.vue";
 
@@ -91,6 +92,11 @@ export const router = createRouter({
           path: "interviews/:id/room",
           name: "interview-room",
           component: HrInterviewRoomView,
+        },
+        {
+          path: "reports",
+          name: "reports",
+          component: ReportListView,
         },
         {
           path: "report/:id",
