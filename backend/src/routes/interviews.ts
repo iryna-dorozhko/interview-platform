@@ -11,10 +11,77 @@ import type { LlmProvider } from "../llm/types";
 import { roomName } from "../socket/maybe-transition-live";
 import { generateJoinCode } from "../utils/joinCode";
 import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
+import { assertInviteableEmail } from "../utils/invitation";
 
 const MAX_CREATE_ATTEMPTS = 5;
 
-type CreateBody = { vacancyId?: unknown };
+type CreateBody = {
+  vacancyId?: unknown;
+  candidateEmail?: unknown;
+  scheduledAt?: unknown;
+};
+
+function parseOptionalScheduledAt(value: unknown): Date | null | "invalid" {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") return "invalid";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "invalid";
+  return d;
+}
+
+function serializeInvitation(
+  inv: { id: string; email: string; status: string } | null | undefined,
+) {
+  if (!inv) return null;
+  return { id: inv.id, email: inv.email, status: inv.status };
+}
+
+type InterviewWithRelations = {
+  id: string;
+  vacancyId: string;
+  displayName: string;
+  joinCode: string;
+  status: string;
+  createdAt: Date;
+  scheduledAt: Date | null;
+  vacancy: { title: string };
+  finalReport?: { id: string; recommendation: string } | null;
+  invitations?: { id: string; email: string; status: string }[];
+};
+
+function mapInterviewListItem(item: InterviewWithRelations) {
+  const pendingInvitation = item.invitations?.[0] ?? null;
+  return {
+    id: item.id,
+    vacancyId: item.vacancyId,
+    vacancyTitle: item.vacancy.title,
+    displayName: item.displayName,
+    joinCode: item.joinCode,
+    status: item.status,
+    createdAt: item.createdAt,
+    scheduledAt: item.scheduledAt?.toISOString() ?? null,
+    invitation: serializeInvitation(pendingInvitation),
+    reportSummary: item.finalReport?.recommendation ?? null,
+    reportId: item.finalReport?.id ?? null,
+  };
+}
+
+function mapInterviewDetail(item: InterviewWithRelations) {
+  const pendingInvitation = item.invitations?.[0] ?? null;
+  return {
+    id: item.id,
+    vacancyId: item.vacancyId,
+    vacancyTitle: item.vacancy.title,
+    displayName: item.displayName,
+    joinCode: item.joinCode,
+    status: item.status,
+    createdAt: item.createdAt,
+    scheduledAt: item.scheduledAt?.toISOString() ?? null,
+    invitation: serializeInvitation(pendingInvitation),
+    reportSummary: item.finalReport?.recommendation ?? null,
+    reportId: item.finalReport?.id ?? null,
+  };
+}
 
 export function createInterviewsRouter(
   getPrisma: () => PrismaClient,
@@ -31,21 +98,12 @@ export function createInterviewsRouter(
       include: {
         vacancy: { select: { title: true } },
         finalReport: { select: { id: true, recommendation: true } },
+        invitations: { where: { status: "PENDING" }, take: 1 },
       },
     });
 
     res.status(200).json({
-      interviews: interviews.map((item) => ({
-        id: item.id,
-        vacancyId: item.vacancyId,
-        vacancyTitle: item.vacancy.title,
-        displayName: item.displayName,
-        joinCode: item.joinCode,
-        status: item.status,
-        createdAt: item.createdAt,
-        reportSummary: item.finalReport?.recommendation ?? null,
-        reportId: item.finalReport?.id ?? null,
-      })),
+      interviews: interviews.map((item) => mapInterviewListItem(item)),
     });
   });
 
@@ -56,6 +114,7 @@ export function createInterviewsRouter(
       include: {
         vacancy: { select: { title: true } },
         finalReport: { select: { id: true, recommendation: true } },
+        invitations: { where: { status: "PENDING" }, take: 1 },
       },
     });
 
@@ -69,17 +128,7 @@ export function createInterviewsRouter(
     }
 
     res.status(200).json({
-      interview: {
-        id: interview.id,
-        vacancyId: interview.vacancyId,
-        vacancyTitle: interview.vacancy.title,
-        displayName: interview.displayName,
-        joinCode: interview.joinCode,
-        status: interview.status,
-        createdAt: interview.createdAt,
-        reportSummary: interview.finalReport?.recommendation ?? null,
-        reportId: interview.finalReport?.id ?? null,
-      },
+      interview: mapInterviewDetail(interview),
     });
   });
 
@@ -108,26 +157,63 @@ export function createInterviewsRouter(
       return;
     }
 
+    let candidateEmailNormalized: string | null = null;
+    const rawEmail = body.candidateEmail;
+    if (rawEmail !== undefined && rawEmail !== null && rawEmail !== "") {
+      if (typeof rawEmail !== "string") {
+        res.status(400).json({ error: "Invalid email" });
+        return;
+      }
+      const check = await assertInviteableEmail(prisma, rawEmail);
+      if (!check.ok) {
+        res.status(check.status).json({ error: check.error });
+        return;
+      }
+      candidateEmailNormalized = check.email;
+    }
+
+    const scheduledAt = parseOptionalScheduledAt(body.scheduledAt);
+    if (scheduledAt === "invalid") {
+      res.status(400).json({ error: "Invalid scheduledAt" });
+      return;
+    }
+
     for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
       const joinCode = generateJoinCode();
       try {
-        const interview = await prisma.interview.create({
-          data: {
-            hrUserId,
-            vacancyId,
-            displayName: vacancy.title,
-            joinCode,
-            status: "AWAITING_CANDIDATE",
-          },
+        const result = await prisma.$transaction(async (tx) => {
+          const interview = await tx.interview.create({
+            data: {
+              hrUserId,
+              vacancyId,
+              displayName: vacancy.title,
+              joinCode,
+              status: "AWAITING_CANDIDATE",
+              scheduledAt,
+            },
+          });
+          let invitation = null;
+          if (candidateEmailNormalized) {
+            invitation = await tx.invitation.create({
+              data: {
+                interviewId: interview.id,
+                email: candidateEmailNormalized,
+                status: "PENDING",
+              },
+            });
+          }
+          return { interview, invitation };
         });
         res.status(201).json({
           interview: {
-            id: interview.id,
-            vacancyId: interview.vacancyId,
-            displayName: interview.displayName,
-            joinCode: interview.joinCode,
-            status: interview.status,
-            createdAt: interview.createdAt,
+            id: result.interview.id,
+            vacancyId: result.interview.vacancyId,
+            displayName: result.interview.displayName,
+            joinCode: result.interview.joinCode,
+            status: result.interview.status,
+            createdAt: result.interview.createdAt,
+            scheduledAt: result.interview.scheduledAt?.toISOString() ?? null,
+            invitation: serializeInvitation(result.invitation),
           },
         });
         return;

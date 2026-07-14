@@ -25,6 +25,15 @@ function makeMockProvider(reply: string): LlmProvider {
 }
 
 type FakeVacancy = { id: string; hrUserId: string; title: string; status: string };
+type FakeUser = { id: string; email: string; role: string };
+type FakeInvitation = {
+  id: string;
+  interviewId: string;
+  email: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
 type FakeInterview = {
   id: string;
   hrUserId: string;
@@ -33,6 +42,8 @@ type FakeInterview = {
   joinCode: string;
   status: string;
   createdAt: Date;
+  scheduledAt: Date | null;
+  candidateUserId?: string | null;
 };
 type FakeFinalReport = {
   id: string;
@@ -46,6 +57,7 @@ type CreateInput = {
     displayName: string;
     joinCode: string;
     status: string;
+    scheduledAt?: Date | null;
   };
 };
 type CreateImpl = (input: CreateInput) => Promise<FakeInterview> | FakeInterview;
@@ -54,10 +66,13 @@ function makeFakePrisma(
   interviews: FakeInterview[] = [],
   vacancies: FakeVacancy[] = [],
   createImpl?: CreateImpl,
-  finalReports: FakeFinalReport[] = []
+  finalReports: FakeFinalReport[] = [],
+  users: FakeUser[] = [],
 ) {
   let counter = 0;
-  return {
+  let invCounter = 0;
+  const invitations: FakeInvitation[] = [];
+  const prisma = {
     interview: {
       findMany: async ({
         where,
@@ -67,18 +82,20 @@ function makeFakePrisma(
         include?: {
           vacancy?: { select: { title: true } };
           finalReport?: { select: { id: true; recommendation: true } };
+          invitations?: { where: { status: string }; take: number };
         };
       }) => {
         const filtered = interviews
           .filter((item) => item.hrUserId === where.hrUserId)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-        if (include?.vacancy || include?.finalReport) {
+        if (include?.vacancy || include?.finalReport || include?.invitations) {
           return filtered.map((item) => {
             const vacancy = vacancies.find((v) => v.id === item.vacancyId);
             const finalReport = finalReports.find((r) => r.interviewId === item.id);
             return {
               ...item,
+              scheduledAt: item.scheduledAt ?? null,
               ...(include?.vacancy
                 ? { vacancy: { title: vacancy?.title ?? "" } }
                 : {}),
@@ -89,10 +106,21 @@ function makeFakePrisma(
                       : null,
                   }
                 : {}),
+              ...(include?.invitations
+                ? {
+                    invitations: invitations
+                      .filter(
+                        (inv) =>
+                          inv.interviewId === item.id &&
+                          inv.status === include.invitations!.where.status,
+                      )
+                      .slice(0, include.invitations!.take),
+                  }
+                : {}),
             };
           });
         }
-        return filtered;
+        return filtered.map((item) => ({ ...item, scheduledAt: item.scheduledAt ?? null }));
       },
       findUnique: async ({
         where,
@@ -102,16 +130,19 @@ function makeFakePrisma(
         include?: {
           vacancy?: { select: { title: true } };
           finalReport?: { select: { id: true; recommendation: true } };
+          invitations?: { where: { status: string }; take: number };
         };
       }) => {
         const interview = interviews.find((item) => item.id === where.id) ?? null;
         if (!interview) return null;
 
-        if (include?.vacancy || include?.finalReport) {
+        const withDefaults = { ...interview, scheduledAt: interview.scheduledAt ?? null };
+
+        if (include?.vacancy || include?.finalReport || include?.invitations) {
           const vacancy = vacancies.find((v) => v.id === interview.vacancyId);
           const finalReport = finalReports.find((r) => r.interviewId === interview.id);
           return {
-            ...interview,
+            ...withDefaults,
             ...(include?.vacancy
               ? { vacancy: { title: vacancy?.title ?? "" } }
               : {}),
@@ -122,9 +153,20 @@ function makeFakePrisma(
                     : null,
                 }
               : {}),
+            ...(include?.invitations
+              ? {
+                  invitations: invitations
+                    .filter(
+                      (inv) =>
+                        inv.interviewId === interview.id &&
+                        inv.status === include.invitations!.where.status,
+                    )
+                    .slice(0, include.invitations!.take),
+                }
+              : {}),
           };
         }
-        return interview;
+        return withDefaults;
       },
       create: async (input: CreateInput) => {
         if (createImpl) return createImpl(input);
@@ -136,6 +178,7 @@ function makeFakePrisma(
           displayName: input.data.displayName,
           joinCode: input.data.joinCode,
           status: input.data.status,
+          scheduledAt: input.data.scheduledAt ?? null,
           createdAt: new Date(),
         };
         interviews.push(created);
@@ -146,7 +189,58 @@ function makeFakePrisma(
       findUnique: async ({ where }: { where: { id: string } }) =>
         vacancies.find((v) => v.id === where.id) ?? null,
     },
+    user: {
+      findUnique: async ({ where }: { where: { email: string } }) =>
+        users.find((u) => u.email === where.email) ?? null,
+    },
+    invitation: {
+      create: async ({
+        data,
+      }: {
+        data: { interviewId: string; email: string; status: string };
+      }) => {
+        invCounter += 1;
+        const created: FakeInvitation = {
+          id: `inv_${invCounter}`,
+          interviewId: data.interviewId,
+          email: data.email,
+          status: data.status,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        invitations.push(created);
+        return created;
+      },
+      findFirst: async ({
+        where,
+      }: {
+        where: { interviewId?: string; status?: string };
+      }) =>
+        invitations.find(
+          (inv) =>
+            (where.interviewId === undefined || inv.interviewId === where.interviewId) &&
+            (where.status === undefined || inv.status === where.status),
+        ) ?? null,
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { interviewId?: string; status?: string };
+        data: { status: string };
+      }) => {
+        let count = 0;
+        for (const inv of invitations) {
+          if (where.interviewId !== undefined && inv.interviewId !== where.interviewId) continue;
+          if (where.status !== undefined && inv.status !== where.status) continue;
+          inv.status = data.status;
+          count += 1;
+        }
+        return { count };
+      },
+    },
+    $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => fn(prisma),
   };
+  return prisma;
 }
 
 function withUser(user: AuthUser) {
@@ -187,11 +281,15 @@ const confirmedVacancy: FakeVacancy = {
   status: "CONFIRMED",
 };
 
-function postInterview(port: number, vacancyId?: string) {
+async function postInterview(
+  port: number,
+  vacancyId: string,
+  extra: { candidateEmail?: string; scheduledAt?: string } = {},
+) {
   return fetch(`http://127.0.0.1:${port}/api/interviews`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ vacancyId }),
+    body: JSON.stringify({ vacancyId, ...extra }),
   });
 }
 
@@ -377,9 +475,11 @@ test("GET /interviews/mine returns interviews for the current HR only, newest fi
       "createdAt",
       "displayName",
       "id",
+      "invitation",
       "joinCode",
       "reportId",
       "reportSummary",
+      "scheduledAt",
       "status",
       "vacancyId",
       "vacancyTitle",
@@ -506,6 +606,107 @@ test("POST /interviews requires vacancyId and CONFIRMED vacancy", async () => {
   }
 });
 
+test("POST /interviews without email returns invitation null and null scheduledAt", async () => {
+  const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1");
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.interview.invitation, null);
+    assert.equal(body.interview.scheduledAt, null);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /interviews with candidateEmail creates PENDING invitation", async () => {
+  const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1", { candidateEmail: "Anna@Mail.com" });
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.interview.invitation.email, "anna@mail.com");
+    assert.equal(body.interview.invitation.status, "PENDING");
+    assert.equal(typeof body.interview.invitation.id, "string");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /interviews with scheduledAt stores ISO date", async () => {
+  const scheduledAt = "2026-07-15T14:00:00.000Z";
+  const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1", { scheduledAt });
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.interview.scheduledAt, scheduledAt);
+    assert.equal(body.interview.invitation, null);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /interviews rejects invalid email with 400", async () => {
+  const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1", { candidateEmail: "not-an-email" });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Invalid email");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /interviews rejects HR email with 400", async () => {
+  const fakePrisma = makeFakePrisma(
+    [],
+    [confirmedVacancy],
+    undefined,
+    [],
+    [{ id: "hr_other", email: "hr@company.com", role: "HR" }],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1", { candidateEmail: "hr@company.com" });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Email belongs to a non-candidate user");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
 test("POST /interviews creates AWAITING_CANDIDATE with displayName from vacancy title", async () => {
   const fakePrisma = makeFakePrisma([], [confirmedVacancy]);
   const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
@@ -557,6 +758,7 @@ test("POST /interviews retries once when the generated join code collides, then 
       displayName: input.data.displayName,
       joinCode: input.data.joinCode,
       status: input.data.status,
+      scheduledAt: input.data.scheduledAt ?? null,
       createdAt: new Date(),
     };
   };
