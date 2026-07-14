@@ -979,21 +979,6 @@ onMounted(async () => {
 </style>
 ```
 
-Note: `onMounted` calls `loadReports` which also triggers via watches when filters reset — avoid double-fetch races by not watching until after mount if needed. Prefer this simpler pattern: remove the dual `Promise.all` issue — `loadReports` is called once in `onMounted` and again when filters change. Fix `onMounted` to:
-
-```typescript
-onMounted(async () => {
-  try {
-    vacancies.value = await fetchMyVacancies();
-  } catch {
-    // dropdown empty; reports can still load
-  }
-  await loadReports();
-});
-```
-
-Use that version in the file (replace the `onMounted` block above).
-
 - [ ] **Step 2: Register route**
 
 In `frontend/src/router/index.ts`:
