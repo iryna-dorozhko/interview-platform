@@ -13,11 +13,32 @@ async function main(): Promise<void> {
   const message = readMessageArg();
   const provider = createLlmProvider();
 
-  console.log(`Provider: ${provider.name}`);
-  console.log(`Prompt: ${message}`);
+  try {
+    console.log(`Provider: ${provider.name}`);
+    console.log(`Prompt: ${message}`);
 
-  const text = await provider.complete([{ role: "user", content: message }]);
-  console.log(`Response: ${text}`);
+    const sequentialOne = await provider.complete([
+      { role: "user", content: `${message} [sequential-1]` },
+    ]);
+    const sequentialTwo = await provider.complete([
+      { role: "user", content: `${message} [sequential-2]` },
+    ]);
+    const [parallelOne, parallelTwo] = await Promise.all([
+      provider.complete([
+        { role: "user", content: `${message} [parallel-1]` },
+      ]),
+      provider.complete([
+        { role: "user", content: `${message} [parallel-2]` },
+      ]),
+    ]);
+
+    console.log(`Sequential 1: ${sequentialOne}`);
+    console.log(`Sequential 2: ${sequentialTwo}`);
+    console.log(`Parallel 1: ${parallelOne}`);
+    console.log(`Parallel 2: ${parallelTwo}`);
+  } finally {
+    await provider.close?.();
+  }
 }
 
 main().catch((error: unknown) => {
