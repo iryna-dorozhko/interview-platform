@@ -1,0 +1,291 @@
+ЗВІТ ЗА 14 ЛИПНЯ 2026
+AI-платформа співбесід — День 21 + візуальний стиль + список звітів + запрошення
+кандидата + дослідження ACP Cursor
+
+================================================================================
+
+КОРОТКИЙ ПІДСУМОК
+
+Сьогодні закрито **День 21** плану (`/report/:id` + Gemini у README) і зроблено
+кілька великих кроків поза чистою нумерацією днів: **єдиний UI Calm Slate + Teal**,
+**вкладка «Звіти» з фільтрами**, **двоканальне запрошення кандидата** (код/лінк +
+кабінетний Invitation), зміцнення live-агентів, повний E2E-сценарій.
+
+Паралельно розібрано **Cursor ACP (Agent Client Protocol)** як можливу заміну
+зовнішньої LLM для локального бекенду — через підписку Cursor. Висновок: технічно
+реально як ще один `LlmProvider`, але це **не класичний chat API**, а агентний
+канал; у код провайдер **ще не додано** — лише дослідження і план підключення.
+
+У репозиторії за день — **43 коміти** (~11.2k insertions).
+
+
+################################################################################
+# ДЕНЬ 21 — СТОРІНКА ЗВІТУ + GEMINI
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО (ДЕНЬ 21)
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+- Design spec: `docs/superpowers/specs/2026-07-14-report-page-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-07-14-report-page.md`
+- README Day 21 оновлено: замість застарілих LiteLLM/Ollama — прямий Gemini SDK
+
+2. BACKEND
+
+- `GET /api/reports/:id` — повний `FinalReport` для власника-HR
+- `reportId` у list/detail interview API для навігації
+
+3. FRONTEND
+
+- `frontend/src/views/ReportView.vue` — matchScore, recommendation, strengths/risks,
+  markdown через `marked` + DOMPurify
+- `frontend/src/api/reports.ts` — клієнт
+- Посилання на звіт зі списку співбесід, кімнати та деталей
+
+4. ВЕРИФІКАЦІЯ
+
+- Unit-тести reports; UI перевірено скріншотом `day21-hr-report-page.png`
+- E2E-прогін: локальна модель інколи не тримає JSON фінального звіту → у БД
+  потрапляє fallback (видно в markdown звіту)
+
+
+################################################################################
+# ВІЗУАЛЬНИЙ СТИЛЬ — CALM SLATE + TEAL
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+- Spec: `docs/superpowers/specs/2026-07-14-calm-slate-teal-design.md`
+- Plan: `docs/superpowers/plans/2026-07-14-calm-slate-teal.md`
+- Обрано спокійний product UI (не marketing landing); відхилено Mist Blue /
+  Warm Stone (cream/terracotta кліше)
+
+2. РЕАЛІЗАЦІЯ
+
+- CSS-токени + IBM Plex Sans
+- HR і Candidate shells, live room, agent status, prep/auth CTA → teal/slate
+- Скріншот логіну: `day21-hr-login-calm-slate.png`
+
+
+################################################################################
+# СПИСОК ЗВІТІВ HR
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+- Spec: `docs/superpowers/specs/2026-07-14-hr-reports-list-design.md`
+- Plan: `docs/superpowers/plans/2026-07-14-hr-reports-list.md`
+
+2. BACKEND + FRONTEND
+
+- `GET /api/reports` з фільтрами: vacancy, recommendation, email, dateFrom/dateTo
+- `ReportListView.vue` + пункт «Звіти» у `HrSidebar`
+- Скріншот: `day21-hr-reports-list.png`
+
+
+################################################################################
+# ЗАПРОШЕННЯ КАНДИДАТА (ЗОВНІШНІЙ КАНАЛ + КАБІНЕТ)
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО
+================================================================================
+
+1. ПРОЄКТУВАННЯ (brainstorming → spec → plan → worktree / subagents)
+
+- Spec: `docs/superpowers/specs/2026-07-14-candidate-invitation-dual-channel-design.md`
+- Plan: `docs/superpowers/plans/2026-07-14-candidate-invitation-dual-channel.md`
+- Без SMTP: HR копіює код / посилання / текст і шле сам (Telegram, email…)
+
+2. МОДЕЛЬ ДАНИХ
+
+- Prisma: `Invitation` (PENDING|ACCEPTED|DECLINED|CANCELLED)
+- `Interview.scheduledAt` (опційно)
+- Міграція `20260714133420_invitation_and_scheduled_at`
+
+3. BACKEND
+
+- `POST /api/interviews` — optional `candidateEmail`, `scheduledAt`
+- `PATCH /api/interviews/:id/invitation`, `PATCH ...` для `scheduledAt`
+- Candidate: `GET/accept/decline` `/api/candidate/invitations`
+- Join за кодом скасовує PENDING → `CANCELLED`
+- Helpers: `backend/src/utils/invitation.ts` (+ тести)
+
+4. FRONTEND
+
+- `InviteCopyActions` — скопіювати код / посилання / текст запрошення
+- Create modal: email + datetime-local
+- Interview detail: керування invitation + schedule
+- Candidate home: блок «Запрошення» з Прийняти / Відхилити
+- `/join` і `/join?code=` — deep link + логін/редірект + auto-join
+- README Quick Start про dual-channel invitation
+
+5. СКРІНШОТИ
+
+- `day21-hr-create-interview-form.png` — форма з email і часом
+- `day21-hr-invite-copy-actions.png` — код + кнопки копіювання + «очікує»
+- `day21-hr-interview-detail-invitation.png` — деталі співбесіди
+- `day21-candidate-home-invitations.png` — Accept/Decline у кабінеті
+- `day21-join-landing.png`, `day21-join-deep-link.png`
+- Скрипт: `scripts/screenshot-day21-invitation.mjs`
+
+
+################################################################################
+# ДОДАТКОВО ЗА ДЕНЬ
+################################################################################
+
+- `feat: harden live agents with errors, readiness, and LLM options` — стійкіша
+  поведінка live-ланцюжка
+- `scripts/e2e-full-scenario.mjs` + `reports/e2e-full-scenario-result.json` —
+  автоматизований повний сценарій (з нотаткою про fallback фінального звіту)
+
+
+################################################################################
+# ДОСЛІДЖЕННЯ: CURSOR ACP ДЛЯ ПРОЄКТУ
+################################################################################
+
+================================================================================
+КОНТЕКСТ
+================================================================================
+
+Мета розмови: **замінити зовнішню LLM** (Gemini / OMLX / OpenAI) у бекенді
+платформи співбесід так, щоб виклики йшли **через Cursor ACP** і витрачали
+**підписку Cursor** (локально; зокрема безлімітний Auto).
+
+Окрема плутанина, яку треба було прояснити:
+
+1. **Agent Client Protocol (Zed / JetBrains / Cursor CLI)** — як IDE/клієнт
+   спілкується з coding-агентом (JSON-RPC, stdin/stdout). Це те, що дає Cursor.
+2. **Agent Communication Protocol (Linux Foundation / BeeAI)** — інший протокол:
+   агент як HTTP-сервіс. До Cursor CLI `agent acp` **не** відноситься.
+
+
+================================================================================
+ЩО ТАКЕ ACP «ПО СУТІ»
+================================================================================
+
+ACP — спочатку **специфікація** (мова домовленості), і вже потім — **реалізації**:
+
+- Спека: які методи існують (`initialize`, `session/new`, `session/prompt`…).
+- Транспорт у Cursor CLI: newline-delimited JSON-RPC над **stdio**.
+- Код: SDK / клієнт / `agent acp` — конкретні реалізації правил.
+
+Аналогія з LSP: LSP не є «моделлю мови», а протоколом між редактором і language
+server. ACP — те саме між клієнтом і AI-агентом.
+
+
+================================================================================
+ЩО ЦЕ ОЗНАЧАЄ ДЛЯ INTERVIEW PLATFORM
+================================================================================
+
+Зараз агенти (Arbiter / Company / Candidate / FinalReport) ходять через:
+
+  LlmProvider.complete(messages) → текст відповіді
+
+Cursor ACP — **не** OpenAI-compatible chat endpoint. Це spawn процесу
+`agent acp`, сесія, prompt, стрім оновлень, інколи `request_permission`.
+
+Тобто для проєкту план такий (поки без коду в репо):
+
+1. Новий провайдер `cursor-acp.provider.ts`, який реалізує той самий
+   `LlmProvider.complete`.
+2. Сесія в режимі **`ask`** (без правок файлів) + обмеження
+   `clientCapabilities` (без fs/terminal).
+3. Модель **Auto** (`default`) — щоб скористатися безлімітним Auto на плані.
+4. Автентифікація: `agent login` / `CURSOR_API_KEY` — білінг іде з **тієї ж
+   підписки Cursor**, окремого «ACP-тарифу» немає.
+5. Permissions: клієнт може відхиляти tool-запити, якщо агент їх все одно шле.
+
+**Висновок на кінець дня:** для локальних прогонів і демо — **реалістичний**
+варіант; для продакшен-бекенду як «просто LLM API» — крихкий (latency, agent
+поведінка, fair use). У код сьогодні **не мерджили** ACP-провайдер — лише
+дизайн підходу.
+
+
+================================================================================
+СКРІНШОТИ (ПІДТВЕРДЖЕННЯ UI)
+================================================================================
+
+Файли в `reports/screenshots/`:
+
+  day21-hr-login-calm-slate.png              — новий логін (Calm Slate + Teal)
+  day21-hr-interviews-list.png               — список співбесід + сайдбар «Звіти»
+  day21-hr-create-interview-form.png         — email + запланований час
+  day21-hr-invite-copy-actions.png           — код + копіювання + invitation pending
+  day21-hr-interview-detail-invitation.png   — керування invite/schedule
+  day21-hr-reports-list.png                  — фільтри + таблиця звітів
+  day21-hr-report-page.png                   — /report/:id (72% / MAYBE)
+  day21-candidate-home-invitations.png       — Accept / Decline
+  day21-join-landing.png                     — публічний /join
+  day21-join-deep-link.png                   — /join?code=…
+
+
+================================================================================
+МЕТРИКИ ДНЯ (РОЗРОБКА)
+================================================================================
+
+  Коміти за день                    43
+  Design specs + plans              4 пари (report, calm-slate, reports-list,
+                                    invitation) + ACP (усне дослідження)
+  Нові ключові поверхні             ReportView, ReportListView, Invitation,
+                                    InviteCopyActions, JoinInterviewView,
+                                    /join deep link
+  Рядків коду (diff)                ~11252 insertions / 386 deletions, ~137 files
+  Скріншоти                         10 нових day21-*.png
+  Скрипт верифікації                screenshot-day21-invitation.mjs
+  DoD День 21 (сторінка звіту)      Закрито (код + UI)
+  DoD invitation dual-channel       Закрито в main (код + UI screenshots)
+  ACP Cursor провайдер у бекенді    Не імплементовано (research only)
+
+
+================================================================================
+ПЛАН ПЕРЕВІРКИ (НА ЗАВТРА)
+================================================================================
+
+1. За потреби: `cursor-acp` `LlmProvider` + `LLM_PROVIDER=cursor-acp` локально
+2. Перевірити usage Dashboard Cursor після кількох ACP `complete()` з Auto
+3. Ручний E2E invitation: create → copy text → candidate Accept → READY → LIVE
+4. Порівняти якість FinalReport на Gemini vs Cursor Auto
+5. Закрити дрібні UX з invitation (toast clipboard, empty states)
+
+
+================================================================================
+РЕФЛЕКСІЯ
+================================================================================
+
+Що сьогодні найбільше здивувало?
+
+  Швидкість «день плану + три великі фічі поруч»: після Day 21 одразу пішли
+  візуал, список звітів і invitation dual-channel — і все на main.
+
+  Друге — **ACP ≠ дешевий OpenAI**. Хочеться «підписка Cursor замість Gemini»,
+  а отримуєш coding-агента з JSON-RPC і правами на інструменти. Для
+  interview-оркестратора потрібен саме текстовий `complete()`, тобто треба
+  свідомо «обрізати» агента до ask-режиму.
+
+Яке рішення сьогодні було найважчим?
+
+  Архітектура запрошень: окрема модель `Invitation` vs поля на `Interview`.
+  Обрали окрему модель (чисті статуси PENDING/ACCEPTED/DECLINED/CANCELLED) —
+  складніше в міграції, простіше в UI й lifecycle.
+
+Що, якби починали заново, зробили б інакше?
+
+  1. Prisma generate / migrate перевіряти одразу після merge invitation —
+     running server тримав старий client і падав на `scheduledAt` («Unknown
+     argument»), хоча міграція в БД уже була.
+  2. ACP proof-of-concept (один `complete` з ask+Auto) робити **маленьким
+     spike-комітом** у той же день, поки контекст свіжий — не лише conversation.
+  3. FinalReport fallback помічати в UI окремим банером, щоб HR не читав E2E-
+     нотатки як «справжній» вердикт моделі.
