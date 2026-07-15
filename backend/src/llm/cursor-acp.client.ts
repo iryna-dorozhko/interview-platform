@@ -53,6 +53,7 @@ export type AcpClientErrorKind =
   | "initialization"
   | "protocol"
   | "transport"
+  | "timeout"
   | "cancelled";
 
 export class AcpClientError extends Error {
@@ -69,11 +70,13 @@ export class AcpClientError extends Error {
 type PendingRequest = {
   resolve(value: unknown): void;
   reject(error: unknown): void;
+  timer?: ReturnType<typeof setTimeout>;
 };
 
 type SessionState = {
   collecting: boolean;
   chunks: string[];
+  cleanupPromise?: Promise<void>;
 };
 
 type ClientDependencies = {
@@ -103,10 +106,15 @@ export class CursorAcpClient {
   private readonly prepareRuntime: (config: CursorAcpConfig) => Promise<void>;
   private state: ProcessState = "idle";
   private child: AcpChild | null = null;
+  private childExited = false;
   private decoder: NdjsonDecoder | null = null;
   private initializeResult: AcpInitializeResult | null = null;
   private startPromise: Promise<void> | null = null;
+  private recyclePromise: Promise<void> | null = null;
   private shutdownPromise: Promise<void> | null = null;
+  private permanentlyClosed = false;
+  private completedSessionCount = 0;
+  private stderrTail = "";
   private nextRequestId = 0;
   private readonly pending = new Map<JsonRpcId, PendingRequest>();
   private readonly sessions = new Map<string, SessionState>();
@@ -137,6 +145,10 @@ export class CursorAcpClient {
     }
   };
 
+  private readonly onStderrData = (chunk: Buffer): void => {
+    this.stderrTail = `${this.stderrTail}${chunk.toString("utf8")}`.slice(-4_096);
+  };
+
   private readonly onChildError = (error: Error): void => {
     this.failTransport(
       new AcpClientError("spawn", "Cursor ACP process error", { cause: error }),
@@ -147,12 +159,14 @@ export class CursorAcpClient {
     code: number | null,
     signal: NodeJS.Signals | null,
   ): void => {
+    this.childExited = true;
     if (this.state === "stopping" || this.state === "closed") return;
     this.failTransport(
       new AcpClientError(
         "transport",
         `Cursor ACP process exited unexpectedly (code=${String(code)}, signal=${String(signal)})`,
       ),
+      false,
     );
   };
 
@@ -192,6 +206,13 @@ export class CursorAcpClient {
         await this.request("session/prompt", {
           sessionId: created.sessionId,
           prompt: [{ type: "text", text: prompt }],
+        }, {
+          timeoutMs: this.config.promptTimeoutMs,
+          timeoutError: new AcpClientError(
+            "timeout",
+            `Cursor ACP prompt timed out after ${this.config.promptTimeoutMs}ms`,
+          ),
+          onTimeout: () => this.cleanupSession(created.sessionId, true),
         }),
       );
       session.collecting = false;
@@ -210,20 +231,37 @@ export class CursorAcpClient {
   close(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise;
 
+    this.permanentlyClosed = true;
     this.state = "stopping";
-    this.shutdownPromise = this.closeCurrentProcess();
+    this.shutdownPromise = this.performShutdown();
     return this.shutdownPromise;
   }
 
   private async ensureReady(): Promise<void> {
-    if (this.state === "closed" || this.state === "stopping") {
+    if (this.permanentlyClosed || this.state === "closed") {
+      throw new AcpClientError("closed", "Cursor ACP provider is closed");
+    }
+    if (this.state === "stopping" && this.recyclePromise) {
+      await this.recyclePromise;
+      return this.ensureReady();
+    }
+    if (this.state === "stopping") {
       throw new AcpClientError("closed", "Cursor ACP provider is closed");
     }
     if (this.state === "ready") return;
     if (this.startPromise) return this.startPromise;
 
     this.state = "starting";
-    this.startPromise = this.start()
+    const timeoutError = new AcpClientError(
+      "timeout",
+      `Cursor ACP startup timed out after ${this.config.startupTimeoutMs}ms`,
+    );
+    this.startPromise = this.withTimeout(
+      this.start(),
+      this.config.startupTimeoutMs,
+      timeoutError,
+      () => this.abortCurrentProcess(timeoutError),
+    )
       .catch((error) => {
         this.failTransport(error);
         throw error;
@@ -236,6 +274,9 @@ export class CursorAcpClient {
 
   private async start(): Promise<void> {
     await this.prepareRuntime(this.config);
+    if (this.permanentlyClosed) {
+      throw new AcpClientError("closed", "Cursor ACP provider is closed");
+    }
 
     try {
       this.child = this.spawn(this.config.executable, ["acp"], {
@@ -243,6 +284,7 @@ export class CursorAcpClient {
         env: this.config.childEnv,
         stdio: ["pipe", "pipe", "pipe"],
       });
+      this.childExited = false;
     } catch (error) {
       throw new AcpClientError(
         "spawn",
@@ -252,6 +294,7 @@ export class CursorAcpClient {
     }
 
     this.decoder = new NdjsonDecoder(this.config.maxLineBytes);
+    this.stderrTail = "";
     this.attachChildListeners(this.child);
 
     const initialized = parseInitializeResult(
@@ -297,6 +340,7 @@ export class CursorAcpClient {
   private attachChildListeners(child: AcpChild): void {
     child.stdout.on("data", this.onStdoutData);
     child.stdout.on("end", this.onStdoutEnd);
+    child.stderr.on("data", this.onStderrData);
     child.on("error", this.onChildError);
     child.on("exit", this.onChildExit);
   }
@@ -304,20 +348,41 @@ export class CursorAcpClient {
   private detachChildListeners(child: AcpChild): void {
     child.stdout.off("data", this.onStdoutData);
     child.stdout.off("end", this.onStdoutEnd);
+    child.stderr.off("data", this.onStderrData);
     child.off("error", this.onChildError);
     child.off("exit", this.onChildExit);
   }
 
-  private request(method: string, params: unknown): Promise<unknown> {
+  private request(
+    method: string,
+    params: unknown,
+    timeout?: {
+      timeoutMs: number;
+      timeoutError: AcpClientError;
+      onTimeout(): Promise<void> | void;
+    },
+  ): Promise<unknown> {
     const id = ++this.nextRequestId;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const pending: PendingRequest = { resolve, reject };
+      if (timeout) {
+        pending.timer = setTimeout(() => {
+          if (!this.pending.delete(id)) return;
+          reject(timeout.timeoutError);
+          void Promise.resolve(timeout.onTimeout()).catch((error) => {
+            this.failTransport(error);
+          });
+        }, timeout.timeoutMs);
+      }
+      this.pending.set(id, pending);
       void this.write({
         jsonrpc: "2.0",
         id,
         method,
         params,
       }).catch((error) => {
+        const removed = this.pending.get(id);
+        if (removed?.timer) clearTimeout(removed.timer);
         this.pending.delete(id);
         reject(error);
       });
@@ -360,6 +425,7 @@ export class CursorAcpClient {
     const pending = this.pending.get(message.id);
     if (!pending) return;
     this.pending.delete(message.id);
+    if (pending.timer) clearTimeout(pending.timer);
     if (message.error) {
       const kind =
         message.error.code === -32000 ? "authentication" : "protocol";
@@ -494,6 +560,42 @@ export class CursorAcpClient {
     );
   }
 
+  private withTimeout<T>(
+    operation: Promise<T>,
+    timeoutMs: number,
+    timeoutError: AcpClientError,
+    onTimeout: () => Promise<void> | void,
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(timeoutError);
+        void Promise.resolve(onTimeout()).catch(() => undefined);
+      }, timeoutMs);
+
+      operation.then(
+        (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
+  }
+
+  private abortCurrentProcess(error: Error): void {
+    this.failTransport(error);
+  }
+
   private supportsSessionClose(): boolean {
     const capabilities =
       this.initializeResult?.agentCapabilities.sessionCapabilities;
@@ -504,60 +606,206 @@ export class CursorAcpClient {
     const session = this.sessions.get(sessionId);
     if (!session) return;
     session.collecting = false;
-    try {
-      if (this.supportsSessionClose()) {
-        await this.request("session/close", { sessionId });
-      }
-    } finally {
-      this.sessions.delete(sessionId);
+    await this.cleanupSession(sessionId, false);
+    this.completedSessionCount += 1;
+
+    if (
+      !this.supportsSessionClose() &&
+      this.completedSessionCount >= this.config.maxSessions &&
+      this.sessions.size === 0 &&
+      !this.permanentlyClosed
+    ) {
+      await this.recycleProcess();
     }
   }
 
-  private failTransport(error: unknown): void {
+  private cleanupSession(
+    sessionId: string,
+    cancel: boolean,
+  ): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return Promise.resolve();
+    if (session.cleanupPromise) return session.cleanupPromise;
+
+    session.collecting = false;
+    session.cleanupPromise = (async () => {
+      if (cancel) {
+        await this.write({
+          jsonrpc: "2.0",
+          method: "session/cancel",
+          params: { sessionId },
+        });
+      }
+      if (this.supportsSessionClose()) {
+        await this.request("session/close", { sessionId });
+      }
+    })().finally(() => {
+      this.sessions.delete(sessionId);
+    });
+    return session.cleanupPromise;
+  }
+
+  private async recycleProcess(): Promise<void> {
+    if (this.recyclePromise) return this.recyclePromise;
+    this.state = "stopping";
+    this.recyclePromise = this.stopChildWithFallback().finally(() => {
+      this.clearProcessState();
+      this.completedSessionCount = 0;
+      this.state = this.permanentlyClosed ? "closed" : "idle";
+      this.recyclePromise = null;
+    });
+    return this.recyclePromise;
+  }
+
+  private failTransport(error: unknown, terminateChild = true): void {
     const normalized =
       error instanceof Error
         ? error
         : new AcpClientError("transport", String(error));
 
     for (const pending of this.pending.values()) {
+      if (pending.timer) clearTimeout(pending.timer);
       pending.reject(normalized);
     }
     this.pending.clear();
     this.sessions.clear();
 
     const child = this.child;
-    if (child) this.detachChildListeners(child);
+    if (child) {
+      this.detachChildListeners(child);
+      if (terminateChild && !this.childExited) {
+        this.state = "stopping";
+        const recovery = this.terminateDetachedChild(child).finally(() => {
+          if (this.recyclePromise === recovery) {
+            this.recyclePromise = null;
+            this.state = this.permanentlyClosed ? "closed" : "idle";
+          }
+        });
+        this.recyclePromise = recovery;
+      }
+    }
     this.child = null;
+    this.childExited = false;
     this.decoder = null;
     this.initializeResult = null;
-    if (this.state !== "stopping" && this.state !== "closed") {
+    this.stderrTail = "";
+    this.completedSessionCount = 0;
+    if (
+      !this.recyclePromise &&
+      this.state !== "stopping" &&
+      this.state !== "closed"
+    ) {
       this.state = "idle";
     }
   }
 
-  private async closeCurrentProcess(): Promise<void> {
-    const child = this.child;
-    if (!child) {
+  private async performShutdown(): Promise<void> {
+    if (this.recyclePromise) {
+      await this.recyclePromise;
+    }
+    if (!this.child) {
       this.state = "closed";
       return;
     }
 
-    for (const sessionId of this.sessions.keys()) {
-      await this.write({
-        jsonrpc: "2.0",
-        method: "session/cancel",
-        params: { sessionId },
-      });
-    }
+    const cleanup = Promise.allSettled(
+      [...this.sessions.keys()].map((sessionId) =>
+        this.cleanupSession(sessionId, true),
+      ),
+    );
+    await this.waitWithin(cleanup, this.config.shutdownGraceMs);
 
-    child.stdin.end();
-    child.kill("SIGTERM");
-    this.detachChildListeners(child);
+    const closedError = new AcpClientError(
+      "closed",
+      "Cursor ACP provider is closed",
+    );
+    for (const pending of this.pending.values()) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.reject(closedError);
+    }
     this.pending.clear();
     this.sessions.clear();
+
+    await this.stopChildWithFallback();
+    this.clearProcessState();
+    this.state = "closed";
+  }
+
+  private async stopChildWithFallback(): Promise<void> {
+    const child = this.child;
+    if (!child) return;
+
+    child.stdin.end();
+    if (await this.waitForExit(child, this.config.shutdownGraceMs)) return;
+
+    child.kill("SIGTERM");
+    if (await this.waitForExit(child, this.config.terminateGraceMs)) return;
+
+    child.kill("SIGKILL");
+    await this.waitForExit(child, this.config.terminateGraceMs);
+  }
+
+  private waitForExit(child: AcpChild, timeoutMs: number): Promise<boolean> {
+    if (this.child !== child || this.childExited) return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+      const onExit = (): void => {
+        clearTimeout(timer);
+        child.off("exit", onExit);
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        child.off("exit", onExit);
+        resolve(false);
+      }, timeoutMs);
+      child.once("exit", onExit);
+    });
+  }
+
+  private async terminateDetachedChild(child: AcpChild): Promise<void> {
+    child.kill("SIGTERM");
+    if (await this.waitForDetachedExit(child, this.config.terminateGraceMs)) {
+      return;
+    }
+    child.kill("SIGKILL");
+    await this.waitForDetachedExit(child, this.config.terminateGraceMs);
+  }
+
+  private waitForDetachedExit(
+    child: AcpChild,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
+      const onExit = (): void => {
+        clearTimeout(timer);
+        child.off("exit", onExit);
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        child.off("exit", onExit);
+        resolve(false);
+      }, timeoutMs);
+      child.once("exit", onExit);
+    });
+  }
+
+  private waitWithin(operation: Promise<unknown>, timeoutMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, timeoutMs);
+      void operation.finally(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+
+  private clearProcessState(): void {
+    const child = this.child;
+    if (child) this.detachChildListeners(child);
     this.child = null;
+    this.childExited = false;
     this.decoder = null;
     this.initializeResult = null;
-    this.state = "closed";
+    this.stderrTail = "";
   }
 }

@@ -21,6 +21,8 @@ class FakeAcpProcess extends EventEmitter implements AcpChild {
   readonly stderr = new PassThrough();
   readonly messages: JsonObject[] = [];
   readonly signals: NodeJS.Signals[] = [];
+  ignoreSigterm = false;
+  ignoreStdinEnd = false;
 
   constructor(
     private readonly onMessage: (
@@ -32,7 +34,13 @@ class FakeAcpProcess extends EventEmitter implements AcpChild {
     readline.createInterface({ input: this.stdin }).on("line", (line) => {
       const message = JSON.parse(line) as JsonObject;
       this.messages.push(message);
+      this.emit("client-message", message);
       this.onMessage(message, this);
+    });
+    this.stdin.once("finish", () => {
+      if (!this.ignoreStdinEnd) {
+        queueMicrotask(() => this.emit("exit", 0, null));
+      }
     });
   }
 
@@ -42,6 +50,7 @@ class FakeAcpProcess extends EventEmitter implements AcpChild {
 
   kill(signal: NodeJS.Signals): boolean {
     this.signals.push(signal);
+    if (signal === "SIGTERM" && this.ignoreSigterm) return true;
     queueMicrotask(() => this.emit("exit", 0, signal));
     return true;
   }
@@ -52,6 +61,9 @@ type HarnessOptions = {
   legacyModes?: boolean;
   duplicateSessionId?: boolean;
   interleavePrompts?: boolean;
+  silentInitialize?: boolean;
+  hangPrompt?: boolean;
+  ignoreSigterm?: boolean;
   onPrompt?: (process: FakeAcpProcess, request: JsonObject) => void;
 };
 
@@ -63,6 +75,7 @@ function makeHarness(options: HarnessOptions = {}) {
     request: JsonObject;
     process: FakeAcpProcess;
   }> = [];
+  let hangPrompt = options.hangPrompt ?? false;
 
   const spawn: SpawnAcp = () => {
     spawnCount += 1;
@@ -72,6 +85,7 @@ function makeHarness(options: HarnessOptions = {}) {
       const params = (message.params ?? {}) as JsonObject;
 
       if (message.method === "initialize") {
+        if (options.silentInitialize) return;
         current.send({
           jsonrpc: "2.0",
           id,
@@ -155,6 +169,7 @@ function makeHarness(options: HarnessOptions = {}) {
         return;
       }
       if (message.method === "session/prompt") {
+        if (hangPrompt) return;
         if (options.onPrompt) {
           options.onPrompt(current, message);
           return;
@@ -213,6 +228,8 @@ function makeHarness(options: HarnessOptions = {}) {
         });
       }
     });
+    process.ignoreSigterm = options.ignoreSigterm ?? false;
+    process.ignoreStdinEnd = options.ignoreSigterm ?? false;
     processes.push(process);
     return process;
   };
@@ -236,6 +253,18 @@ function makeHarness(options: HarnessOptions = {}) {
           (message) => message.id === id && typeof message.method !== "string",
         ),
       );
+    },
+    setHangPrompt(value: boolean): void {
+      hangPrompt = value;
+    },
+    async waitForMethods(method: string, count: number): Promise<void> {
+      const deadline = Date.now() + 1_000;
+      while (this.methods(method).length < count) {
+        if (Date.now() >= deadline) {
+          throw new Error(`timed out waiting for ${count} ${method} messages`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
     },
   };
 }
@@ -446,4 +475,195 @@ test("client rejects duplicate active session IDs", async () => {
     1,
   );
   await client.close();
+});
+
+test("startup timeout terminates one uninitialized process and rejects all waiters", async () => {
+  const harness = makeHarness({ silentInitialize: true });
+  const client = new CursorAcpClient(
+    makeConfig({ startupTimeoutMs: 15 }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  const results = await Promise.allSettled([
+    client.completePrompt("A"),
+    client.completePrompt("B"),
+  ]);
+
+  assert.equal(harness.spawnCount, 1);
+  assert.ok(results.every((result) => result.status === "rejected"));
+  assert.ok(
+    results.every(
+      (result) =>
+        result.status === "rejected" &&
+        /startup timed out/.test(String(result.reason)),
+    ),
+  );
+  assert.deepEqual(harness.process.signals, ["SIGTERM"]);
+});
+
+test("prompt timeout cancels and capability-closes only its session", async () => {
+  const supported = makeHarness({
+    closeCapability: true,
+    hangPrompt: true,
+  });
+  const supportedClient = new CursorAcpClient(
+    makeConfig({ promptTimeoutMs: 15 }),
+    {
+      spawn: supported.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  await assert.rejects(
+    supportedClient.completePrompt("hang"),
+    /prompt timed out/,
+  );
+  assert.equal(supported.methods("session/cancel").length, 1);
+  assert.equal(supported.methods("session/close").length, 1);
+  assert.deepEqual(supported.process.signals, []);
+  await supportedClient.close();
+
+  const unsupported = makeHarness({
+    closeCapability: false,
+    hangPrompt: true,
+  });
+  const unsupportedClient = new CursorAcpClient(
+    makeConfig({ promptTimeoutMs: 15 }),
+    {
+      spawn: unsupported.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+  await assert.rejects(
+    unsupportedClient.completePrompt("hang"),
+    /prompt timed out/,
+  );
+  assert.equal(unsupported.methods("session/cancel").length, 1);
+  assert.equal(unsupported.methods("session/close").length, 0);
+  await unsupportedClient.close();
+});
+
+test("child crash rejects all active completions and the next call lazily restarts", async () => {
+  const harness = makeHarness({ hangPrompt: true });
+  const client = makeClient(harness);
+  const firstWave = Promise.allSettled([
+    client.completePrompt("A"),
+    client.completePrompt("B"),
+  ]);
+  await harness.waitForMethods("session/prompt", 2);
+
+  harness.process.emit("exit", 17, null);
+  const results = await firstWave;
+  assert.ok(results.every((result) => result.status === "rejected"));
+
+  harness.setHangPrompt(false);
+  assert.equal(await client.completePrompt("C"), "SESSION-3");
+  assert.equal(harness.spawnCount, 2);
+  await client.close();
+});
+
+test("malformed protocol rejects every active completion and permits restart", async () => {
+  const harness = makeHarness({ hangPrompt: true });
+  const client = makeClient(harness);
+  const active = Promise.allSettled([
+    client.completePrompt("A"),
+    client.completePrompt("B"),
+  ]);
+  await harness.waitForMethods("session/prompt", 2);
+
+  harness.process.stdout.write("{\n");
+  const results = await active;
+  assert.ok(results.every((result) => result.status === "rejected"));
+
+  harness.setHangPrompt(false);
+  assert.equal(await client.completePrompt("C"), "SESSION-3");
+  assert.equal(harness.spawnCount, 2);
+  await client.close();
+});
+
+test("fatal transport corruption escalates termination for a stubborn child", async () => {
+  const harness = makeHarness({
+    hangPrompt: true,
+    ignoreSigterm: true,
+  });
+  const client = new CursorAcpClient(
+    makeConfig({ terminateGraceMs: 5 }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+  const active = assert.rejects(client.completePrompt("A"), /malformed ACP JSON/);
+  await harness.waitForMethods("session/prompt", 1);
+
+  harness.process.stdout.write("{\n");
+  await active;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.deepEqual(harness.process.signals, ["SIGTERM", "SIGKILL"]);
+  await client.close();
+});
+
+test("missing close capability recycles only after the session limit becomes idle", async () => {
+  const harness = makeHarness({ closeCapability: false });
+  const client = new CursorAcpClient(
+    makeConfig({ maxSessions: 2 }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  await Promise.all([
+    client.completePrompt("A"),
+    client.completePrompt("B"),
+  ]);
+  assert.equal(harness.spawnCount, 1);
+
+  assert.equal(await client.completePrompt("C"), "SESSION-3");
+  assert.equal(harness.spawnCount, 2);
+  await client.close();
+});
+
+test("close is idempotent and escalates stdin to SIGTERM then SIGKILL", async () => {
+  const harness = makeHarness({
+    hangPrompt: true,
+    ignoreSigterm: true,
+  });
+  const client = new CursorAcpClient(
+    makeConfig({
+      shutdownGraceMs: 5,
+      terminateGraceMs: 5,
+    }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+  const active = client.completePrompt("hang");
+  const activeRejection = assert.rejects(active);
+  await harness.waitForMethods("session/prompt", 1);
+
+  const first = client.close();
+  const second = client.close();
+  assert.equal(first, second);
+  await first;
+  await activeRejection;
+
+  assert.equal(harness.process.stdin.writableEnded, true);
+  assert.deepEqual(harness.process.signals, ["SIGTERM", "SIGKILL"]);
+  await assert.rejects(client.completePrompt("late"), /closed/);
+});
+
+test("close before first completion is idempotent and does not spawn", async () => {
+  const harness = makeHarness();
+  const client = makeClient(harness);
+
+  const first = client.close();
+  assert.equal(first, client.close());
+  await first;
+  assert.equal(harness.spawnCount, 0);
 });
