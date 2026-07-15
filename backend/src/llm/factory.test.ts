@@ -69,12 +69,31 @@ test("createLlmProvider returns openai provider when configured", () => {
   assert.equal(provider.name, "openai");
 });
 
+test("createLlmProvider returns cursor-acp without an API key", () => {
+  const provider = createLlmProvider({
+    LLM_PROVIDER: "cursor-acp",
+    CURSOR_ACP_CWD: "/tmp/cursor-acp-test",
+  });
+
+  assert.equal(provider.name, "cursor-acp");
+  assert.equal(typeof provider.close, "function");
+});
+
+test("createLlmProvider does not cache cursor-acp instances", () => {
+  const env = {
+    LLM_PROVIDER: "cursor-acp",
+    CURSOR_ACP_CWD: "/tmp/cursor-acp-test",
+  };
+
+  assert.notEqual(createLlmProvider(env), createLlmProvider(env));
+});
+
 test("createLlmProvider throws on unknown provider", () => {
   assert.throws(
     () =>
       createLlmProvider({
         LLM_PROVIDER: "ollama",
       }),
-    /LLM_PROVIDER must be one of: omlx, gemini, openai/
+    /LLM_PROVIDER must be one of: omlx, gemini, openai, cursor-acp/
   );
 });

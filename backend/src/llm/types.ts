@@ -1,3 +1,5 @@
+import type { CursorAcpConfig } from "./cursor-acp.config";
+
 export type ChatRole = "system" | "user" | "assistant";
 
 export interface ChatMessage {
@@ -17,7 +19,7 @@ export interface LlmProvider {
 }
 
 export interface LlmEnvConfig {
-  provider: "omlx" | "gemini" | "openai";
+  provider: "omlx" | "gemini" | "openai" | "cursor-acp";
   omlxBaseUrl: string;
   omlxModel: string;
   omlxApiKey?: string;
@@ -26,4 +28,5 @@ export interface LlmEnvConfig {
   openaiApiKey?: string;
   openaiModel: string;
   openaiBaseUrl: string;
+  cursorAcp: CursorAcpConfig;
 }

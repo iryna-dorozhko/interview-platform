@@ -1,3 +1,5 @@
+import { readCursorAcpConfig } from "./cursor-acp.config";
+import { createCursorAcpProvider } from "./cursor-acp.provider";
 import { createGeminiProvider } from "./gemini.provider";
 import { createOmlxProvider } from "./omlx.provider";
 import { createOpenAiProvider } from "./openai.provider";
@@ -5,7 +7,7 @@ import type { LlmEnvConfig, LlmProvider } from "./types";
 
 type EnvSource = Record<string, string | undefined>;
 
-const ALLOWED_PROVIDERS = ["omlx", "gemini", "openai"] as const;
+const ALLOWED_PROVIDERS = ["omlx", "gemini", "openai", "cursor-acp"] as const;
 
 export function readLlmEnvConfig(env: EnvSource = process.env): LlmEnvConfig {
   const providerRaw = (env.LLM_PROVIDER ?? "omlx").toLowerCase();
@@ -24,6 +26,7 @@ export function readLlmEnvConfig(env: EnvSource = process.env): LlmEnvConfig {
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL ?? "gpt-4o-mini",
     openaiBaseUrl: env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+    cursorAcp: readCursorAcpConfig(env),
   };
 }
 
@@ -51,6 +54,10 @@ export function createLlmProvider(env: EnvSource = process.env): LlmProvider {
       model: config.openaiModel,
       apiKey: config.openaiApiKey,
     });
+  }
+
+  if (config.provider === "cursor-acp") {
+    return createCursorAcpProvider(config.cursorAcp);
   }
 
   return createOmlxProvider({
