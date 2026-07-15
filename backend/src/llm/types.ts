@@ -13,6 +13,7 @@ export interface LlmCompleteOptions {
 export interface LlmProvider {
   readonly name: string;
   complete(messages: ChatMessage[], options?: LlmCompleteOptions): Promise<string>;
+  close?(): Promise<void>;
 }
 
 export interface LlmEnvConfig {
