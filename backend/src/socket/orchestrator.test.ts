@@ -342,3 +342,23 @@ test("orchestrator emits no agent messages when all agents return post:false", a
   const thinkingEnd = emitted.filter((e) => e.event === "room:agent-thinking").at(-1);
   assert.equal((thinkingEnd!.payload as { active: boolean }).active, false);
 });
+
+test("orchestrator close clears timers and prevents new turns", async () => {
+  let calls = 0;
+  const orchestrator = createRoomOrchestrator(() => makePrisma([]), {
+    debounceMs: 20,
+    runArbiterTurn: async () => {
+      calls += 1;
+      return { post: false };
+    },
+  });
+  const { io } = makeIo();
+
+  orchestrator.onHumanMessage(io, "interview", "session");
+  orchestrator.close();
+  orchestrator.close();
+  orchestrator.onHumanMessage(io, "interview", "session");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.equal(calls, 0);
+});

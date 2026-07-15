@@ -34,6 +34,7 @@ export type RoomOrchestratorOptions = {
 export interface RoomOrchestrator {
   onHumanMessage(io: Server, interviewId: string, sessionId: string): void;
   onLiveStart(io: Server, interviewId: string, sessionId: string): void;
+  close(): void;
 }
 
 type AgentStep = {
@@ -115,6 +116,7 @@ export function createRoomOrchestrator(
   }
 
   const rooms = new Map<string, RoomState>();
+  let closed = false;
 
   function getState(interviewId: string): RoomState {
     let state = rooms.get(interviewId);
@@ -131,6 +133,7 @@ export function createRoomOrchestrator(
     sessionId: string,
     capturedGeneration: number,
   ): Promise<void> {
+    if (closed) return;
     const state = getState(interviewId);
     const prisma = getPrisma();
 
@@ -201,7 +204,8 @@ export function createRoomOrchestrator(
         !candidatePostedThisTurn &&
         candidateStepFailed &&
         state.generation === capturedGeneration &&
-        !state.candidateRecoveryTimer
+        !state.candidateRecoveryTimer &&
+        !closed
       ) {
         state.candidateRecoveryTimer = setTimeout(() => {
           state.candidateRecoveryTimer = null;
@@ -212,6 +216,7 @@ export function createRoomOrchestrator(
   }
 
   function scheduleTurn(io: Server, interviewId: string, sessionId: string): void {
+    if (closed) return;
     const state = getState(interviewId);
 
     if (state.debounceTimer) {
@@ -231,12 +236,14 @@ export function createRoomOrchestrator(
 
   return {
     onHumanMessage(io: Server, interviewId: string, sessionId: string): void {
+      if (closed) return;
       void (async () => {
+        if (closed) return;
         const interview = await getPrisma().interview.findUnique({
           where: { id: interviewId },
           select: { status: true },
         });
-        if (!interview || interview.status !== "LIVE") {
+        if (closed || !interview || interview.status !== "LIVE") {
           return;
         }
 
@@ -245,17 +252,32 @@ export function createRoomOrchestrator(
     },
 
     onLiveStart(io: Server, interviewId: string, sessionId: string): void {
+      if (closed) return;
       void (async () => {
+        if (closed) return;
         const interview = await getPrisma().interview.findUnique({
           where: { id: interviewId },
           select: { status: true },
         });
-        if (!interview || interview.status !== "LIVE") {
+        if (closed || !interview || interview.status !== "LIVE") {
           return;
         }
 
         scheduleTurn(io, interviewId, sessionId);
       })();
+    },
+
+    close(): void {
+      if (closed) return;
+      closed = true;
+      for (const state of rooms.values()) {
+        state.generation += 1;
+        if (state.debounceTimer) clearTimeout(state.debounceTimer);
+        if (state.candidateRecoveryTimer) {
+          clearTimeout(state.candidateRecoveryTimer);
+        }
+      }
+      rooms.clear();
     },
   };
 }
