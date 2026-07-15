@@ -71,6 +71,7 @@ type PendingRequest = {
   resolve(value: unknown): void;
   reject(error: unknown): void;
   timer?: ReturnType<typeof setTimeout>;
+  stopCollectingSessionId?: string;
 };
 
 type SessionState = {
@@ -213,6 +214,7 @@ export class CursorAcpClient {
             `Cursor ACP prompt timed out after ${this.config.promptTimeoutMs}ms`,
           ),
           onTimeout: () => this.cleanupSession(created.sessionId, true),
+          stopCollectingSessionId: created.sessionId,
         }),
       );
       session.collecting = false;
@@ -220,6 +222,12 @@ export class CursorAcpClient {
         throw new AcpClientError(
           "cancelled",
           "Cursor ACP prompt was cancelled",
+        );
+      }
+      if (result.stopReason === "error") {
+        throw new AcpClientError(
+          "protocol",
+          "Cursor ACP prompt terminated with error",
         );
       }
       return session.chunks.join("");
@@ -360,14 +368,17 @@ export class CursorAcpClient {
       timeoutMs: number;
       timeoutError: AcpClientError;
       onTimeout(): Promise<void> | void;
+      stopCollectingSessionId?: string;
     },
   ): Promise<unknown> {
     const id = ++this.nextRequestId;
     return new Promise((resolve, reject) => {
       const pending: PendingRequest = { resolve, reject };
+      pending.stopCollectingSessionId = timeout?.stopCollectingSessionId;
       if (timeout) {
         pending.timer = setTimeout(() => {
           if (!this.pending.delete(id)) return;
+          this.stopCollecting(pending);
           reject(timeout.timeoutError);
           void Promise.resolve(timeout.onTimeout()).catch((error) => {
             this.failTransport(error);
@@ -384,6 +395,7 @@ export class CursorAcpClient {
         const removed = this.pending.get(id);
         if (removed?.timer) clearTimeout(removed.timer);
         this.pending.delete(id);
+        this.stopCollecting(pending);
         reject(error);
       });
     });
@@ -426,9 +438,13 @@ export class CursorAcpClient {
     if (!pending) return;
     this.pending.delete(message.id);
     if (pending.timer) clearTimeout(pending.timer);
+    this.stopCollecting(pending);
     if (message.error) {
       const kind =
-        message.error.code === -32000 ? "authentication" : "protocol";
+        message.error.code === -32000 &&
+        /auth|login|credential|unauthori[sz]ed|token/i.test(message.error.message)
+          ? "authentication"
+          : "protocol";
       pending.reject(
         new AcpClientError(
           kind,
@@ -438,6 +454,12 @@ export class CursorAcpClient {
     } else {
       pending.resolve(message.result);
     }
+  }
+
+  private stopCollecting(pending: PendingRequest): void {
+    if (!pending.stopCollectingSessionId) return;
+    const session = this.sessions.get(pending.stopCollectingSessionId);
+    if (session) session.collecting = false;
   }
 
   private handleSessionUpdate(params: unknown): void {

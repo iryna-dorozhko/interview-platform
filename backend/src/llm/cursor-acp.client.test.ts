@@ -4,6 +4,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import readline from "node:readline";
 import {
+  AcpClientError,
   CursorAcpClient,
   type AcpChild,
   type SpawnAcp,
@@ -357,6 +358,61 @@ test("parallel sessions route text chunks without mixing thought or tool updates
     .methods("session/prompt")
     .map((request) => (request.params as JsonObject).sessionId);
   assert.equal(new Set(sessionIds).size, 2);
+  await client.close();
+});
+
+test("client ignores chunks delivered after the prompt response", async () => {
+  const harness = makeHarness({
+    onPrompt(process, request) {
+      const sessionId = ((request.params as JsonObject).sessionId) as string;
+      sendChunk(process, sessionId, "before");
+      process.send({
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { stopReason: "end_turn" },
+      });
+      sendChunk(process, sessionId, "late");
+    },
+  });
+  const client = makeClient(harness);
+
+  assert.equal(await client.completePrompt("A"), "before");
+  await client.close();
+});
+
+test("client rejects explicit error prompt termination", async () => {
+  const harness = makeHarness({
+    onPrompt(process, request) {
+      process.send({
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { stopReason: "error" },
+      });
+    },
+  });
+  const client = makeClient(harness);
+
+  await assert.rejects(client.completePrompt("A"), /terminated with error/);
+  await client.close();
+});
+
+test("client classifies generic -32000 errors as protocol errors, not auth", async () => {
+  const harness = makeHarness({
+    onPrompt(process, request) {
+      process.send({
+        jsonrpc: "2.0",
+        id: request.id,
+        error: { code: -32000, message: "model unavailable" },
+      });
+    },
+  });
+  const client = makeClient(harness);
+
+  await assert.rejects(
+    client.completePrompt("A"),
+    (error: unknown) =>
+      error instanceof AcpClientError && error.kind === "protocol",
+  );
   await client.close();
 });
 
