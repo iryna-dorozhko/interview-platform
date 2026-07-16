@@ -4,8 +4,10 @@ import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import type { LlmProvider } from "../llm/types";
 import {
   ArbiterReplyParseError,
+  NO_PENDING_QUESTION_NUDGE_UK,
+  PENDING_QUESTION_NUDGE_UK,
   buildArbiterMessages,
-  parseArbiterReply,
+  parseArbiterCommand,
   runArbiterTurn,
 } from "./arbiter-agent";
 import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from "./prompts/arbiter-agent.uk";
@@ -17,69 +19,96 @@ const companyProfile = {
   expectations: ["ownership"],
 };
 
-test("arbiter prompt includes interview start and end guidance", () => {
-  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /сигнал початку співбесіди/i);
-  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /запропонуй завершення співбесіди/i);
-  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /Company Agent|Candidate Agent/i);
+test("arbiter prompt includes conductor actions and start/end guidance", () => {
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /START/);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /ANSWER/);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /NEXT_QUESTION/);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /CLARIFY/);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /CANDIDATE_QUESTIONS/);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /SUGGEST_END/);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /Company Agent|Candidate/i);
 });
 
-test("parseArbiterReply parses post:false", () => {
-  const result = parseArbiterReply('{ "post": false }');
-  assert.equal(result.post, false);
-  assert.equal(result.message, undefined);
+test("parseArbiterCommand parses WAIT", () => {
+  const result = parseArbiterCommand(
+    '{ "action": "WAIT", "summaryUk": "Розмова йде природно." }',
+  );
+  assert.deepEqual(result, {
+    action: "WAIT",
+    summaryUk: "Розмова йде природно.",
+  });
 });
 
-test("parseArbiterReply parses post:true with message", () => {
-  const result = parseArbiterReply('{ "post": true, "message": "Продовжуйте тему досвіду." }');
-  assert.equal(result.post, true);
-  assert.equal(result.message, "Продовжуйте тему досвіду.");
+test("parseArbiterCommand parses ANSWER with briefUk", () => {
+  const result = parseArbiterCommand(
+    '{ "action": "ANSWER", "summaryUk": "Передано Candidate", "briefUk": "Досвід з Node.js" }',
+  );
+  assert.equal(result.action, "ANSWER");
+  assert.equal(result.briefUk, "Досвід з Node.js");
 });
 
-test("parseArbiterReply strips markdown code fences", () => {
-  const raw = "```json\n{ \"post\": false }\n```";
-  const result = parseArbiterReply(raw);
-  assert.equal(result.post, false);
+test("parseArbiterCommand parses START with publicMessage", () => {
+  const result = parseArbiterCommand(
+    '{ "action": "START", "summaryUk": "Старт", "publicMessage": "Давайте почнемо співбесіду." }',
+  );
+  assert.equal(result.action, "START");
+  assert.equal(result.publicMessage, "Давайте почнемо співбесіду.");
 });
 
-test("parseArbiterReply throws on invalid JSON", () => {
-  assert.throws(() => parseArbiterReply("not json"), ArbiterReplyParseError);
+test("parseArbiterCommand strips markdown code fences", () => {
+  const raw =
+    '```json\n{ "action": "WAIT", "summaryUk": "Очікуємо" }\n```';
+  const result = parseArbiterCommand(raw);
+  assert.equal(result.action, "WAIT");
 });
 
-test("parseArbiterReply throws when post:true but message is empty", () => {
+test("parseArbiterCommand throws on invalid JSON", () => {
+  assert.throws(() => parseArbiterCommand("not json"), ArbiterReplyParseError);
+});
+
+test("parseArbiterCommand throws when summaryUk is empty", () => {
   assert.throws(
-    () => parseArbiterReply('{ "post": true, "message": "   " }'),
+    () => parseArbiterCommand('{ "action": "WAIT", "summaryUk": "   " }'),
     ArbiterReplyParseError,
   );
 });
 
-test("parseArbiterReply throws when post field is missing", () => {
-  assert.throws(() => parseArbiterReply('{ "message": "hi" }'), ArbiterReplyParseError);
+test("parseArbiterCommand throws when START lacks publicMessage", () => {
+  assert.throws(
+    () => parseArbiterCommand('{ "action": "START", "summaryUk": "Старт" }'),
+    ArbiterReplyParseError,
+  );
 });
 
-test("buildArbiterMessages includes company profile in system prompt and maps history", () => {
+test("parseArbiterCommand throws on unknown action", () => {
+  assert.throws(
+    () => parseArbiterCommand('{ "action": "NOPE", "summaryUk": "x" }'),
+    ArbiterReplyParseError,
+  );
+});
+
+test("buildArbiterMessages includes pendingQuestion nudge", () => {
   const history: Array<{ authorType: LiveAuthorType; content: string }> = [
     { authorType: "HUMAN_HR", content: "Розкажіть про досвід." },
-    { authorType: "HUMAN_CANDIDATE", content: "Працював з Node.js." },
-    { authorType: "AGENT_ARBITER", content: "Короткий підсумок." },
   ];
 
-  const messages = buildArbiterMessages({ companyProfile, history });
+  const withPending = buildArbiterMessages({
+    companyProfile,
+    history,
+    pendingQuestion: true,
+  });
+  assert.equal(withPending.at(-1)?.content, PENDING_QUESTION_NUDGE_UK);
 
-  assert.equal(messages[0].role, "system");
-  assert.match(messages[0].content, /Backend Developer/);
-  assert.doesNotMatch(messages[0].content, /5 років досвіду/);
-  assert.ok(
-    messages[0].content.includes(
-      ARBITER_AGENT_SYSTEM_PROMPT_UK.split("{{COMPANY_PROFILE}}")[0].trimEnd(),
-    ),
-  );
-
-  assert.deepEqual(messages[1], { role: "user", content: "[HR] Розкажіть про досвід." });
-  assert.deepEqual(messages[2], { role: "user", content: "[Кандидат] Працював з Node.js." });
-  assert.deepEqual(messages[3], { role: "assistant", content: "Короткий підсумок." });
+  const withoutPending = buildArbiterMessages({
+    companyProfile,
+    history,
+    pendingQuestion: false,
+  });
+  assert.equal(withoutPending.at(-1)?.content, NO_PENDING_QUESTION_NUDGE_UK);
+  assert.match(withoutPending[0].content, /Backend Developer/);
 });
 
-test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
+test("runArbiterTurn loads context, calls LLM, and parses command", async () => {
   let llmCalled = false;
   const fakeProvider: LlmProvider = {
     name: "fake",
@@ -87,9 +116,9 @@ test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
       llmCalled = true;
       assert.equal(messages[0].role, "system");
       assert.match(messages[0].content, /Backend Developer/);
-      assert.equal(messages.at(-1)?.content, "[HR] Привіт");
-      assert.deepEqual(options, { maxTokens: 128, temperature: 0 });
-      return '{ "post": true, "message": "Продовжуйте." }';
+      assert.equal(messages.at(-1)?.content, PENDING_QUESTION_NUDGE_UK);
+      assert.deepEqual(options, { maxTokens: 256, temperature: 0 });
+      return '{ "action": "ANSWER", "summaryUk": "Відповісти", "briefUk": "Node.js" }';
     },
   };
 
@@ -111,10 +140,20 @@ test("runArbiterTurn loads context, calls LLM, and parses reply", async () => {
     },
   } as unknown as PrismaClient;
 
-  const result = await runArbiterTurn(fakePrisma, "interview_1", "session_1", fakeProvider);
+  const result = await runArbiterTurn(
+    fakePrisma,
+    "interview_1",
+    "session_1",
+    fakeProvider,
+    { pendingQuestion: true },
+  );
 
   assert.equal(llmCalled, true);
-  assert.deepEqual(result, { post: true, message: "Продовжуйте." });
+  assert.deepEqual(result, {
+    action: "ANSWER",
+    summaryUk: "Відповісти",
+    briefUk: "Node.js",
+  });
 });
 
 test("runArbiterTurn throws when company profile is missing", async () => {
