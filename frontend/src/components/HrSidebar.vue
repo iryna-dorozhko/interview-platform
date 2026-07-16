@@ -17,6 +17,13 @@ function isHomeActive(): boolean {
     <RouterLink to="/" class="nav-item" :class="{ active: isHomeActive() }">
       Головна
     </RouterLink>
+    <RouterLink
+      to="/company-profile"
+      class="nav-item"
+      :class="{ active: isActive('/company-profile') }"
+    >
+      Профіль компанії
+    </RouterLink>
     <RouterLink to="/vacancies" class="nav-item" :class="{ active: isActive('/vacancies') }">
       Анкети
     </RouterLink>

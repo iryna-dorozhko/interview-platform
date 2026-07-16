@@ -6,6 +6,7 @@ import {
 import { useAuthStore } from "../stores/auth";
 import HrLayout from "../layouts/HrLayout.vue";
 import HrHomeView from "../views/HrHomeView.vue";
+import CompanyProfilePrepView from "../views/CompanyProfilePrepView.vue";
 import VacancyListView from "../views/VacancyListView.vue";
 import VacancyDetailView from "../views/VacancyDetailView.vue";
 import VacancyPrepView from "../views/VacancyPrepView.vue";
@@ -72,6 +73,11 @@ export const router = createRouter({
       meta: { requiresAuth: true, requiredRole: "HR" },
       children: [
         { path: "", name: "home", component: HrHomeView },
+        {
+          path: "company-profile",
+          name: "company-profile",
+          component: CompanyProfilePrepView,
+        },
         { path: "vacancies", name: "vacancies", component: VacancyListView },
         {
           path: "vacancies/:id",
@@ -115,10 +121,14 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  const navStartedAt = Date.now();
   const auth = useAuthStore();
   if (!auth.hydrated) {
     await auth.restoreSession();
   }
+  // #region agent log
+  fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c96f8b'},body:JSON.stringify({sessionId:'c96f8b',runId:'initial',hypothesisId:'D',location:'router/index.ts:beforeEach',message:'route guard resolved',data:{to:to.fullPath,durationMs:Date.now()-navStartedAt,hydrated:auth.hydrated,hasUser:Boolean(auth.user)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 
   const requiresAuth = to.meta.requiresAuth === true;
   const requiredRole = to.meta.requiredRole;
