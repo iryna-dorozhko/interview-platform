@@ -36,36 +36,6 @@ function serializeCandidateProfile(profile: {
   };
 }
 
-function extractContactFields(rawText: string): {
-  fullName: string;
-  email: string;
-  phone: string | null;
-} {
-  const trimmed = rawText.trim();
-  const withoutFences = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? trimmed;
-
-  let data: unknown;
-  try {
-    data = JSON.parse(withoutFences);
-  } catch {
-    return { fullName: "", email: "", phone: null };
-  }
-
-  if (typeof data !== "object" || data === null) {
-    return { fullName: "", email: "", phone: null };
-  }
-
-  const record = data as Record<string, unknown>;
-  const fullName = typeof record.fullName === "string" ? record.fullName.trim() : "";
-  const email = typeof record.email === "string" ? record.email.trim() : "";
-  const phone =
-    record.phone === undefined || record.phone === null
-      ? null
-      : String(record.phone).trim() || null;
-
-  return { fullName, email, phone };
-}
-
 export function createCandidatePrepRouter(
   getPrisma: () => PrismaClient,
   getProvider: () => LlmProvider
@@ -257,15 +227,45 @@ export function createCandidatePrepRouter(
       return;
     }
 
-    let extracted;
-    let contactFields: { fullName: string; email: string; phone: string | null };
+    const fallbackEmail = req.user?.email?.trim().toLowerCase() ?? "";
+
+    let parseInput = rawReply;
+    const trimmedRaw = rawReply.trim();
+    const withoutFences = trimmedRaw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? trimmedRaw;
     try {
-      extracted = parseCandidateProfileExtraction(rawReply);
-      contactFields = extractContactFields(rawReply);
+      const rawData = JSON.parse(withoutFences);
+      if (typeof rawData === "object" && rawData !== null) {
+        const rawEmail = String((rawData as Record<string, unknown>).email ?? "")
+          .trim()
+          .toLowerCase();
+        if (!rawEmail && fallbackEmail) {
+          (rawData as Record<string, unknown>).email = fallbackEmail;
+          parseInput = JSON.stringify(rawData);
+        }
+      }
+    } catch {
+      // keep original rawReply; parseCandidateProfileExtraction handles invalid JSON
+    }
+
+    let extracted;
+    try {
+      extracted = parseCandidateProfileExtraction(parseInput);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[candidate-prep:finish] failed to parse profile extraction:", detail);
+      if (detail.includes("email") && !fallbackEmail) {
+        res.status(502).json({ error: "LLM unavailable", detail: "missing email for candidate profile" });
+        return;
+      }
       res.status(502).json({ error: "LLM unavailable", detail });
+      return;
+    }
+
+    const normalizedExtractedEmail = extracted.email.trim().toLowerCase();
+    const persistedEmail = normalizedExtractedEmail || fallbackEmail;
+
+    if (!persistedEmail) {
+      res.status(502).json({ error: "LLM unavailable", detail: "missing email for candidate profile" });
       return;
     }
 
@@ -274,9 +274,9 @@ export function createCandidatePrepRouter(
       profile = await prisma.candidateProfile.upsert({
         where: { interviewId },
         update: {
-          fullName: contactFields.fullName,
-          email: contactFields.email,
-          phone: contactFields.phone,
+          fullName: extracted.fullName,
+          email: persistedEmail,
+          phone: extracted.phone,
           experience: extracted.experience,
           skills: extracted.skills,
           goals: extracted.goals,
@@ -284,9 +284,9 @@ export function createCandidatePrepRouter(
         },
         create: {
           interviewId,
-          fullName: contactFields.fullName,
-          email: contactFields.email,
-          phone: contactFields.phone,
+          fullName: extracted.fullName,
+          email: persistedEmail,
+          phone: extracted.phone,
           experience: extracted.experience,
           skills: extracted.skills,
           goals: extracted.goals,

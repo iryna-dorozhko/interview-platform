@@ -499,6 +499,9 @@ test("DELETE /candidate-prep/:interviewId removes session, messages, and confirm
 });
 
 const SAMPLE_PROFILE_JSON = JSON.stringify({
+  fullName: "Тест Кандидат",
+  email: "cd@test.com",
+  phone: null,
   experience: ["3 роки backend"],
   skills: { strong: ["TypeScript"], growth: ["people management"] },
   goals: ["senior role"],
@@ -513,6 +516,66 @@ const SAMPLE_CONTACT_PROFILE_JSON = JSON.stringify({
   skills: { strong: ["TypeScript"], growth: ["people management"] },
   goals: ["senior role"],
   summary: "Backend-розробник з досвідом у fintech.",
+});
+
+const PROFILE_JSON_MISSING_EMAIL = JSON.stringify({
+  fullName: "Тест Кандидат",
+  email: "",
+  phone: null,
+  experience: ["3 роки backend"],
+  skills: { strong: ["TypeScript"], growth: ["people management"] },
+  goals: ["senior role"],
+  summary: "Backend-розробник з досвідом у fintech.",
+});
+
+test("finish falls back to authenticated user email when extraction email missing", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push(
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_CANDIDATE",
+      content: "Мене звати Тест, email не хочу давати",
+      createdAt: new Date(1),
+    },
+    {
+      id: "m2",
+      sessionId: "session_1",
+      authorType: "AGENT_CANDIDATE",
+      content: "Дякую!",
+      createdAt: new Date(2),
+    }
+  );
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      return PROFILE_JSON_MISSING_EMAIL;
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, {
+    id: "cd_1",
+    email: "auth@example.com",
+    role: "CANDIDATE",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/finish`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.profile.email, "auth@example.com");
+    assert.equal(fakePrisma.__profiles.length, 1);
+    assert.equal(fakePrisma.__profiles[0].email, "auth@example.com");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
 });
 
 test("finish persists contact fields in candidate profile", async () => {
