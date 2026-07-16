@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { AgentThinkingState, LiveAuthorType } from "../composables/useInterviewRoom";
+import type {
+  AgentThinkingState,
+  ArbiterProcessEntry,
+  LiveAuthorType,
+} from "../composables/useInterviewRoom";
 
 const props = defineProps<{
   agentThinking: AgentThinkingState | null;
+  processLog?: ArbiterProcessEntry[];
 }>();
 
 type AgentKey = "AGENT_ARBITER" | "AGENT_COMPANY" | "AGENT_CANDIDATE";
@@ -22,6 +27,20 @@ function statusFor(agentType: AgentKey): "thinking" | "idle" {
 }
 
 const activeAgent = computed(() => props.agentThinking?.agentType as LiveAuthorType | undefined);
+
+const processEntries = computed(() => props.processLog ?? []);
+
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString("uk-UA", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 </script>
 
 <template>
@@ -43,6 +62,15 @@ const activeAgent = computed(() => props.agentThinking?.agentType as LiveAuthorT
     <p v-if="activeAgent" class="panel-hint">
       Зараз активний: {{ AGENTS.find((a) => a.key === activeAgent)?.label }}
     </p>
+    <div v-if="processEntries.length > 0" class="process-log">
+      <h3 class="process-title">Рішення Arbiter</h3>
+      <ul class="process-list">
+        <li v-for="(entry, index) in processEntries" :key="`${entry.at}-${index}`" class="process-item">
+          <span class="process-time">{{ formatTime(entry.at) }}</span>
+          <span class="process-summary">{{ entry.summaryUk }}</span>
+        </li>
+      </ul>
+    </div>
   </aside>
 </template>
 
@@ -98,5 +126,41 @@ const activeAgent = computed(() => props.agentThinking?.agentType as LiveAuthorT
   margin: 0.5rem 0 0;
   font-size: 0.75rem;
   color: var(--muted);
+}
+.process-log {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.process-title {
+  margin: 0 0 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.process-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+.process-item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.process-time {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.process-summary {
+  color: var(--text);
 }
 </style>

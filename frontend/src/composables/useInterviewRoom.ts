@@ -13,6 +13,12 @@ export type AgentThinkingState = {
   agentType?: LiveAuthorType;
 };
 
+export type ArbiterProcessEntry = {
+  at: string;
+  action: string;
+  summaryUk: string;
+};
+
 export type LiveMessage = {
   id: string;
   authorType: LiveAuthorType;
@@ -22,6 +28,8 @@ export type LiveMessage = {
 
 export type RoomConnectionState = "connecting" | "connected" | "error";
 
+const ARBITER_PROCESS_LOG_MAX = 8;
+
 export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDIDATE") {
   const messages = ref<LiveMessage[]>([]);
   const connectionState = ref<RoomConnectionState>("connecting");
@@ -29,6 +37,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
   const interviewStatus = ref<"AWAITING_CANDIDATE" | "READY" | "LIVE" | "ENDED" | null>(null);
   const agentThinking = ref<AgentThinkingState | null>(null);
   const agentError = ref<string | null>(null);
+  const arbiterProcessLog = ref<ArbiterProcessEntry[]>([]);
 
   const socket = connectSocket();
 
@@ -81,6 +90,28 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     };
   }
 
+  function onArbiterProcess(payload: {
+    at?: string;
+    action?: string;
+    summaryUk?: string;
+  }): void {
+    if (currentRole !== "HR") return;
+    if (
+      typeof payload?.at !== "string" ||
+      typeof payload?.action !== "string" ||
+      typeof payload?.summaryUk !== "string" ||
+      !payload.summaryUk.trim()
+    ) {
+      return;
+    }
+    const entry: ArbiterProcessEntry = {
+      at: payload.at,
+      action: payload.action,
+      summaryUk: payload.summaryUk.trim(),
+    };
+    arbiterProcessLog.value = [entry, ...arbiterProcessLog.value].slice(0, ARBITER_PROCESS_LOG_MAX);
+  }
+
   function onStatus(payload: { status?: "AWAITING_CANDIDATE" | "READY" | "LIVE" | "ENDED" }): void {
     if (payload?.status) {
       interviewStatus.value = payload.status;
@@ -108,6 +139,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.on("room:error", onError);
     socket.on("room:agent-thinking", onAgentThinking);
     socket.on("room:agent-error", onAgentError);
+    socket.on("room:arbiter-process", onArbiterProcess);
 
     if (socket.connected) {
       onConnect();
@@ -125,6 +157,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.off("room:error", onError);
     socket.off("room:agent-thinking", onAgentThinking);
     socket.off("room:agent-error", onAgentError);
+    socket.off("room:arbiter-process", onArbiterProcess);
   });
 
   const isReadOnly = computed(
@@ -138,6 +171,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     interviewStatus,
     agentThinking,
     agentError,
+    arbiterProcessLog,
     currentRole,
     sendMessage,
     isReadOnly,

@@ -22,6 +22,7 @@ const {
   agentThinking,
   interviewStatus,
   agentError,
+  arbiterProcessLog,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 
 const ending = ref(false);
@@ -97,6 +98,7 @@ async function onEndInterview(): Promise<void> {
   <AgentStatusPanel
     v-if="currentRole === 'HR'"
     :agent-thinking="agentThinking"
+    :process-log="arbiterProcessLog"
   />
   <LiveChatPanel
     :messages="messages"
