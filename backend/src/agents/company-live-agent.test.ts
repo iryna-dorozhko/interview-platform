@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import type { LlmProvider } from "../llm/types";
-import { buildCompanyLiveMessages, runCompanyLiveTurn } from "./company-live-agent";
+import {
+  buildCompanyLiveMessages,
+  formatCompanyTurnNudge,
+  runCompanyLiveTurn,
+} from "./company-live-agent";
 import { COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-live-agent.uk";
 
 const companyProfile = {
@@ -32,6 +36,25 @@ test("buildCompanyLiveMessages includes company profile and maps history", () =>
   assert.deepEqual(messages[2], { role: "assistant", content: "Давайте почнемо співбесіду." });
 });
 
+test("buildCompanyLiveMessages appends turnContext nudge", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "HUMAN_CANDIDATE", content: "Працював з Node.js." },
+  ];
+
+  const messages = buildCompanyLiveMessages({
+    companyProfile,
+    history,
+    turnContext: { action: "CLARIFY", briefUk: "Уточни глибину PostgreSQL" },
+  });
+
+  assert.equal(
+    messages.at(-1)?.content,
+    formatCompanyTurnNudge({ action: "CLARIFY", briefUk: "Уточни глибину PostgreSQL" }),
+  );
+  assert.match(messages.at(-1)!.content, /CLARIFY/);
+  assert.match(messages.at(-1)!.content, /PostgreSQL/);
+});
+
 test("runCompanyLiveTurn loads profile, calls LLM, parses reply", async () => {
   const prisma = {
     interview: {
@@ -56,10 +79,15 @@ test("runCompanyLiveTurn loads profile, calls LLM, parses reply", async () => {
 
   const provider: LlmProvider = {
     name: "test",
-    complete: async () => '{ "post": true, "message": "Розкажіть про досвід з Node.js." }',
+    complete: async (messages) => {
+      assert.match(messages.at(-1)!.content, /NEXT_QUESTION/);
+      return '{ "post": true, "message": "Розкажіть про досвід з Node.js." }';
+    },
   };
 
-  const result = await runCompanyLiveTurn(prisma, "interview_1", "session_1", provider);
+  const result = await runCompanyLiveTurn(prisma, "interview_1", "session_1", provider, {
+    action: "NEXT_QUESTION",
+  });
   assert.equal(result.post, true);
   assert.equal(result.message, "Розкажіть про досвід з Node.js.");
 });

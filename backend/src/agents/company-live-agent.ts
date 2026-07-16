@@ -5,10 +5,12 @@ import {
   parsePostReply,
   type ParsedPostReply,
 } from "./agent-post-reply";
+import type { LiveAgentTurnContext } from "./live-agent-turn-context";
 import { COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-live-agent.uk";
 
 export type ParsedCompanyLiveReply = ParsedPostReply;
 export { AgentPostReplyParseError as CompanyLiveReplyParseError };
+export type { LiveAgentTurnContext };
 
 export interface CompanyLiveProfileContext {
   role: string;
@@ -61,17 +63,36 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
   }
 }
 
+export function formatCompanyTurnNudge(turnContext: LiveAgentTurnContext): string {
+  const brief = turnContext.briefUk?.trim();
+  const briefPart = brief ? ` Підказка Arbiter: ${brief}` : "";
+  if (turnContext.action === "CLARIFY") {
+    return `[Система] Команда Arbiter: CLARIFY. Постав одне уточнююче питання.${briefPart}`;
+  }
+  return `[Система] Команда Arbiter: NEXT_QUESTION. Постав одне нове інтерв'ю-питання.${briefPart}`;
+}
+
 export function buildCompanyLiveMessages(input: {
   companyProfile: CompanyLiveProfileContext;
   history: LiveHistoryItem[];
+  turnContext?: LiveAgentTurnContext;
 }): ChatMessage[] {
-  return [
+  const messages: ChatMessage[] = [
     {
       role: "system",
       content: buildSystemPrompt(input.companyProfile),
     },
     ...input.history.map(mapHistoryItem),
   ];
+
+  if (input.turnContext) {
+    messages.push({
+      role: "user",
+      content: formatCompanyTurnNudge(input.turnContext),
+    });
+  }
+
+  return messages;
 }
 
 export async function runCompanyLiveTurn(
@@ -79,6 +100,7 @@ export async function runCompanyLiveTurn(
   interviewId: string,
   sessionId: string,
   provider: LlmProvider,
+  turnContext?: LiveAgentTurnContext,
 ): Promise<ParsedCompanyLiveReply> {
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },
@@ -107,6 +129,7 @@ export async function runCompanyLiveTurn(
       expectations: companyProfile.expectations,
     },
     history,
+    turnContext,
   });
 
   const rawReply = await provider.complete(llmMessages);
