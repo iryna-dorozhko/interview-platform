@@ -31,6 +31,9 @@ export function buildCandidateAgentMessages(history: CandidatePrepHistoryItem[])
 }
 
 export interface ExtractedCandidateProfile {
+  fullName: string;
+  email: string;
+  phone: string | null;
   experience: string[];
   skills: {
     strong: string[];
@@ -57,6 +60,12 @@ function toStringArray(value: unknown, field: string): string[] {
     throw new CandidateProfileExtractionError(`missing or invalid field: ${field}`);
   }
   return value.map((item) => String(item));
+}
+
+function toOptionalString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
 }
 
 function normalizeSkillsFields(
@@ -94,14 +103,25 @@ export function parseCandidateProfileExtraction(rawText: string): ExtractedCandi
     throw new CandidateProfileExtractionError("LLM response is not a JSON object");
   }
 
-  const { experience, goals, summary } = data as Record<string, unknown>;
-  const skillsFields = normalizeSkillsFields(data as Record<string, unknown>);
+  const record = data as Record<string, unknown>;
+  const { experience, goals, summary } = record;
+  const skillsFields = normalizeSkillsFields(record);
+
+  const fullName = String(record.fullName ?? "").trim();
+  const email = String(record.email ?? "").trim().toLowerCase();
+  const phone = toOptionalString(record.phone);
+
+  if (!fullName) throw new CandidateProfileExtractionError("missing or invalid field: fullName");
+  if (!email) throw new CandidateProfileExtractionError("missing or invalid field: email");
 
   if (typeof summary !== "string" || !summary.trim()) {
     throw new CandidateProfileExtractionError("missing or invalid field: summary");
   }
 
   return {
+    fullName,
+    email,
+    phone,
     experience: toStringArray(experience, "experience"),
     skills: {
       strong: toStringArray(skillsFields.strong, "skills.strong"),

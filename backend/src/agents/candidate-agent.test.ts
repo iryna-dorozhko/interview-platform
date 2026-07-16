@@ -43,8 +43,41 @@ test("candidate system prompt mentions experience, strengths, weaknesses, and go
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /READY:true/);
 });
 
+test("candidate system prompt explains next step with HR code and shared interview", () => {
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /код.*HR|HR.*код/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /спільн.*співбесід|live-співбесід/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /представляє інтереси кандидата/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /HR.*повідомить результати|повідомить результати.*HR/i);
+});
+
+test("candidate prompt includes contact bootstrap rules", () => {
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /представ/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /email.*реєстрац/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /телефон.*поясн/i);
+});
+
+test("parseCandidateProfileExtraction parses full contact payload", () => {
+  const parsed = parseCandidateProfileExtraction(
+    JSON.stringify({
+      fullName: "Іван Петренко",
+      email: "ivan@example.com",
+      phone: null,
+      experience: ["3 роки backend"],
+      skills: { strong: ["TypeScript"], growth: ["публічні виступи"] },
+      goals: ["Senior role"],
+      summary: "Сильний backend-фахівець.",
+    })
+  );
+  assert.equal(parsed.phone, null);
+  assert.equal(parsed.fullName, "Іван Петренко");
+  assert.equal(parsed.email, "ivan@example.com");
+});
+
 test("parseCandidateProfileExtraction parses plain JSON", () => {
   const raw = JSON.stringify({
+    fullName: "Тест Кандидат",
+    email: "test@example.com",
+    phone: "+380501234567",
     experience: ["3 роки backend", "Node.js, PostgreSQL"],
     skills: { strong: ["TypeScript"], growth: ["Public speaking"] },
     goals: ["Senior role"],
@@ -52,6 +85,9 @@ test("parseCandidateProfileExtraction parses plain JSON", () => {
   });
   const result = parseCandidateProfileExtraction(raw);
   assert.deepEqual(result, {
+    fullName: "Тест Кандидат",
+    email: "test@example.com",
+    phone: "+380501234567",
     experience: ["3 роки backend", "Node.js, PostgreSQL"],
     skills: { strong: ["TypeScript"], growth: ["Public speaking"] },
     goals: ["Senior role"],
@@ -63,6 +99,9 @@ test("parseCandidateProfileExtraction strips markdown code fences around JSON", 
   const raw = [
     "```json",
     JSON.stringify({
+      fullName: "QA Тест",
+      email: "qa@example.com",
+      phone: null,
       experience: ["2 роки QA"],
       skills: { strong: ["Manual testing"], growth: ["не вказано"] },
       goals: ["не вказано"],
@@ -81,6 +120,9 @@ test("parseCandidateProfileExtraction throws when response is not valid JSON", (
 
 test("parseCandidateProfileExtraction accepts flat skills.strong and skills.growth keys", () => {
   const raw = JSON.stringify({
+    fullName: "Backend Dev",
+    email: "dev@example.com",
+    phone: null,
     experience: ["3 роки backend"],
     "skills.strong": ["архітектура API", "PostgreSQL"],
     "skills.growth": ["публічні виступи"],
@@ -96,6 +138,9 @@ test("parseCandidateProfileExtraction accepts flat skills.strong and skills.grow
 
 test("parseCandidateProfileExtraction throws when skills.strong is missing", () => {
   const raw = JSON.stringify({
+    fullName: "Backend Dev",
+    email: "dev@example.com",
+    phone: null,
     experience: ["3 роки backend"],
     skills: { growth: ["Public speaking"] },
     goals: ["Senior role"],
@@ -106,6 +151,9 @@ test("parseCandidateProfileExtraction throws when skills.strong is missing", () 
 
 test("parseCandidateProfileExtraction throws when summary is empty", () => {
   const raw = JSON.stringify({
+    fullName: "Backend Dev",
+    email: "dev@example.com",
+    phone: null,
     experience: ["3 роки backend"],
     skills: { strong: ["TypeScript"], growth: ["Public speaking"] },
     goals: ["Senior role"],
