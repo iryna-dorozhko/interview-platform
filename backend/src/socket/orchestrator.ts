@@ -1,30 +1,55 @@
 import type { Server } from "socket.io";
 import type { LiveAuthorType, LiveMessage, PrismaClient } from "@prisma/client";
 import type { ParsedPostReply } from "../agents/agent-post-reply";
-import { runArbiterTurn as defaultRunArbiterTurn } from "../agents/arbiter-agent";
-import { runCompanyLiveTurn as defaultRunCompanyLiveTurn } from "../agents/company-live-agent";
-import { runCandidateLiveTurn as defaultRunCandidateLiveTurn } from "../agents/candidate-live-agent";
+import {
+  runArbiterTurn as defaultRunArbiterTurn,
+  type ParsedArbiterCommand,
+} from "../agents/arbiter-agent";
+import {
+  runCompanyLiveTurn as defaultRunCompanyLiveTurn,
+} from "../agents/company-live-agent";
+import {
+  runCandidateLiveTurn as defaultRunCandidateLiveTurn,
+} from "../agents/candidate-live-agent";
+import type { LiveAgentTurnContext } from "../agents/live-agent-turn-context";
 import type { LlmProvider } from "../llm/types";
-import type { LiveMessageDto, RoomAgentThinkingEvent } from "./types";
+import type {
+  LiveMessageDto,
+  RoomAgentThinkingEvent,
+  RoomArbiterProcessEvent,
+} from "./types";
 
 export const AGENT_DEBOUNCE_MS = 1000;
+export const MAX_CONDUCTOR_STEPS = 6;
 
 type RoomState = {
   debounceTimer: ReturnType<typeof setTimeout> | null;
   generation: number;
   candidateRecoveryTimer: ReturnType<typeof setTimeout> | null;
+  pendingQuestion: boolean;
 };
 
 export type RunArbiterTurnFn = (
   interviewId: string,
   sessionId: string,
+  pendingQuestion: boolean,
+) => Promise<ParsedArbiterCommand>;
+
+export type RunCompanyLiveTurnFn = (
+  interviewId: string,
+  sessionId: string,
+  turnContext: LiveAgentTurnContext,
 ) => Promise<ParsedPostReply>;
 
-export type RunCompanyLiveTurnFn = RunArbiterTurnFn;
-export type RunCandidateLiveTurnFn = RunArbiterTurnFn;
+export type RunCandidateLiveTurnFn = (
+  interviewId: string,
+  sessionId: string,
+  turnContext: LiveAgentTurnContext,
+) => Promise<ParsedPostReply>;
 
 export type RoomOrchestratorOptions = {
   debounceMs?: number;
+  maxConductorSteps?: number;
   runArbiterTurn?: RunArbiterTurnFn;
   runCompanyLiveTurn?: RunCompanyLiveTurnFn;
   runCandidateLiveTurn?: RunCandidateLiveTurnFn;
@@ -37,12 +62,8 @@ export interface RoomOrchestrator {
   close(): void;
 }
 
-type AgentStep = {
-  agentType: LiveAuthorType;
-  run: () => Promise<ParsedPostReply>;
-};
-
-const silentTurn: RunArbiterTurnFn = async () => ({ post: false });
+const silentCompany: RunCompanyLiveTurnFn = async () => ({ post: false });
+const silentCandidate: RunCandidateLiveTurnFn = async () => ({ post: false });
 
 function roomName(interviewId: string): string {
   return `interview:${interviewId}`;
@@ -61,6 +82,19 @@ function emitThinking(io: Server, interviewId: string, payload: RoomAgentThinkin
   io.to(roomName(interviewId)).emit("room:agent-thinking", payload);
 }
 
+function emitArbiterProcess(
+  io: Server,
+  interviewId: string,
+  command: ParsedArbiterCommand,
+): void {
+  const payload: RoomArbiterProcessEvent = {
+    at: new Date().toISOString(),
+    action: command.action,
+    summaryUk: command.summaryUk,
+  };
+  io.to(roomName(interviewId)).emit("room:arbiter-process", payload);
+}
+
 function emitAgentError(
   io: Server,
   interviewId: string,
@@ -76,19 +110,53 @@ function emitAgentError(
   });
 }
 
+function applyPendingBeforeRoute(state: RoomState, action: ParsedArbiterCommand["action"]): void {
+  if (
+    action === "NEXT_QUESTION" ||
+    action === "START" ||
+    action === "CANDIDATE_QUESTIONS" ||
+    action === "SUGGEST_END"
+  ) {
+    state.pendingQuestion = false;
+  }
+  if (action === "ANSWER" || action === "CLARIFY") {
+    state.pendingQuestion = true;
+  }
+}
+
 export function createRoomOrchestrator(
   getPrisma: () => PrismaClient,
   options: RoomOrchestratorOptions = {},
 ): RoomOrchestrator {
   const debounceMs = options.debounceMs ?? AGENT_DEBOUNCE_MS;
+  const maxConductorSteps = options.maxConductorSteps ?? MAX_CONDUCTOR_STEPS;
+
+  const rooms = new Map<string, RoomState>();
+  let closed = false;
+
+  function getState(interviewId: string): RoomState {
+    let state = rooms.get(interviewId);
+    if (!state) {
+      state = {
+        debounceTimer: null,
+        generation: 0,
+        candidateRecoveryTimer: null,
+        pendingQuestion: false,
+      };
+      rooms.set(interviewId, state);
+    }
+    return state;
+  }
 
   let runArbiter: RunArbiterTurnFn;
   if (options.runArbiterTurn) {
     runArbiter = options.runArbiterTurn;
   } else if (options.getLlmProvider) {
     const getLlmProvider = options.getLlmProvider;
-    runArbiter = (interviewId: string, sessionId: string) =>
-      defaultRunArbiterTurn(getPrisma(), interviewId, sessionId, getLlmProvider());
+    runArbiter = (interviewId, sessionId, pendingQuestion) =>
+      defaultRunArbiterTurn(getPrisma(), interviewId, sessionId, getLlmProvider(), {
+        pendingQuestion,
+      });
   } else {
     throw new Error("RoomOrchestrator requires runArbiterTurn or getLlmProvider");
   }
@@ -98,10 +166,16 @@ export function createRoomOrchestrator(
     runCompany = options.runCompanyLiveTurn;
   } else if (options.getLlmProvider) {
     const getLlmProvider = options.getLlmProvider;
-    runCompany = (interviewId: string, sessionId: string) =>
-      defaultRunCompanyLiveTurn(getPrisma(), interviewId, sessionId, getLlmProvider());
+    runCompany = (interviewId, sessionId, turnContext) =>
+      defaultRunCompanyLiveTurn(
+        getPrisma(),
+        interviewId,
+        sessionId,
+        getLlmProvider(),
+        turnContext,
+      );
   } else {
-    runCompany = silentTurn;
+    runCompany = silentCompany;
   }
 
   let runCandidate: RunCandidateLiveTurnFn;
@@ -109,22 +183,33 @@ export function createRoomOrchestrator(
     runCandidate = options.runCandidateLiveTurn;
   } else if (options.getLlmProvider) {
     const getLlmProvider = options.getLlmProvider;
-    runCandidate = (interviewId: string, sessionId: string) =>
-      defaultRunCandidateLiveTurn(getPrisma(), interviewId, sessionId, getLlmProvider());
+    runCandidate = (interviewId, sessionId, turnContext) =>
+      defaultRunCandidateLiveTurn(
+        getPrisma(),
+        interviewId,
+        sessionId,
+        getLlmProvider(),
+        turnContext,
+      );
   } else {
-    runCandidate = silentTurn;
+    runCandidate = silentCandidate;
   }
 
-  const rooms = new Map<string, RoomState>();
-  let closed = false;
-
-  function getState(interviewId: string): RoomState {
-    let state = rooms.get(interviewId);
-    if (!state) {
-      state = { debounceTimer: null, generation: 0, candidateRecoveryTimer: null };
-      rooms.set(interviewId, state);
-    }
-    return state;
+  async function saveAndEmit(
+    io: Server,
+    prisma: PrismaClient,
+    sessionId: string,
+    interviewId: string,
+    authorType: LiveAuthorType,
+    content: string,
+  ): Promise<LiveMessage> {
+    const saved = await prisma.liveMessage.create({
+      data: { sessionId, authorType, content },
+    });
+    io.to(roomName(interviewId)).emit("room:messages", {
+      messages: [toDto(saved)],
+    });
+    return saved;
   }
 
   async function executeTurn(
@@ -137,62 +222,161 @@ export function createRoomOrchestrator(
     const state = getState(interviewId);
     const prisma = getPrisma();
 
-    const steps: AgentStep[] = [
-      { agentType: "AGENT_ARBITER", run: () => runArbiter(interviewId, sessionId) },
-      { agentType: "AGENT_COMPANY", run: () => runCompany(interviewId, sessionId) },
-      { agentType: "AGENT_CANDIDATE", run: () => runCandidate(interviewId, sessionId) },
-    ];
-
     let companyPostedThisTurn = false;
     let candidatePostedThisTurn = false;
     let candidateStepFailed = false;
+    let stepsUsed = 0;
 
     try {
-      for (const step of steps) {
-        if (state.generation !== capturedGeneration) {
+      while (stepsUsed < maxConductorSteps) {
+        if (state.generation !== capturedGeneration || closed) {
           emitThinking(io, interviewId, { active: false });
           return;
         }
 
         emitThinking(io, interviewId, {
           active: true,
-          agentType: step.agentType as RoomAgentThinkingEvent["agentType"],
+          agentType: "AGENT_ARBITER",
         });
 
+        let command: ParsedArbiterCommand;
         try {
-          const reply = await step.run();
-
-          if (state.generation !== capturedGeneration) {
-            emitThinking(io, interviewId, { active: false });
-            return;
-          }
-
-          if (reply.post && reply.message) {
-            const saved = await prisma.liveMessage.create({
-              data: {
-                sessionId,
-                authorType: step.agentType,
-                content: reply.message,
-              },
-            });
-
-            if (step.agentType === "AGENT_COMPANY") companyPostedThisTurn = true;
-            if (step.agentType === "AGENT_CANDIDATE") candidatePostedThisTurn = true;
-
-            io.to(roomName(interviewId)).emit("room:messages", {
-              messages: [toDto(saved)],
-            });
-          }
+          command = await runArbiter(interviewId, sessionId, state.pendingQuestion);
+          stepsUsed += 1;
         } catch (error) {
-          if (step.agentType === "AGENT_CANDIDATE") {
-            candidateStepFailed = true;
-          }
-          emitAgentError(io, interviewId, step.agentType, error);
+          emitAgentError(io, interviewId, "AGENT_ARBITER", error);
           console.error(
-            `[orchestrator] ${step.agentType} turn failed:`,
+            "[orchestrator] AGENT_ARBITER turn failed:",
             error instanceof Error ? error.message : error,
           );
+          break;
         }
+
+        if (state.generation !== capturedGeneration) {
+          emitThinking(io, interviewId, { active: false });
+          return;
+        }
+
+        emitArbiterProcess(io, interviewId, command);
+
+        if (command.publicMessage) {
+          await saveAndEmit(
+            io,
+            prisma,
+            sessionId,
+            interviewId,
+            "AGENT_ARBITER",
+            command.publicMessage,
+          );
+        }
+
+        if (state.generation !== capturedGeneration) {
+          emitThinking(io, interviewId, { active: false });
+          return;
+        }
+
+        applyPendingBeforeRoute(state, command.action);
+
+        if (command.action === "WAIT" || command.action === "SUGGEST_END") {
+          break;
+        }
+
+        if (stepsUsed >= maxConductorSteps) {
+          break;
+        }
+
+        const turnContext: LiveAgentTurnContext = {
+          action:
+            command.action === "START"
+              ? "NEXT_QUESTION"
+              : command.action === "CLARIFY"
+                ? "CLARIFY"
+                : command.action === "CANDIDATE_QUESTIONS"
+                  ? "CANDIDATE_QUESTIONS"
+                  : command.action === "ANSWER"
+                    ? "ANSWER"
+                    : "NEXT_QUESTION",
+          briefUk: command.briefUk,
+        };
+
+        const runCompanyActions =
+          command.action === "START" ||
+          command.action === "NEXT_QUESTION" ||
+          command.action === "CLARIFY";
+        const runCandidateActions =
+          command.action === "ANSWER" || command.action === "CANDIDATE_QUESTIONS";
+
+        if (runCompanyActions) {
+          emitThinking(io, interviewId, {
+            active: true,
+            agentType: "AGENT_COMPANY",
+          });
+          try {
+            const reply = await runCompany(interviewId, sessionId, turnContext);
+            stepsUsed += 1;
+            if (state.generation !== capturedGeneration) {
+              emitThinking(io, interviewId, { active: false });
+              return;
+            }
+            if (reply.post && reply.message) {
+              await saveAndEmit(
+                io,
+                prisma,
+                sessionId,
+                interviewId,
+                "AGENT_COMPANY",
+                reply.message,
+              );
+              companyPostedThisTurn = true;
+              state.pendingQuestion = true;
+            }
+          } catch (error) {
+            emitAgentError(io, interviewId, "AGENT_COMPANY", error);
+            console.error(
+              "[orchestrator] AGENT_COMPANY turn failed:",
+              error instanceof Error ? error.message : error,
+            );
+            break;
+          }
+          continue;
+        }
+
+        if (runCandidateActions) {
+          emitThinking(io, interviewId, {
+            active: true,
+            agentType: "AGENT_CANDIDATE",
+          });
+          try {
+            const reply = await runCandidate(interviewId, sessionId, turnContext);
+            stepsUsed += 1;
+            if (state.generation !== capturedGeneration) {
+              emitThinking(io, interviewId, { active: false });
+              return;
+            }
+            if (reply.post && reply.message) {
+              await saveAndEmit(
+                io,
+                prisma,
+                sessionId,
+                interviewId,
+                "AGENT_CANDIDATE",
+                reply.message,
+              );
+              candidatePostedThisTurn = true;
+            }
+          } catch (error) {
+            candidateStepFailed = true;
+            emitAgentError(io, interviewId, "AGENT_CANDIDATE", error);
+            console.error(
+              "[orchestrator] AGENT_CANDIDATE turn failed:",
+              error instanceof Error ? error.message : error,
+            );
+            break;
+          }
+          continue;
+        }
+
+        break;
       }
     } finally {
       if (state.generation === capturedGeneration) {
@@ -225,7 +409,6 @@ export function createRoomOrchestrator(
 
     state.generation += 1;
     emitThinking(io, interviewId, { active: false });
-
 
     const capturedGeneration = state.generation;
     state.debounceTimer = setTimeout(() => {

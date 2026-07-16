@@ -42,3 +42,9 @@ export type RoomAgentErrorEvent = {
   agentType?: "AGENT_ARBITER" | "AGENT_COMPANY" | "AGENT_CANDIDATE";
   error: string;
 };
+
+export type RoomArbiterProcessEvent = {
+  at: string;
+  action: string;
+  summaryUk: string;
+};
