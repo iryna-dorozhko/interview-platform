@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { fetchVacancy } from "../api/vacancies";
 import {
   confirmPrepProfile,
@@ -8,6 +8,7 @@ import {
   fetchPrepState,
   finishPrepChat,
   sendPrepMessage,
+  updatePrepProfile,
   type CompanyProfile,
   type PrepMessage,
 } from "../api/prep";
@@ -23,14 +24,37 @@ const errorMessage = ref<string | null>(null);
 const messages = ref<PrepMessage[]>([]);
 const isClosed = ref(false);
 const profile = ref<CompanyProfile | null>(null);
+const missingCompanyProfile = ref(false);
 const viewingHistory = ref(false);
 const vacancyStatus = ref<string | null>(null);
+
+const editableProfile = ref<CompanyProfile | null>(null);
+const saving = ref(false);
 
 const input = ref("");
 const sending = ref(false);
 const confirming = ref(false);
 const lastReadyForConfirmation = ref(false);
 const messagesEl = ref<HTMLElement | null>(null);
+
+function textToArray(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function syncEditableProfile(next: CompanyProfile | null): void {
+  editableProfile.value = next ? { ...next } : null;
+}
+
+watch(profile, (next) => {
+  if (next && !next.confirmedAt) {
+    syncEditableProfile(next);
+  } else if (!next) {
+    editableProfile.value = null;
+  }
+});
 
 async function scrollToBottom(): Promise<void> {
   await nextTick();
@@ -50,10 +74,15 @@ async function loadPrepState(): Promise<void> {
     messages.value = state.messages;
     isClosed.value = state.isClosed;
     profile.value = state.profile;
+    missingCompanyProfile.value = state.missingCompanyProfile;
     viewingHistory.value = false;
     loadState.value = "ready";
 
-    if (!state.isClosed && state.messages.length === 0) {
+    if (
+      !state.missingCompanyProfile &&
+      !state.isClosed &&
+      state.messages.length === 0
+    ) {
       await triggerGreeting();
     }
   } catch (error) {
@@ -129,10 +158,13 @@ async function onDeleteChat(): Promise<void> {
     messages.value = [];
     isClosed.value = false;
     profile.value = null;
+    editableProfile.value = null;
     viewingHistory.value = false;
     lastReadyForConfirmation.value = false;
     vacancyStatus.value = null;
-    await triggerGreeting();
+    if (!missingCompanyProfile.value) {
+      await triggerGreeting();
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося видалити чат";
   }
@@ -149,6 +181,7 @@ async function onFinishChat(): Promise<void> {
   try {
     const response = await finishPrepChat(vacancyId.value);
     profile.value = response.profile;
+    syncEditableProfile(response.profile);
     isClosed.value = true;
     viewingHistory.value = false;
   } catch (error) {
@@ -156,6 +189,46 @@ async function onFinishChat(): Promise<void> {
   } finally {
     sending.value = false;
   }
+}
+
+async function onSaveProfileEdits(): Promise<void> {
+  if (!editableProfile.value) return;
+  saving.value = true;
+  errorMessage.value = null;
+  try {
+    const { profile: updated } = await updatePrepProfile(vacancyId.value, {
+      role: editableProfile.value.role,
+      requirements: editableProfile.value.requirements,
+      expectations: editableProfile.value.expectations,
+      culture: editableProfile.value.culture,
+      companyDirection: editableProfile.value.companyDirection,
+      policies: editableProfile.value.policies,
+      workFormat: editableProfile.value.workFormat,
+      onboardingApproach: editableProfile.value.onboardingApproach,
+    });
+    profile.value = updated;
+    syncEditableProfile(updated);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Не вдалося оновити профіль";
+  } finally {
+    saving.value = false;
+  }
+}
+
+function setArrayField(field: keyof Pick<CompanyProfile, "requirements" | "expectations" | "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach">, text: string): void {
+  if (!editableProfile.value) return;
+  editableProfile.value[field] = textToArray(text);
+}
+
+function getArrayField(field: keyof Pick<CompanyProfile, "requirements" | "expectations" | "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach">): string {
+  return editableProfile.value?.[field].join("\n") ?? "";
+}
+
+function onArrayFieldInput(
+  field: keyof Pick<CompanyProfile, "requirements" | "expectations" | "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach">,
+  event: Event,
+): void {
+  setArrayField(field, (event.target as HTMLTextAreaElement).value);
 }
 
 async function onConfirmProfile(): Promise<void> {
@@ -172,6 +245,7 @@ async function onConfirmProfile(): Promise<void> {
   try {
     const response = await confirmPrepProfile(vacancyId.value);
     profile.value = response.profile;
+    editableProfile.value = null;
     vacancyStatus.value = response.vacancyStatus;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
@@ -206,18 +280,105 @@ onMounted(loadPrepState);
     <p v-else-if="loadState === 'error'" class="error-banner">{{ errorMessage }}</p>
 
     <template v-else>
-      <section v-if="isClosed && profile && !viewingHistory" class="profile-view">
+      <section v-if="missingCompanyProfile" class="gate-banner">
+        <p>Спочатку заповніть і підтвердіть профіль компанії.</p>
+        <RouterLink to="/company-profile" class="btn-primary">Перейти до профілю компанії</RouterLink>
+      </section>
+
+      <section v-else-if="isClosed && profile && !viewingHistory" class="profile-view">
         <h2>Зібраний профіль вакансії</h2>
-        <dl>
+
+        <form v-if="!profile.confirmedAt && editableProfile" class="profile-form" @submit.prevent="onSaveProfileEdits">
+          <label class="field">
+            <span class="field-label">Посада</span>
+            <input v-model="editableProfile.role" type="text" class="field-input" />
+          </label>
+          <label class="field">
+            <span class="field-label">Вимоги</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('requirements')"
+              @input="onArrayFieldInput('requirements', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Очікування</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('expectations')"
+              @input="onArrayFieldInput('expectations', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Культура</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('culture')"
+              @input="onArrayFieldInput('culture', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Напрям компанії</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('companyDirection')"
+              @input="onArrayFieldInput('companyDirection', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Політики</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('policies')"
+              @input="onArrayFieldInput('policies', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Формат роботи</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('workFormat')"
+              @input="onArrayFieldInput('workFormat', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Онбординг</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('onboardingApproach')"
+              @input="onArrayFieldInput('onboardingApproach', $event)"
+            />
+          </label>
+        </form>
+
+        <dl v-else>
           <dt>Посада</dt>
           <dd>{{ profile.role }}</dd>
           <dt>Вимоги</dt>
           <dd><ul><li v-for="(item, i) in profile.requirements" :key="i">{{ item }}</li></ul></dd>
-          <dt>Культура</dt>
-          <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
           <dt>Очікування</dt>
           <dd><ul><li v-for="(item, i) in profile.expectations" :key="i">{{ item }}</li></ul></dd>
+          <dt>Культура</dt>
+          <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
+          <dt>Напрям компанії</dt>
+          <dd><ul><li v-for="(item, i) in profile.companyDirection" :key="i">{{ item }}</li></ul></dd>
+          <dt>Політики</dt>
+          <dd><ul><li v-for="(item, i) in profile.policies" :key="i">{{ item }}</li></ul></dd>
+          <dt>Формат роботи</dt>
+          <dd><ul><li v-for="(item, i) in profile.workFormat" :key="i">{{ item }}</li></ul></dd>
+          <dt>Онбординг</dt>
+          <dd><ul><li v-for="(item, i) in profile.onboardingApproach" :key="i">{{ item }}</li></ul></dd>
         </dl>
+
+        <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
+
         <div class="actions">
           <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
           <button
@@ -232,6 +393,15 @@ onMounted(loadPrepState);
           <button
             v-if="!profile.confirmedAt"
             type="button"
+            class="btn-secondary"
+            :disabled="saving"
+            @click="onSaveProfileEdits"
+          >
+            {{ saving ? "Збереження…" : "Зберегти зміни" }}
+          </button>
+          <button
+            v-if="!profile.confirmedAt"
+            type="button"
             class="btn-primary"
             :disabled="confirming"
             @click="onConfirmProfile"
@@ -242,7 +412,7 @@ onMounted(loadPrepState);
             ✓ Анкета підтверджена
           </p>
           <p v-else class="confirmed-banner">
-            ✓ Підтверджено {{ new Date(profile.confirmedAt!).toLocaleString("uk-UA") }}
+            ✓ Підтверджено {{ profile.confirmedAt ? new Date(profile.confirmedAt).toLocaleString("uk-UA") : "" }}
           </p>
         </div>
       </section>
@@ -316,6 +486,23 @@ onMounted(loadPrepState);
 .header h1 {
   margin: 0;
   font-size: 1.25rem;
+}
+.gate-banner {
+  padding: 1rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.gate-banner p {
+  margin: 0;
+  color: #92400e;
+}
+.gate-banner .btn-primary {
+  align-self: flex-start;
+  text-decoration: none;
 }
 .chat-header {
   display: flex;
@@ -426,6 +613,30 @@ onMounted(loadPrepState);
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.field-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.875rem;
+}
+.field-input {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+  resize: vertical;
 }
 .profile-view dl {
   display: grid;
