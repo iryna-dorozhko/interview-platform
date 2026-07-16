@@ -350,7 +350,6 @@ test("POST /prep/:vacancyId/finish extracts profile, saves it, and closes the se
       return JSON.stringify({
         role: "Middle Backend Developer",
         requirements: ["Node.js"],
-        culture: ["не вказано"],
         expectations: ["не вказано"],
       });
     },
@@ -391,7 +390,6 @@ test("POST /prep/:vacancyId/finish returns confirmedAt: null for a freshly gener
       return JSON.stringify({
         role: "Middle Backend Developer",
         requirements: ["Node.js"],
-        culture: ["не вказано"],
         expectations: ["не вказано"],
       });
     },

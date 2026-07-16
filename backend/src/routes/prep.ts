@@ -4,7 +4,7 @@ import {
   buildCompanyAgentMessages,
   buildProfileExtractionMessages,
   parseAgentReply,
-  parseProfileExtraction,
+  parseVacancyProfileExtraction,
 } from "../agents/company-agent";
 import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
@@ -138,7 +138,7 @@ export function createPrepRouter(
 
     let extracted;
     try {
-      extracted = parseProfileExtraction(rawReply);
+      extracted = parseVacancyProfileExtraction(rawReply);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[prep:finish] failed to parse profile extraction:", detail);
@@ -153,14 +153,13 @@ export function createPrepRouter(
         update: {
           role: extracted.role,
           requirements: extracted.requirements,
-          culture: extracted.culture,
           expectations: extracted.expectations,
         },
         create: {
           vacancyId,
           role: extracted.role,
           requirements: extracted.requirements,
-          culture: extracted.culture,
+          culture: [],
           expectations: extracted.expectations,
         },
       });
@@ -244,6 +243,7 @@ export function createPrepRouter(
   });
 
   router.post("/prep/:vacancyId/message", async (req: Request, res: Response) => {
+    const requestStartedAt = Date.now();
     const { vacancyId } = req.params;
     const body = (req.body ?? {}) as MessageBody;
     const message = typeof body.message === "string" ? body.message.trim() : "";
@@ -333,6 +333,9 @@ export function createPrepRouter(
     }
 
     res.status(200).json({ message: agentMessage, readyForConfirmation });
+    // #region agent log
+    fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c96f8b'},body:JSON.stringify({sessionId:'c96f8b',runId:'initial',hypothesisId:'B',location:'prep.ts:message:done',message:'prep message handled',data:{vacancyId,durationMs:Date.now()-requestStartedAt,provider:provider.name,hasUserMessage:Boolean(message)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   });
 
   router.delete("/prep/:vacancyId", async (req: Request, res: Response) => {

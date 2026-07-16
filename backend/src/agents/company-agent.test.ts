@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {
   buildCompanyAgentMessages,
   buildProfileExtractionMessages,
-  parseProfileExtraction,
+  parseVacancyProfileExtraction,
 } from "./company-agent";
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-agent.uk";
-import { PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/company-profile-extraction.uk";
+import { VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/vacancy-profile-extraction.uk";
 
 test("buildCompanyAgentMessages prepends system prompt and maps author types", () => {
   const history = [
@@ -46,55 +46,51 @@ test("buildCompanyAgentMessages does not append a placeholder when history alrea
   assert.deepEqual(messages[1], { role: "user", content: "Привіт" });
 });
 
-test("parseProfileExtraction parses plain JSON", () => {
+test("parseVacancyProfileExtraction parses vacancy-only fields", () => {
   const raw = JSON.stringify({
     role: "Middle Backend Developer",
-    requirements: ["Node.js", "PostgreSQL"],
-    culture: ["Гнучкий графік"],
-    expectations: ["Старт за 2 тижні"],
+    requirements: ["Node.js"],
+    expectations: ["Перший реліз за місяць"],
   });
-  const result = parseProfileExtraction(raw);
+  const result = parseVacancyProfileExtraction(raw);
   assert.deepEqual(result, {
     role: "Middle Backend Developer",
-    requirements: ["Node.js", "PostgreSQL"],
-    culture: ["Гнучкий графік"],
-    expectations: ["Старт за 2 тижні"],
+    requirements: ["Node.js"],
+    expectations: ["Перший реліз за місяць"],
   });
 });
 
-test("parseProfileExtraction strips markdown code fences around JSON", () => {
+test("parseVacancyProfileExtraction strips markdown code fences around JSON", () => {
   const raw = [
     "```json",
     JSON.stringify({
       role: "QA Engineer",
       requirements: ["3+ роки"],
-      culture: ["не вказано"],
       expectations: ["не вказано"],
     }),
     "```",
   ].join("\n");
-  const result = parseProfileExtraction(raw);
+  const result = parseVacancyProfileExtraction(raw);
   assert.equal(result.role, "QA Engineer");
   assert.deepEqual(result.requirements, ["3+ роки"]);
 });
 
-test("parseProfileExtraction throws when response is not valid JSON", () => {
-  assert.throws(() => parseProfileExtraction("це не json, а звичайний текст"));
+test("parseVacancyProfileExtraction throws when response is not valid JSON", () => {
+  assert.throws(() => parseVacancyProfileExtraction("це не json, а звичайний текст"));
 });
 
-test("parseProfileExtraction throws when a required field is missing", () => {
+test("parseVacancyProfileExtraction throws when a required field is missing", () => {
   const raw = JSON.stringify({ role: "Designer", requirements: ["Figma"] });
-  assert.throws(() => parseProfileExtraction(raw));
+  assert.throws(() => parseVacancyProfileExtraction(raw));
 });
 
-test("parseProfileExtraction throws when role is empty", () => {
+test("parseVacancyProfileExtraction throws when role is empty", () => {
   const raw = JSON.stringify({
     role: "",
     requirements: ["Figma"],
-    culture: ["не вказано"],
     expectations: ["не вказано"],
   });
-  assert.throws(() => parseProfileExtraction(raw));
+  assert.throws(() => parseVacancyProfileExtraction(raw));
 });
 
 test("buildProfileExtractionMessages prepends extraction system prompt and joins transcript as one user message", () => {
@@ -105,7 +101,7 @@ test("buildProfileExtractionMessages prepends extraction system prompt and joins
   const messages = buildProfileExtractionMessages(history);
 
   assert.equal(messages.length, 2);
-  assert.deepEqual(messages[0], { role: "system", content: PROFILE_EXTRACTION_SYSTEM_PROMPT_UK });
+  assert.deepEqual(messages[0], { role: "system", content: VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK });
   assert.equal(messages[1].role, "user");
   assert.equal(
     messages[1].content,

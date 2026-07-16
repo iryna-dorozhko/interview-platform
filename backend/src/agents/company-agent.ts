@@ -1,6 +1,6 @@
 import type { ChatMessage } from "../llm/types";
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-agent.uk";
-import { PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/company-profile-extraction.uk";
+import { VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/vacancy-profile-extraction.uk";
 
 export type PrepAuthorType = "HUMAN_HR" | "AGENT_COMPANY";
 
@@ -35,10 +35,9 @@ export function buildCompanyAgentMessages(history: PrepHistoryItem[]): ChatMessa
   return [systemMessage, ...historyMessages];
 }
 
-export interface ExtractedProfile {
+export interface ExtractedVacancyProfile {
   role: string;
   requirements: string[];
-  culture: string[];
   expectations: string[];
 }
 
@@ -61,7 +60,7 @@ function toStringArray(value: unknown, field: string): string[] {
   return value.map((item) => String(item));
 }
 
-export function parseProfileExtraction(rawText: string): ExtractedProfile {
+export function parseVacancyProfileExtraction(rawText: string): ExtractedVacancyProfile {
   const withoutFences = stripCodeFences(rawText.trim());
 
   let data: unknown;
@@ -75,7 +74,7 @@ export function parseProfileExtraction(rawText: string): ExtractedProfile {
     throw new ProfileExtractionError("LLM response is not a JSON object");
   }
 
-  const { role, requirements, culture, expectations } = data as Record<string, unknown>;
+  const { role, requirements, expectations } = data as Record<string, unknown>;
 
   if (typeof role !== "string" || !role.trim()) {
     throw new ProfileExtractionError("missing or invalid field: role");
@@ -84,7 +83,6 @@ export function parseProfileExtraction(rawText: string): ExtractedProfile {
   return {
     role: role.trim(),
     requirements: toStringArray(requirements, "requirements"),
-    culture: toStringArray(culture, "culture"),
     expectations: toStringArray(expectations, "expectations"),
   };
 }
@@ -95,7 +93,7 @@ export function buildProfileExtractionMessages(history: PrepHistoryItem[]): Chat
     .join("\n");
 
   return [
-    { role: "system", content: PROFILE_EXTRACTION_SYSTEM_PROMPT_UK },
+    { role: "system", content: VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK },
     { role: "user", content: transcript || "(розмова порожня)" },
   ];
 }
