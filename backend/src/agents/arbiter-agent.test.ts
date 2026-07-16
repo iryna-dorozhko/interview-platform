@@ -29,6 +29,14 @@ test("arbiter prompt includes conductor actions and start/end guidance", () => {
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /Company Agent|Candidate/i);
 });
 
+test("arbiter prompt waits after candidate assumption or human deferral", () => {
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /підтверд|доповн/i);
+  assert.match(
+    ARBITER_AGENT_SYSTEM_PROMPT_UK,
+    /просить живу людину відповісти|припущення/i,
+  );
+});
+
 test("parseArbiterCommand parses WAIT", () => {
   const result = parseArbiterCommand(
     '{ "action": "WAIT", "summaryUk": "Розмова йде природно." }',
@@ -98,6 +106,8 @@ test("buildArbiterMessages includes pendingQuestion nudge", () => {
     pendingQuestion: true,
   });
   assert.equal(withPending.at(-1)?.content, PENDING_QUESTION_NUDGE_UK);
+  assert.match(PENDING_QUESTION_NUDGE_UK, /WAIT/);
+  assert.match(PENDING_QUESTION_NUDGE_UK, /NEXT_QUESTION/);
 
   const withoutPending = buildArbiterMessages({
     companyProfile,
