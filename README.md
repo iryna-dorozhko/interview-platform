@@ -832,6 +832,18 @@ HR prep: `/api/prep/:vacancyId` (Дні 4–7). Candidate prep: `/api/candidate-
 
 > **Тимчасово (День 11):** не перевіряється `interview.candidateUserId` — будь-який авторизований кандидат може писати за відомим `interviewId`. Ownership check — День 14.
 
+### Candidate contact bootstrap
+
+Перед збором досвіду та навичок Candidate Agent проходить короткий блок знайомства (контактні дані):
+
+1. Представляється як AI-асистент, який допоможе зібрати профіль перед співбесідою.
+2. Збирає **ім'я та прізвище** (`fullName`).
+3. Запитує **email** як додатковий спосіб зв'язку; пропонує залишити email, вказаний під час реєстрації.
+4. Якщо кандидат не надає email, бекенд при `finish` підставляє **email fallback** — email автентифікованого акаунта (`req.user.email`).
+5. Запитує **телефон**; при відмові — один повторний запит з поясненням (зв'язок HR щодо співбесіди); після повторної відмови анкета продовжується без телефону (`phone: null`).
+
+`READY:true` вимагає `fullName` і доступний email (наданий або fallback), але **не блокує** відсутній телефон після повторного запиту.
+
 ### Candidate Prep Quick Start
 
 **Передумова:** День 10 (candidate auth) — `POST /api/auth/candidate/register` і `POST /api/auth/candidate/login`.
@@ -921,15 +933,21 @@ npm run dev
 
 ```json
 {
+  "fullName": "Андрій Коваленко",
+  "email": "candidate@test.com",
+  "phone": "+380501234567",
   "experience": ["3 роки backend у FinTech"],
   "skills": {
     "strong": ["TypeScript", "PostgreSQL"],
     "growth": ["публічні виступи"]
   },
   "goals": ["перейти на senior"],
-  "summary": "Backend-розробник з 3 роками досвіду."
+  "summary": "Backend-розробник з 3 роками досвіду.",
+  "confirmedAt": null
 }
 ```
+
+`phone` може бути `null`, якщо кандидат двічі відмовився надати номер. `email` при відсутності в чаті заповнюється з email акаунта кандидата.
 
 **Finish (після чату):**
 
