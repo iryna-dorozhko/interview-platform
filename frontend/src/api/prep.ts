@@ -12,8 +12,12 @@ export type PrepMessage = {
 export type CompanyProfile = {
   role: string;
   requirements: string[];
-  culture: string[];
   expectations: string[];
+  culture: string[];
+  companyDirection: string[];
+  policies: string[];
+  workFormat: string[];
+  onboardingApproach: string[];
   confirmedAt: string | null;
 };
 
@@ -21,6 +25,7 @@ export type PrepState = {
   messages: PrepMessage[];
   isClosed: boolean;
   profile: CompanyProfile | null;
+  missingCompanyProfile: boolean;
 };
 
 export type SendMessageResponse = {
@@ -86,4 +91,18 @@ export async function deletePrepChat(vacancyId: string): Promise<void> {
   if (!response.ok) {
     throw await parseError(response, "Не вдалося видалити чат");
   }
+}
+
+export async function updatePrepProfile(
+  vacancyId: string,
+  payload: Partial<Omit<CompanyProfile, "confirmedAt">>
+): Promise<{ profile: CompanyProfile }> {
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося оновити профіль");
+  }
+  return response.json() as Promise<{ profile: CompanyProfile }>;
 }
