@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import type { CompanyProfile, HrCompanyProfile, PrismaClient } from "@prisma/client";
+import type { CompanyProfile, HrCompanyProfile, Prisma, PrismaClient } from "@prisma/client";
 import {
   buildCompanyAgentMessages,
   buildProfileExtractionMessages,
@@ -71,12 +71,14 @@ function parseStringArray(value: unknown): string[] | null {
   return items;
 }
 
+function asInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
+
 function parseProfilePatch(
   body: ProfilePatchBody
-):
-  | { ok: true; data: Partial<Omit<CompanyProfile, "id" | "vacancyId" | "createdAt" | "updatedAt">> }
-  | { ok: false; error: string } {
-  const data: Partial<Omit<CompanyProfile, "id" | "vacancyId" | "createdAt" | "updatedAt">> = {};
+): { ok: true; data: Prisma.CompanyProfileUpdateInput } | { ok: false; error: string } {
+  const data: Prisma.CompanyProfileUpdateInput = {};
   const hasField = (field: keyof ProfilePatchBody) => Object.prototype.hasOwnProperty.call(body, field);
 
   if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
@@ -252,11 +254,11 @@ export function createPrepRouter(
     }
 
     const snapshotFields = {
-      culture: hrProfile.culture,
-      companyDirection: hrProfile.companyDirection,
-      policies: hrProfile.policies,
-      workFormat: hrProfile.workFormat,
-      onboardingApproach: hrProfile.onboardingApproach,
+      culture: asInputJson(hrProfile.culture),
+      companyDirection: asInputJson(hrProfile.companyDirection),
+      policies: asInputJson(hrProfile.policies),
+      workFormat: asInputJson(hrProfile.workFormat),
+      onboardingApproach: asInputJson(hrProfile.onboardingApproach),
     };
 
     let profile;
