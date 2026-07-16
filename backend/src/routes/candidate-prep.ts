@@ -14,6 +14,58 @@ type MessageBody = {
   message?: unknown;
 };
 
+function serializeCandidateProfile(profile: {
+  fullName: string;
+  email: string;
+  phone: string | null;
+  experience: unknown;
+  skills: unknown;
+  goals: unknown;
+  summary: string;
+  confirmedAt: Date | null;
+}) {
+  return {
+    fullName: profile.fullName,
+    email: profile.email,
+    phone: profile.phone,
+    experience: profile.experience,
+    skills: profile.skills,
+    goals: profile.goals,
+    summary: profile.summary,
+    confirmedAt: profile.confirmedAt,
+  };
+}
+
+function extractContactFields(rawText: string): {
+  fullName: string;
+  email: string;
+  phone: string | null;
+} {
+  const trimmed = rawText.trim();
+  const withoutFences = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? trimmed;
+
+  let data: unknown;
+  try {
+    data = JSON.parse(withoutFences);
+  } catch {
+    return { fullName: "", email: "", phone: null };
+  }
+
+  if (typeof data !== "object" || data === null) {
+    return { fullName: "", email: "", phone: null };
+  }
+
+  const record = data as Record<string, unknown>;
+  const fullName = typeof record.fullName === "string" ? record.fullName.trim() : "";
+  const email = typeof record.email === "string" ? record.email.trim() : "";
+  const phone =
+    record.phone === undefined || record.phone === null
+      ? null
+      : String(record.phone).trim() || null;
+
+  return { fullName, email, phone };
+}
+
 export function createCandidatePrepRouter(
   getPrisma: () => PrismaClient,
   getProvider: () => LlmProvider
@@ -53,15 +105,7 @@ export function createCandidatePrepRouter(
         createdAt: item.createdAt,
       })),
       isClosed: session.isClosed,
-      profile: profile
-        ? {
-            experience: profile.experience,
-            skills: profile.skills,
-            goals: profile.goals,
-            summary: profile.summary,
-            confirmedAt: profile.confirmedAt,
-          }
-        : null,
+      profile: profile ? serializeCandidateProfile(profile) : null,
     });
   });
 
@@ -214,8 +258,10 @@ export function createCandidatePrepRouter(
     }
 
     let extracted;
+    let contactFields: { fullName: string; email: string; phone: string | null };
     try {
       extracted = parseCandidateProfileExtraction(rawReply);
+      contactFields = extractContactFields(rawReply);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[candidate-prep:finish] failed to parse profile extraction:", detail);
@@ -228,6 +274,9 @@ export function createCandidatePrepRouter(
       profile = await prisma.candidateProfile.upsert({
         where: { interviewId },
         update: {
+          fullName: contactFields.fullName,
+          email: contactFields.email,
+          phone: contactFields.phone,
           experience: extracted.experience,
           skills: extracted.skills,
           goals: extracted.goals,
@@ -235,6 +284,9 @@ export function createCandidatePrepRouter(
         },
         create: {
           interviewId,
+          fullName: contactFields.fullName,
+          email: contactFields.email,
+          phone: contactFields.phone,
           experience: extracted.experience,
           skills: extracted.skills,
           goals: extracted.goals,
@@ -253,13 +305,7 @@ export function createCandidatePrepRouter(
     }
 
     res.status(200).json({
-      profile: {
-        experience: profile.experience,
-        skills: profile.skills,
-        goals: profile.goals,
-        summary: profile.summary,
-        confirmedAt: profile.confirmedAt,
-      },
+      profile: serializeCandidateProfile(profile),
     });
   });
 
@@ -300,13 +346,7 @@ export function createCandidatePrepRouter(
     const finalInterview = (await maybeTransitionToReady(prisma, interviewId)) ?? interview;
 
     res.status(200).json({
-      profile: {
-        experience: updatedProfile.experience,
-        skills: updatedProfile.skills,
-        goals: updatedProfile.goals,
-        summary: updatedProfile.summary,
-        confirmedAt: updatedProfile.confirmedAt,
-      },
+      profile: serializeCandidateProfile(updatedProfile),
       interviewStatus: finalInterview.status,
     });
   });

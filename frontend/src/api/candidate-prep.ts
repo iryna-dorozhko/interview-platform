@@ -15,6 +15,9 @@ export type CandidateSkills = {
 };
 
 export type CandidateProfile = {
+  fullName: string;
+  email: string;
+  phone: string | null;
   experience: string[];
   skills: CandidateSkills;
   goals: string[];

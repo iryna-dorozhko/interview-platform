@@ -124,6 +124,9 @@ model CompanyProfile {
 model CandidateProfile {
   id          String    @id @default(cuid())
   interviewId String    @unique
+  fullName    String
+  email       String
+  phone       String?
   experience  Json
   skills      Json
   goals       Json
