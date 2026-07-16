@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
+import type { CompanyProfile, HrCompanyProfile, PrismaClient } from "@prisma/client";
 import {
   buildCompanyAgentMessages,
   buildProfileExtractionMessages,
@@ -12,6 +12,108 @@ import type { LlmProvider } from "../llm/types";
 type MessageBody = {
   message?: unknown;
 };
+
+type ProfilePatchBody = {
+  role?: unknown;
+  requirements?: unknown;
+  expectations?: unknown;
+  culture?: unknown;
+  companyDirection?: unknown;
+  policies?: unknown;
+  workFormat?: unknown;
+  onboardingApproach?: unknown;
+};
+
+function serializeVacancyProfile(profile: CompanyProfile) {
+  return {
+    role: profile.role,
+    requirements: profile.requirements as string[],
+    expectations: profile.expectations as string[],
+    culture: profile.culture as string[],
+    companyDirection: (profile.companyDirection as string[] | null) ?? [],
+    policies: (profile.policies as string[] | null) ?? [],
+    workFormat: (profile.workFormat as string[] | null) ?? [],
+    onboardingApproach: (profile.onboardingApproach as string[] | null) ?? [],
+    confirmedAt: profile.confirmedAt,
+  };
+}
+
+export async function assertConfirmedHrCompanyProfile(
+  req: Request,
+  res: Response,
+  prisma: PrismaClient
+): Promise<HrCompanyProfile | null> {
+  const hrUserId = req.user?.id;
+  if (!hrUserId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return null;
+  }
+
+  const hrProfile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
+  if (!hrProfile?.confirmedAt) {
+    res.status(409).json({ error: "Company profile is not confirmed" });
+    return null;
+  }
+
+  return hrProfile;
+}
+
+function parseStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) {
+    return null;
+  }
+
+  const items = value.map((item) => (typeof item === "string" ? item.trim() : ""));
+  if (items.some((item) => item === "")) {
+    return null;
+  }
+
+  return items;
+}
+
+function parseProfilePatch(
+  body: ProfilePatchBody
+):
+  | { ok: true; data: Partial<Omit<CompanyProfile, "id" | "vacancyId" | "createdAt" | "updatedAt">> }
+  | { ok: false; error: string } {
+  const data: Partial<Omit<CompanyProfile, "id" | "vacancyId" | "createdAt" | "updatedAt">> = {};
+  const hasField = (field: keyof ProfilePatchBody) => Object.prototype.hasOwnProperty.call(body, field);
+
+  if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
+    return { ok: false, error: "No fields to update" };
+  }
+
+  if (hasField("role")) {
+    if (typeof body.role !== "string" || body.role.trim() === "") {
+      return { ok: false, error: "Invalid role" };
+    }
+    data.role = body.role.trim();
+  }
+
+  const arrayFields = [
+    "requirements",
+    "expectations",
+    "culture",
+    "companyDirection",
+    "policies",
+    "workFormat",
+    "onboardingApproach",
+  ] as const;
+
+  for (const field of arrayFields) {
+    if (!hasField(field)) {
+      continue;
+    }
+
+    const parsed = parseStringArray(body[field]);
+    if (!parsed) {
+      return { ok: false, error: `Invalid ${field}` };
+    }
+    data[field] = parsed;
+  }
+
+  return { ok: true, data };
+}
 
 export function createPrepRouter(
   getPrisma: () => PrismaClient,
@@ -34,9 +136,14 @@ export function createPrepRouter(
       return;
     }
 
+    const hrCompanyProfile = await prisma.hrCompanyProfile.findUnique({
+      where: { hrUserId: req.user!.id },
+    });
+    const missingCompanyProfile = !hrCompanyProfile?.confirmedAt;
+
     const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId } });
     if (!session) {
-      res.status(200).json({ messages: [], isClosed: false, profile: null });
+      res.status(200).json({ messages: [], isClosed: false, profile: null, missingCompanyProfile });
       return;
     }
 
@@ -57,15 +164,8 @@ export function createPrepRouter(
         createdAt: item.createdAt,
       })),
       isClosed: session.isClosed,
-      profile: profile
-        ? {
-            role: profile.role,
-            requirements: profile.requirements,
-            culture: profile.culture,
-            expectations: profile.expectations,
-            confirmedAt: profile.confirmedAt,
-          }
-        : null,
+      profile: profile ? serializeVacancyProfile(profile) : null,
+      missingCompanyProfile,
     });
   });
 
@@ -81,6 +181,11 @@ export function createPrepRouter(
 
     if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const hrProfile = await assertConfirmedHrCompanyProfile(req, res, prisma);
+    if (!hrProfile) {
       return;
     }
 
@@ -146,6 +251,14 @@ export function createPrepRouter(
       return;
     }
 
+    const snapshotFields = {
+      culture: hrProfile.culture,
+      companyDirection: hrProfile.companyDirection,
+      policies: hrProfile.policies,
+      workFormat: hrProfile.workFormat,
+      onboardingApproach: hrProfile.onboardingApproach,
+    };
+
     let profile;
     try {
       profile = await prisma.companyProfile.upsert({
@@ -154,13 +267,14 @@ export function createPrepRouter(
           role: extracted.role,
           requirements: extracted.requirements,
           expectations: extracted.expectations,
+          ...snapshotFields,
         },
         create: {
           vacancyId,
           role: extracted.role,
           requirements: extracted.requirements,
-          culture: [],
           expectations: extracted.expectations,
+          ...snapshotFields,
         },
       });
       await prisma.prepSessionHr.update({ where: { id: session.id }, data: { isClosed: true } });
@@ -171,15 +285,7 @@ export function createPrepRouter(
       return;
     }
 
-    res.status(200).json({
-      profile: {
-        role: profile.role,
-        requirements: profile.requirements,
-        culture: profile.culture,
-        expectations: profile.expectations,
-        confirmedAt: profile.confirmedAt,
-      },
-    });
+    res.status(200).json({ profile: serializeVacancyProfile(profile) });
   });
 
   router.post("/prep/:vacancyId/confirm", async (req: Request, res: Response) => {
@@ -194,6 +300,11 @@ export function createPrepRouter(
 
     if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const hrProfile = await assertConfirmedHrCompanyProfile(req, res, prisma);
+    if (!hrProfile) {
       return;
     }
 
@@ -231,19 +342,60 @@ export function createPrepRouter(
     }
 
     res.status(200).json({
-      profile: {
-        role: updatedProfile.role,
-        requirements: updatedProfile.requirements,
-        culture: updatedProfile.culture,
-        expectations: updatedProfile.expectations,
-        confirmedAt: updatedProfile.confirmedAt,
-      },
+      profile: serializeVacancyProfile(updatedProfile),
       vacancyStatus,
     });
   });
 
+  router.patch("/prep/:vacancyId/profile", async (req: Request, res: Response) => {
+    const { vacancyId } = req.params;
+    const prisma = getPrisma();
+
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
+      return;
+    }
+
+    if (vacancy.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const profile = await prisma.companyProfile.findUnique({ where: { vacancyId } });
+    if (!profile) {
+      res.status(404).json({ error: "Profile not found" });
+      return;
+    }
+
+    if (profile.confirmedAt) {
+      res.status(409).json({ error: "Profile already confirmed" });
+      return;
+    }
+
+    const parsed = parseProfilePatch((req.body ?? {}) as ProfilePatchBody);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+
+    let updatedProfile;
+    try {
+      updatedProfile = await prisma.companyProfile.update({
+        where: { vacancyId },
+        data: parsed.data,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[prep:patch-profile] failed to update profile:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({ profile: serializeVacancyProfile(updatedProfile) });
+  });
+
   router.post("/prep/:vacancyId/message", async (req: Request, res: Response) => {
-    const requestStartedAt = Date.now();
     const { vacancyId } = req.params;
     const body = (req.body ?? {}) as MessageBody;
     const message = typeof body.message === "string" ? body.message.trim() : "";
@@ -258,6 +410,11 @@ export function createPrepRouter(
 
     if (vacancy.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const hrProfile = await assertConfirmedHrCompanyProfile(req, res, prisma);
+    if (!hrProfile) {
       return;
     }
 
@@ -333,9 +490,6 @@ export function createPrepRouter(
     }
 
     res.status(200).json({ message: agentMessage, readyForConfirmation });
-    // #region agent log
-    fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c96f8b'},body:JSON.stringify({sessionId:'c96f8b',runId:'initial',hypothesisId:'B',location:'prep.ts:message:done',message:'prep message handled',data:{vacancyId,durationMs:Date.now()-requestStartedAt,provider:provider.name,hasUserMessage:Boolean(message)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   });
 
   router.delete("/prep/:vacancyId", async (req: Request, res: Response) => {
