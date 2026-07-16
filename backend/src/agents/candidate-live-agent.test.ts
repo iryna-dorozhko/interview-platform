@@ -88,6 +88,26 @@ test("buildCandidateLiveMessages uses CANDIDATE_QUESTIONS nudge", () => {
   assert.equal(messages.at(-1)?.content, CANDIDATE_QUESTIONS_NUDGE_UK);
 });
 
+test("candidate live prompt requires third person and three ANSWER modes", () => {
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /трет(я|ій) особ/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /підтверд/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /needsHuman:\s*true/);
+  assert.doesNotMatch(
+    CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK,
+    /Відповідай від імені кандидата \(перша особа/,
+  );
+  assert.doesNotMatch(
+    CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK,
+    /Я не знаю відповіді з профілю\. Ірино, дай відповідь сама\./,
+  );
+});
+
+test("ANSWER nudge mentions third person and confirmation deferral", () => {
+  assert.match(ANSWER_NUDGE_UK, /про кандидата|трет/i);
+  assert.match(ANSWER_NUDGE_UK, /needsHuman:true/);
+  assert.match(ANSWER_NUDGE_UK, /підтверд|доповн/i);
+});
+
 test("runCandidateLiveTurn loads profile, calls LLM, parses reply", async () => {
   const prisma = {
     interview: {

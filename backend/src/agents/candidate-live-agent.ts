@@ -65,10 +65,10 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 }
 
 export const COMPANY_QUESTION_NUDGE_UK =
-  "[Система] Company Agent поставив питання. Відповідай від імені кандидата згідно з профілем.";
+  "[Система] Company Agent поставив питання. Відповідай про кандидата (третя особа) згідно з профілем.";
 
 export const ANSWER_NUDGE_UK =
-  "[Система] Команда Arbiter: ANSWER. Відповідай на відкрите питання від імені кандидата згідно з профілем.";
+  "[Система] Команда Arbiter: ANSWER. Відповідай на відкрите питання про кандидата (третя особа) згідно з профілем. Якщо з профілю видно прогалину — post:true, needsHuman:true, висунь припущення і попроси підтвердити/доповнити. Якщо даних немає — post:true, needsHuman:true і природно попроси живу людину відповісти (не мовчи, не копіюй шаблон).";
 
 export const CANDIDATE_QUESTIONS_NUDGE_UK =
   "[Система] Команда Arbiter: CANDIDATE_QUESTIONS. Постав одне питання компанії в інтересах кандидата, або коротко скажи, що питань немає.";
