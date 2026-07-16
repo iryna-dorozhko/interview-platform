@@ -169,6 +169,15 @@ onMounted(loadProfile);
       <template v-else-if="profile && !isConfirmed">
         <section class="profile-view">
           <h2>Профіль кандидата</h2>
+          <h3 class="subsection-title">Контактні дані</h3>
+          <dl>
+            <dt>Ім'я</dt>
+            <dd>{{ profile.fullName }}</dd>
+            <dt>Email</dt>
+            <dd>{{ profile.email }}</dd>
+            <dt>Телефон</dt>
+            <dd>{{ profile.phone ?? "—" }}</dd>
+          </dl>
           <dl>
             <dt>Досвід</dt>
             <dd>
@@ -214,6 +223,15 @@ onMounted(loadProfile);
       <template v-else-if="profile && isConfirmed">
         <section class="profile-view">
           <h2>Профіль кандидата</h2>
+          <h3 class="subsection-title">Контактні дані</h3>
+          <dl>
+            <dt>Ім'я</dt>
+            <dd>{{ profile.fullName }}</dd>
+            <dt>Email</dt>
+            <dd>{{ profile.email }}</dd>
+            <dt>Телефон</dt>
+            <dd>{{ profile.phone ?? "—" }}</dd>
+          </dl>
           <dl>
             <dt>Досвід</dt>
             <dd>
@@ -285,6 +303,12 @@ onMounted(loadProfile);
 .empty-profile p {
   margin: 0 0 0.75rem;
   color: #555;
+}
+.subsection-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
 }
 .profile-view dl {
   display: grid;
