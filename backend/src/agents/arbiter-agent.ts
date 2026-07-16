@@ -161,7 +161,7 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 }
 
 export const PENDING_QUESTION_NUDGE_UK =
-  "[Система] Зараз є ВІДКРИТЕ питання (від HR або Company). Пріоритет: ANSWER (кандидат має відповісти), якщо щойно була слабка відповідь — CLARIFY.";
+  "[Система] Зараз є ВІДКРИТЕ питання (від HR або Company). Правила: якщо Candidate щойно попросив живу людину відповісти (немає даних у профілі) або висунув припущення з проханням підтвердити/доповнити — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.";
 
 export const NO_PENDING_QUESTION_NUDGE_UK =
   "[Система] Відкритого питання немає. Можна START / NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.";
