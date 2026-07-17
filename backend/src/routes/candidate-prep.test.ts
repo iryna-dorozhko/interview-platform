@@ -216,11 +216,11 @@ function makeFakePrisma(
         data,
       }: {
         where: { interviewId: string };
-        data: { confirmedAt?: Date };
+        data: Record<string, unknown>;
       }) => {
         const profile = profiles.find((item) => item.interviewId === where.interviewId);
         if (!profile) throw new Error("profile not found");
-        if (data.confirmedAt !== undefined) profile.confirmedAt = data.confirmedAt;
+        Object.assign(profile, data);
         return profile;
       },
       deleteMany: async ({ where }: { where: { interviewId: string } }) => {
@@ -273,7 +273,12 @@ test("GET /candidate-prep/:interviewId returns empty state when no session exist
     const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1`);
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.deepEqual(body, { messages: [], isClosed: false, profile: null });
+    assert.deepEqual(body, {
+      messages: [],
+      isClosed: false,
+      profile: null,
+      contactPreview: { fullName: null, email: "cd@test.com", phone: null },
+    });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -967,6 +972,92 @@ test("requireCandidate blocks HR token on candidate-prep routes", async () => {
       body: JSON.stringify({}),
     });
     assert.equal(response.status, 403);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("PATCH /candidate-prep/:interviewId/profile updates fields before confirm", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "AWAITING_CANDIDATE", candidateUserId: "cd_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        fullName: "Олена Коваленко",
+        email: "olena@example.com",
+        phone: "+380501234567",
+        experience: ["3 роки backend"],
+        skills: { strong: ["TypeScript"], growth: ["people management"] },
+        goals: ["senior role"],
+        summary: "Backend-розробник",
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: "Олена К.",
+        experience: ["5 років backend"],
+        skills: { strong: ["Node.js"], growth: ["лідерство"] },
+        goals: ["tech lead"],
+        summary: "Оновлений опис",
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.profile.fullName, "Олена К.");
+    assert.deepEqual(body.profile.experience, ["5 років backend"]);
+    assert.deepEqual(body.profile.skills, { strong: ["Node.js"], growth: ["лідерство"] });
+    assert.equal(body.profile.summary, "Оновлений опис");
+    assert.equal(body.profile.confirmedAt, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("PATCH /candidate-prep/:interviewId/profile returns 409 after confirm", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1", status: "READY", candidateUserId: "cd_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        interviewId: "interview_1",
+        fullName: "Олена Коваленко",
+        email: "olena@example.com",
+        phone: null,
+        experience: ["3 роки"],
+        skills: { strong: ["TS"], growth: ["PM"] },
+        goals: ["senior"],
+        summary: "Backend",
+        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary: "інше" }),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Profile already confirmed");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

@@ -11,10 +11,31 @@ export interface CandidatePrepHistoryItem {
 
 const EMPTY_TURN_PLACEHOLDER = "(порожнє повідомлення)";
 
-export function buildCandidateAgentMessages(history: CandidatePrepHistoryItem[]): ChatMessage[] {
+export function extractFirstName(fullName: string | null | undefined): string | null {
+  const trimmed = fullName?.trim();
+  if (!trimmed) return null;
+  const [firstName] = trimmed.split(/\s+/);
+  return firstName || null;
+}
+
+function buildCandidateAgentSystemPrompt(candidateFirstName?: string | null): string {
+  const firstName = extractFirstName(candidateFirstName);
+  if (!firstName) {
+    return CANDIDATE_AGENT_SYSTEM_PROMPT_UK;
+  }
+
+  return `${CANDIDATE_AGENT_SYSTEM_PROMPT_UK}
+
+Контекст: ім'я кандидата — ${firstName}. Використовуй його для вибіркового звернення згідно з правилами вище.`;
+}
+
+export function buildCandidateAgentMessages(
+  history: CandidatePrepHistoryItem[],
+  options?: { candidateFirstName?: string | null },
+): ChatMessage[] {
   const systemMessage: ChatMessage = {
     role: "system",
-    content: CANDIDATE_AGENT_SYSTEM_PROMPT_UK,
+    content: buildCandidateAgentSystemPrompt(options?.candidateFirstName),
   };
 
   const historyMessages: ChatMessage[] = history.map((item) => ({
@@ -28,6 +49,68 @@ export function buildCandidateAgentMessages(history: CandidatePrepHistoryItem[])
   }
 
   return [systemMessage, ...historyMessages];
+}
+
+export interface ContactPreview {
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+const PHONE_PATTERN = /\+?\d[\d\s\-()]{8,14}\d/;
+const DECLINE_PATTERN = /^(ні|не хочу|відмовляюсь|без номера|пропустити|немає)/i;
+
+function extractEmail(text: string): string | null {
+  const match = text.match(EMAIL_PATTERN);
+  return match ? match[0].toLowerCase() : null;
+}
+
+function extractPhone(text: string): string | null {
+  const match = text.match(PHONE_PATTERN);
+  if (!match) return null;
+  const digits = match[0].replace(/\D/g, "");
+  return digits.length >= 9 ? match[0].trim() : null;
+}
+
+function looksLikeName(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 2 || trimmed.length > 80) return false;
+  if (DECLINE_PATTERN.test(trimmed)) return false;
+  if (extractEmail(trimmed) || extractPhone(trimmed)) return false;
+  return true;
+}
+
+export function extractContactPreviewFromHistory(
+  history: CandidatePrepHistoryItem[],
+  fallbackEmail?: string | null,
+): ContactPreview {
+  const humanMessages = history
+    .filter((item) => item.authorType === "HUMAN_CANDIDATE")
+    .map((item) => item.content.trim())
+    .filter(Boolean);
+
+  let fullName: string | null = null;
+  let email: string | null = null;
+  let phone: string | null = null;
+
+  for (const text of humanMessages) {
+    if (!email) {
+      email = extractEmail(text);
+    }
+    if (!phone) {
+      phone = extractPhone(text);
+    }
+    if (!fullName && looksLikeName(text)) {
+      fullName = text;
+    }
+  }
+
+  if (!email && fallbackEmail?.trim()) {
+    email = fallbackEmail.trim().toLowerCase();
+  }
+
+  return { fullName, email, phone };
 }
 
 export interface ExtractedCandidateProfile {

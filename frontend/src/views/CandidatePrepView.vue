@@ -7,6 +7,7 @@ import {
   fetchCandidatePrepState,
   finishCandidatePrepChat,
   sendCandidatePrepMessage,
+  updateCandidatePrepProfile,
   type CandidatePrepMessage,
   type CandidateProfile,
 } from "../api/candidate-prep";
@@ -21,12 +22,64 @@ const errorMessage = ref<string | null>(null);
 const messages = ref<CandidatePrepMessage[]>([]);
 const isClosed = ref(false);
 const profile = ref<CandidateProfile | null>(null);
+const editableProfile = ref<CandidateProfile | null>(null);
 const viewingHistory = ref(false);
 const input = ref("");
 const sending = ref(false);
+const saving = ref(false);
 const confirming = ref(false);
 const lastReadyForConfirmation = ref(false);
 const messagesEl = ref<HTMLElement | null>(null);
+
+function syncEditableProfile(next: CandidateProfile | null): void {
+  profile.value = next;
+  editableProfile.value =
+    next && !next.confirmedAt
+      ? {
+          ...next,
+          skills: { strong: [...next.skills.strong], growth: [...next.skills.growth] },
+          experience: [...next.experience],
+          goals: [...next.goals],
+        }
+      : null;
+}
+
+function textToArray(text: string): string[] {
+  return text
+    .split("\n")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function onPhoneInput(event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLInputElement;
+  editableProfile.value.phone = target.value || null;
+}
+
+function onExperienceInput(event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLTextAreaElement;
+  editableProfile.value.experience = textToArray(target.value);
+}
+
+function onSkillsStrongInput(event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLTextAreaElement;
+  editableProfile.value.skills.strong = textToArray(target.value);
+}
+
+function onSkillsGrowthInput(event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLTextAreaElement;
+  editableProfile.value.skills.growth = textToArray(target.value);
+}
+
+function onGoalsInput(event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLTextAreaElement;
+  editableProfile.value.goals = textToArray(target.value);
+}
 
 async function scrollToBottom(): Promise<void> {
   await nextTick();
@@ -41,7 +94,7 @@ async function loadPrepState(): Promise<void> {
     const state = await fetchCandidatePrepState(interviewId.value);
     messages.value = state.messages;
     isClosed.value = state.isClosed;
-    profile.value = state.profile;
+    syncEditableProfile(state.profile);
     viewingHistory.value = false;
     loadState.value = "ready";
 
@@ -122,7 +175,7 @@ async function onDeleteChat(): Promise<void> {
     await deleteCandidatePrepChat(interviewId.value);
     messages.value = [];
     isClosed.value = false;
-    profile.value = null;
+    syncEditableProfile(null);
     viewingHistory.value = false;
     lastReadyForConfirmation.value = false;
     await triggerGreeting();
@@ -141,13 +194,35 @@ async function onFinishChat(): Promise<void> {
   sending.value = true;
   try {
     const response = await finishCandidatePrepChat(interviewId.value);
-    profile.value = response.profile;
+    syncEditableProfile(response.profile);
     isClosed.value = true;
     viewingHistory.value = false;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося завершити чат";
   } finally {
     sending.value = false;
+  }
+}
+
+async function onSaveProfileEdits(): Promise<void> {
+  if (!editableProfile.value) return;
+  errorMessage.value = null;
+  saving.value = true;
+  try {
+    const { profile: updated } = await updateCandidatePrepProfile(interviewId.value, {
+      fullName: editableProfile.value.fullName,
+      email: editableProfile.value.email,
+      phone: editableProfile.value.phone,
+      experience: editableProfile.value.experience,
+      skills: editableProfile.value.skills,
+      goals: editableProfile.value.goals,
+      summary: editableProfile.value.summary,
+    });
+    syncEditableProfile(updated);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Не вдалося зберегти профіль";
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -164,7 +239,7 @@ async function onConfirmProfile(): Promise<void> {
   confirming.value = true;
   try {
     const response = await confirmCandidatePrepProfile(interviewId.value);
-    profile.value = response.profile;
+    syncEditableProfile(response.profile);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
   } finally {
@@ -200,7 +275,72 @@ onMounted(loadPrepState);
     <template v-else>
       <section v-if="isClosed && profile && !viewingHistory" class="profile-view">
         <h2>Зібраний профіль кандидата</h2>
-        <dl>
+
+        <form
+          v-if="!profile.confirmedAt && editableProfile"
+          class="profile-form"
+          @submit.prevent="onSaveProfileEdits"
+        >
+          <label class="field">
+            <span class="field-label">Ім'я</span>
+            <input v-model="editableProfile.fullName" type="text" class="field-input" />
+          </label>
+          <label class="field">
+            <span class="field-label">Email</span>
+            <input v-model="editableProfile.email" type="email" class="field-input" />
+          </label>
+          <label class="field">
+            <span class="field-label">Телефон</span>
+            <input
+              :value="editableProfile.phone ?? ''"
+              type="text"
+              class="field-input"
+              @input="onPhoneInput"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Досвід</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="editableProfile.experience.join('\n')"
+              @input="onExperienceInput"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Сильні сторони</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="editableProfile.skills.strong.join('\n')"
+              @input="onSkillsStrongInput"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Зони росту</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="editableProfile.skills.growth.join('\n')"
+              @input="onSkillsGrowthInput"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Цілі</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="editableProfile.goals.join('\n')"
+              @input="onGoalsInput"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Короткий опис</span>
+            <textarea v-model="editableProfile.summary" class="field-input" rows="3" />
+          </label>
+        </form>
+
+        <dl v-else>
           <dt>Досвід</dt>
           <dd><ul><li v-for="(item, i) in profile.experience" :key="i">{{ item }}</li></ul></dd>
           <dt>Сильні сторони</dt>
@@ -212,6 +352,7 @@ onMounted(loadPrepState);
           <dt>Короткий опис</dt>
           <dd>{{ profile.summary }}</dd>
         </dl>
+
         <div class="actions">
           <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
           <button
@@ -226,8 +367,17 @@ onMounted(loadPrepState);
           <button
             v-if="!profile.confirmedAt"
             type="button"
+            class="btn-secondary"
+            :disabled="saving"
+            @click="onSaveProfileEdits"
+          >
+            {{ saving ? "Збереження…" : "Зберегти зміни" }}
+          </button>
+          <button
+            v-if="!profile.confirmedAt"
+            type="button"
             class="btn-primary"
-            :disabled="confirming"
+            :disabled="confirming || saving"
             @click="onConfirmProfile"
           >
             Підтвердити профіль
@@ -438,6 +588,30 @@ onMounted(loadPrepState);
   grid-template-columns: 8rem 1fr;
   gap: 0.5rem 1rem;
   margin: 1rem 0;
+}
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.field-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.875rem;
+}
+.field-input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+  resize: vertical;
 }
 .profile-view dt {
   font-weight: 600;

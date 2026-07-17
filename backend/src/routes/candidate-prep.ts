@@ -1,9 +1,12 @@
 import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   buildCandidateAgentMessages,
   buildCandidateProfileExtractionMessages,
+  extractContactPreviewFromHistory,
   parseCandidateProfileExtraction,
+  type CandidatePrepHistoryItem,
+  type ContactPreview,
 } from "../agents/candidate-agent";
 import { parseAgentReply } from "../agents/agent-reply";
 import { LlmError, LlmUnavailableError } from "../llm/errors";
@@ -12,6 +15,16 @@ import { maybeTransitionToReady } from "../utils/interview-readiness";
 
 type MessageBody = {
   message?: unknown;
+};
+
+type ProfilePatchBody = {
+  fullName?: unknown;
+  email?: unknown;
+  phone?: unknown;
+  experience?: unknown;
+  skills?: unknown;
+  goals?: unknown;
+  summary?: unknown;
 };
 
 function serializeCandidateProfile(profile: {
@@ -36,6 +49,124 @@ function serializeCandidateProfile(profile: {
   };
 }
 
+function parseStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) {
+    return null;
+  }
+  const items = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+  if (items.length === 0 || items.length !== value.length) {
+    return null;
+  }
+  return items;
+}
+
+function asInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
+
+function parseCandidateProfilePatch(
+  body: ProfilePatchBody
+): { ok: true; data: Prisma.CandidateProfileUpdateInput } | { ok: false; error: string } {
+  const data: Prisma.CandidateProfileUpdateInput = {};
+  const hasField = (field: keyof ProfilePatchBody) => Object.prototype.hasOwnProperty.call(body, field);
+
+  if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
+    return { ok: false, error: "No fields to update" };
+  }
+
+  if (hasField("fullName")) {
+    if (typeof body.fullName !== "string" || body.fullName.trim() === "") {
+      return { ok: false, error: "Invalid fullName" };
+    }
+    data.fullName = body.fullName.trim();
+  }
+
+  if (hasField("email")) {
+    if (typeof body.email !== "string" || body.email.trim() === "" || !body.email.includes("@")) {
+      return { ok: false, error: "Invalid email" };
+    }
+    data.email = body.email.trim();
+  }
+
+  if (hasField("phone")) {
+    if (body.phone === null) {
+      data.phone = null;
+    } else if (typeof body.phone === "string") {
+      const trimmed = body.phone.trim();
+      data.phone = trimmed === "" ? null : trimmed;
+    } else {
+      return { ok: false, error: "Invalid phone" };
+    }
+  }
+
+  if (hasField("summary")) {
+    if (typeof body.summary !== "string" || body.summary.trim() === "") {
+      return { ok: false, error: "Invalid summary" };
+    }
+    data.summary = body.summary.trim();
+  }
+
+  if (hasField("experience")) {
+    const parsed = parseStringArray(body.experience);
+    if (!parsed) {
+      return { ok: false, error: "Invalid experience" };
+    }
+    data.experience = asInputJson(parsed);
+  }
+
+  if (hasField("goals")) {
+    const parsed = parseStringArray(body.goals);
+    if (!parsed) {
+      return { ok: false, error: "Invalid goals" };
+    }
+    data.goals = asInputJson(parsed);
+  }
+
+  if (hasField("skills")) {
+    if (typeof body.skills !== "object" || body.skills === null || Array.isArray(body.skills)) {
+      return { ok: false, error: "Invalid skills" };
+    }
+    const skills = body.skills as { strong?: unknown; growth?: unknown };
+    const strong = parseStringArray(skills.strong);
+    const growth = parseStringArray(skills.growth);
+    if (!strong || !growth) {
+      return { ok: false, error: "Invalid skills" };
+    }
+    data.skills = asInputJson({ strong, growth });
+  }
+
+  return { ok: true, data };
+}
+
+function serializeContactPreview(preview: ContactPreview) {
+  return {
+    fullName: preview.fullName,
+    email: preview.email,
+    phone: preview.phone,
+  };
+}
+
+function resolveContactPreview(
+  history: CandidatePrepHistoryItem[],
+  profile: {
+    fullName: string;
+    email: string;
+    phone: string | null;
+  } | null,
+  fallbackEmail?: string | null,
+): ContactPreview {
+  if (profile) {
+    return {
+      fullName: profile.fullName,
+      email: profile.email,
+      phone: profile.phone,
+    };
+  }
+  return extractContactPreviewFromHistory(history, fallbackEmail);
+}
+
 export function createCandidatePrepRouter(
   getPrisma: () => PrismaClient,
   getProvider: () => LlmProvider
@@ -54,7 +185,14 @@ export function createCandidatePrepRouter(
 
     const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
     if (!session) {
-      res.status(200).json({ messages: [], isClosed: false, profile: null });
+      res.status(200).json({
+        messages: [],
+        isClosed: false,
+        profile: null,
+        contactPreview: serializeContactPreview(
+          extractContactPreviewFromHistory([], req.user?.email ?? null),
+        ),
+      });
       return;
     }
 
@@ -67,6 +205,17 @@ export function createCandidatePrepRouter(
       ? await prisma.candidateProfile.findUnique({ where: { interviewId } })
       : null;
 
+
+    const history = messages.map((item) => ({
+      authorType: item.authorType,
+      content: item.content,
+    }));
+    const contactPreview = resolveContactPreview(
+      history,
+      profile,
+      req.user?.email ?? null,
+    );
+
     res.status(200).json({
       messages: messages.map((item) => ({
         id: item.id,
@@ -76,6 +225,7 @@ export function createCandidatePrepRouter(
       })),
       isClosed: session.isClosed,
       profile: profile ? serializeCandidateProfile(profile) : null,
+      contactPreview: serializeContactPreview(contactPreview),
     });
   });
 
@@ -113,9 +263,12 @@ export function createCandidatePrepRouter(
       orderBy: { createdAt: "asc" },
     });
 
-    const llmMessages = buildCandidateAgentMessages(
-      history.map((item) => ({ authorType: item.authorType, content: item.content }))
-    );
+    const historyItems = history.map((item) => ({ authorType: item.authorType, content: item.content }));
+    const knownContact = extractContactPreviewFromHistory(historyItems, req.user?.email ?? null);
+
+    const llmMessages = buildCandidateAgentMessages(historyItems, {
+      candidateFirstName: knownContact.fullName,
+    });
 
     let provider: LlmProvider;
     try {
@@ -162,7 +315,21 @@ export function createCandidatePrepRouter(
       return;
     }
 
-    res.status(200).json({ message: agentMessage, readyForConfirmation });
+    const updatedHistory = await prisma.prepMessageCandidate.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "asc" },
+    });
+    const contactPreview = resolveContactPreview(
+      updatedHistory.map((item) => ({ authorType: item.authorType, content: item.content })),
+      null,
+      req.user?.email ?? null,
+    );
+
+    res.status(200).json({
+      message: agentMessage,
+      readyForConfirmation,
+      contactPreview: serializeContactPreview(contactPreview),
+    });
   });
 
   router.post("/:interviewId/finish", async (req: Request, res: Response) => {
@@ -343,12 +510,56 @@ export function createCandidatePrepRouter(
       return;
     }
 
+
     const finalInterview = (await maybeTransitionToReady(prisma, interviewId)) ?? interview;
 
     res.status(200).json({
       profile: serializeCandidateProfile(updatedProfile),
       interviewStatus: finalInterview.status,
     });
+  });
+
+  router.patch("/:interviewId/profile", async (req: Request, res: Response) => {
+    const { interviewId } = req.params;
+    const prisma = getPrisma();
+
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
+
+    const profile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
+    if (!profile) {
+      res.status(404).json({ error: "Profile not found" });
+      return;
+    }
+
+    if (profile.confirmedAt) {
+      res.status(409).json({ error: "Profile already confirmed" });
+      return;
+    }
+
+    const parsed = parseCandidateProfilePatch((req.body ?? {}) as ProfilePatchBody);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+
+    let updatedProfile;
+    try {
+      updatedProfile = await prisma.candidateProfile.update({
+        where: { interviewId },
+        data: parsed.data,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[candidate-prep:patch-profile] failed to update profile:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({ profile: serializeCandidateProfile(updatedProfile) });
   });
 
   router.delete("/:interviewId", async (req: Request, res: Response) => {
@@ -362,6 +573,7 @@ export function createCandidatePrepRouter(
     }
 
     try {
+      const existingProfile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
       const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
       if (session) {
         await prisma.prepMessageCandidate.deleteMany({ where: { sessionId: session.id } });

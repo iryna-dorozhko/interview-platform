@@ -25,15 +25,23 @@ export type CandidateProfile = {
   confirmedAt: string | null;
 };
 
+export type ContactPreview = {
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
 export type CandidatePrepState = {
   messages: CandidatePrepMessage[];
   isClosed: boolean;
   profile: CandidateProfile | null;
+  contactPreview: ContactPreview;
 };
 
 export type SendMessageResponse = {
   message: string;
   readyForConfirmation: boolean;
+  contactPreview: ContactPreview;
 };
 
 type ErrorBody = { error?: string; detail?: string };
@@ -98,4 +106,18 @@ export async function confirmCandidatePrepProfile(
     throw await parseError(response, "Не вдалося підтвердити профіль");
   }
   return response.json() as Promise<{ profile: CandidateProfile; interviewStatus: string }>;
+}
+
+export async function updateCandidatePrepProfile(
+  interviewId: string,
+  payload: Partial<Omit<CandidateProfile, "confirmedAt">>
+): Promise<{ profile: CandidateProfile }> {
+  const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося зберегти профіль");
+  }
+  return response.json() as Promise<{ profile: CandidateProfile }>;
 }
