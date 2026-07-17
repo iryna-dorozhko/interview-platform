@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
+import type { Interview, Invitation, PrismaClient } from "@prisma/client";
 import type { Server } from "socket.io";
 import {
   buildFinalReportMessages,
@@ -33,7 +33,7 @@ type CreateBody = {
   scheduledAt?: unknown;
 };
 
-function parseOptionalScheduledAt(value: unknown): Date | null | "invalid" {
+export function parseOptionalScheduledAt(value: unknown): Date | null | "invalid" {
   if (value === undefined || value === null || value === "") return null;
   if (typeof value !== "string") return "invalid";
   const d = new Date(value);
@@ -41,11 +41,63 @@ function parseOptionalScheduledAt(value: unknown): Date | null | "invalid" {
   return d;
 }
 
-function serializeInvitation(
+export function serializeInvitation(
   inv: { id: string; email: string; status: string } | null | undefined,
 ) {
   if (!inv) return null;
   return { id: inv.id, email: inv.email, status: inv.status };
+}
+
+export async function createInterviewWithJoinCode(
+  prisma: PrismaClient,
+  params: {
+    hrUserId: string;
+    vacancyId: string;
+    displayName: string;
+    scheduledAt: Date | null;
+    candidateUserId?: string | null;
+    candidateEmail?: string | null;
+  },
+): Promise<{ interview: Interview; invitation: Invitation | null }> {
+  for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
+    const joinCode = generateJoinCode();
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const interview = await tx.interview.create({
+          data: {
+            hrUserId: params.hrUserId,
+            vacancyId: params.vacancyId,
+            displayName: params.displayName,
+            joinCode,
+            status: "AWAITING_CANDIDATE",
+            scheduledAt: params.scheduledAt,
+            ...(params.candidateUserId
+              ? { candidateUserId: params.candidateUserId }
+              : {}),
+          },
+        });
+        let invitation: Invitation | null = null;
+        if (params.candidateEmail) {
+          invitation = await tx.invitation.create({
+            data: {
+              interviewId: interview.id,
+              email: params.candidateEmail,
+              status: params.candidateUserId ? "ACCEPTED" : "PENDING",
+            },
+          });
+        }
+        return { interview, invitation };
+      });
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      const isLastAttempt = attempt === MAX_CREATE_ATTEMPTS;
+      if (code === "P2002" && !isLastAttempt) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("Failed to generate unique join code");
 }
 
 type InterviewWithRelations = {
@@ -198,56 +250,30 @@ export function createInterviewsRouter(
       return;
     }
 
-    for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
-      const joinCode = generateJoinCode();
-      try {
-        const result = await prisma.$transaction(async (tx) => {
-          const interview = await tx.interview.create({
-            data: {
-              hrUserId,
-              vacancyId,
-              displayName: vacancy.title,
-              joinCode,
-              status: "AWAITING_CANDIDATE",
-              scheduledAt,
-            },
-          });
-          let invitation = null;
-          if (candidateEmailNormalized) {
-            invitation = await tx.invitation.create({
-              data: {
-                interviewId: interview.id,
-                email: candidateEmailNormalized,
-                status: "PENDING",
-              },
-            });
-          }
-          return { interview, invitation };
-        });
-        res.status(201).json({
-          interview: {
-            id: result.interview.id,
-            vacancyId: result.interview.vacancyId,
-            displayName: result.interview.displayName,
-            joinCode: result.interview.joinCode,
-            status: result.interview.status,
-            createdAt: result.interview.createdAt,
-            scheduledAt: result.interview.scheduledAt?.toISOString() ?? null,
-            invitation: serializeInvitation(result.invitation),
-          },
-        });
-        return;
-      } catch (error) {
-        const code = (error as { code?: string }).code;
-        const isLastAttempt = attempt === MAX_CREATE_ATTEMPTS;
-        if (code === "P2002" && !isLastAttempt) {
-          continue;
-        }
-        const detail = error instanceof Error ? error.message : String(error);
-        console.error("[interviews:create] failed to create interview:", detail);
-        res.status(500).json({ error: "Failed to generate unique join code" });
-        return;
-      }
+    try {
+      const result = await createInterviewWithJoinCode(prisma, {
+        hrUserId,
+        vacancyId,
+        displayName: vacancy.title,
+        scheduledAt,
+        candidateEmail: candidateEmailNormalized,
+      });
+      res.status(201).json({
+        interview: {
+          id: result.interview.id,
+          vacancyId: result.interview.vacancyId,
+          displayName: result.interview.displayName,
+          joinCode: result.interview.joinCode,
+          status: result.interview.status,
+          createdAt: result.interview.createdAt,
+          scheduledAt: result.interview.scheduledAt?.toISOString() ?? null,
+          invitation: serializeInvitation(result.invitation),
+        },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[interviews:create] failed to create interview:", detail);
+      res.status(500).json({ error: "Failed to generate unique join code" });
     }
   });
 

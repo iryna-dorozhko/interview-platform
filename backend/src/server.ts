@@ -19,6 +19,7 @@ import { createCandidatePrepRouter } from "./routes/candidate-prep";
 import { createCandidateInterviewRouter } from "./routes/candidate-interview";
 import { createCandidateInvitationsRouter } from "./routes/candidate-invitations";
 import { createCandidateMatchesRouter } from "./routes/candidate-matches";
+import { createHrApplicationsRouter } from "./routes/hr-applications";
 import { createRoomOrchestrator } from "./socket/orchestrator";
 import { registerRoomHandlers } from "./socket/room";
 import { createGracefulShutdown } from "./server-lifecycle";
@@ -54,6 +55,7 @@ app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, getLlmPro
 app.use("/api", requireAuth, requireHr, createCompanyPrepRouter(() => prisma, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
+app.use("/api", requireAuth, requireHr, createHrApplicationsRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma));
 
 const httpServer = createServer(app);
