@@ -64,17 +64,26 @@ export async function resolveCandidateProfileForInterview(
   };
 }
 
-export async function isCandidateQuestionnaireConfirmed(
+export async function getConfirmedQuestionnaireProfile(
   prisma: PrismaClient,
   candidateUserId: string,
-): Promise<boolean> {
+) {
   const questionnaire = await findQuestionnaireInterview(prisma, candidateUserId);
-  if (!questionnaire) return false;
+  if (!questionnaire) return null;
 
   const profile = await prisma.candidateProfile.findUnique({
     where: { interviewId: questionnaire.id },
   });
-  return profile?.confirmedAt != null;
+  if (!profile || profile.confirmedAt == null) return null;
+  return profile;
+}
+
+export async function isCandidateQuestionnaireConfirmed(
+  prisma: PrismaClient,
+  candidateUserId: string,
+): Promise<boolean> {
+  const profile = await getConfirmedQuestionnaireProfile(prisma, candidateUserId);
+  return profile != null;
 }
 
 export async function canCandidateJoinInterview(
