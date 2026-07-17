@@ -21,6 +21,7 @@ import CandidateProfileView from "../views/CandidateProfileView.vue";
 import CandidateInterviewView from "../views/CandidateInterviewView.vue";
 import CandidatePrepView from "../views/CandidatePrepView.vue";
 import CandidateMatchesView from "../views/CandidateMatchesView.vue";
+import HrApplicationsView from "../views/HrApplicationsView.vue";
 import HrInterviewRoomView from "../views/HrInterviewRoomView.vue";
 import ReportListView from "../views/ReportListView.vue";
 import ReportView from "../views/ReportView.vue";
@@ -90,6 +91,11 @@ export const router = createRouter({
           path: "vacancies/:id/prep",
           name: "vacancy-prep",
           component: VacancyPrepView,
+        },
+        {
+          path: "applications",
+          name: "hr-applications",
+          component: HrApplicationsView,
         },
         {
           path: "interviews",
