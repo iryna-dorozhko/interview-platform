@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import type { Interview, Invitation, PrismaClient } from "@prisma/client";
+import type { Interview, Invitation, Prisma, PrismaClient } from "@prisma/client";
 import type { Server } from "socket.io";
 import {
   buildFinalReportMessages,
@@ -48,6 +48,8 @@ export function serializeInvitation(
   return { id: inv.id, email: inv.email, status: inv.status };
 }
 
+export const APPLICATION_ALREADY_CONVERTED = "APPLICATION_ALREADY_CONVERTED";
+
 export async function createInterviewWithJoinCode(
   prisma: PrismaClient,
   params: {
@@ -57,6 +59,11 @@ export async function createInterviewWithJoinCode(
     scheduledAt: Date | null;
     candidateUserId?: string | null;
     candidateEmail?: string | null;
+    /** Runs in the same transaction as interview create (before commit). */
+    afterCreate?: (
+      tx: Prisma.TransactionClient,
+      created: { interview: Interview; invitation: Invitation | null },
+    ) => Promise<void>;
   },
 ): Promise<{ interview: Interview; invitation: Invitation | null }> {
   for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
@@ -86,10 +93,17 @@ export async function createInterviewWithJoinCode(
             },
           });
         }
-        return { interview, invitation };
+        const created = { interview, invitation };
+        if (params.afterCreate) {
+          await params.afterCreate(tx, created);
+        }
+        return created;
       });
     } catch (error) {
       const code = (error as { code?: string }).code;
+      if (code === APPLICATION_ALREADY_CONVERTED) {
+        throw error;
+      }
       const isLastAttempt = attempt === MAX_CREATE_ATTEMPTS;
       if (code === "P2002" && !isLastAttempt) {
         continue;

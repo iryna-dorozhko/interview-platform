@@ -178,32 +178,40 @@ export function createCandidateMatchesRouter(
         throw new VacancyMatchServiceError("MATCH_UNAVAILABLE");
       }
 
-      const application = await prisma.vacancyApplication.create({
-        data: {
-          candidateUserId,
-          vacancyId,
-          matchScore: offer.matchScore,
-          candidateSummary,
-          status: "PENDING",
-        },
-      });
-
-      await prisma.hrNotification.create({
-        data: {
-          hrUserId: vacancy.hrUserId,
-          type: "VACANCY_APPLICATION",
-          payload: {
-            applicationId: application.id,
-            candidateName: profile.fullName,
-            email: profile.email,
-            vacancyTitle: vacancy.title,
+      const application = await prisma.$transaction(async (tx) => {
+        const created = await tx.vacancyApplication.create({
+          data: {
+            candidateUserId,
+            vacancyId,
             matchScore: offer.matchScore,
+            candidateSummary,
+            status: "PENDING",
           },
-        },
+        });
+
+        await tx.hrNotification.create({
+          data: {
+            hrUserId: vacancy.hrUserId,
+            type: "VACANCY_APPLICATION",
+            payload: {
+              applicationId: created.id,
+              candidateName: profile.fullName,
+              email: profile.email,
+              vacancyTitle: vacancy.title,
+              matchScore: offer.matchScore,
+            },
+          },
+        });
+
+        return created;
       });
 
       res.status(200).json({ application: applicationPayload(application) });
     } catch (error) {
+      if ((error as { code?: string }).code === "P2002") {
+        res.status(409).json({ error: "ACTIVE_APPLICATION_EXISTS" });
+        return;
+      }
       if (mapMatchServiceError(error, res)) return;
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[candidate-matches:accept] failed:", detail);

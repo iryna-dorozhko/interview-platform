@@ -196,6 +196,22 @@ function makeFakePrisma(seed: {
         Object.assign(app, data);
         return { ...app };
       },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: string; status?: string };
+        data: Partial<FakeApplication>;
+      }) => {
+        const app = applications.find((item) => {
+          if (item.id !== where.id) return false;
+          if (where.status != null && item.status !== where.status) return false;
+          return true;
+        });
+        if (!app) return { count: 0 };
+        Object.assign(app, data);
+        return { count: 1 };
+      },
     },
     hrNotification: {
       findMany: async ({
@@ -369,7 +385,26 @@ function makeFakePrisma(seed: {
         return created;
       },
     },
-    $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => fn(prisma),
+    $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => {
+      const interviewsSnap = interviews.map((item) => ({ ...item }));
+      const applicationsSnap = applications.map((item) => ({ ...item }));
+      const invitationsSnap = invitations.map((item) => ({ ...item }));
+      const interviewSeqSnap = interviewSeq;
+      const invSeqSnap = invSeq;
+      try {
+        return await fn(prisma);
+      } catch (error) {
+        interviews.length = 0;
+        interviews.push(...interviewsSnap);
+        applications.length = 0;
+        applications.push(...applicationsSnap);
+        invitations.length = 0;
+        invitations.push(...invitationsSnap);
+        interviewSeq = interviewSeqSnap;
+        invSeq = invSeqSnap;
+        throw error;
+      }
+    },
   };
 
   return { prisma, applications, interviews, notifications, invitations };
@@ -596,6 +631,97 @@ test("POST /hr/applications/:id/create-interview returns 409 when not PENDING", 
       { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
     );
     assert.equal(response.status, 409);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/applications/:id/create-interview double-convert returns 409 without orphan", async () => {
+  const { prisma, applications, interviews } = makeFakePrisma({
+    vacancies: [
+      {
+        id: "v1",
+        hrUserId: "hr_1",
+        title: "Frontend",
+        status: "CONFIRMED",
+        companyProfile: { confirmedAt: new Date() },
+      },
+    ],
+    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+    questionnaireInterviews: [
+      {
+        id: "q1",
+        candidateUserId: "cd_1",
+        displayName: "Моя анкета",
+        status: "READY",
+        createdAt: new Date(),
+      },
+    ],
+    candidateProfiles: [
+      {
+        interviewId: "q1",
+        fullName: "Anna Candidate",
+        email: "cd@test.com",
+        confirmedAt: new Date(),
+      },
+    ],
+  });
+
+  // Simulate race: second request still sees PENDING after first convert.
+  const originalFindUnique = prisma.vacancyApplication.findUnique.bind(prisma.vacancyApplication);
+  let findCalls = 0;
+  prisma.vacancyApplication.findUnique = async (args) => {
+    findCalls += 1;
+    const row = await originalFindUnique(args);
+    if (findCalls > 1 && row) {
+      return { ...row, status: "PENDING", interviewId: null };
+    }
+    return row;
+  };
+
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const first = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    assert.equal(first.status, 201);
+    assert.equal(interviews.length, 1);
+    assert.equal(applications[0].status, "CONVERTED");
+
+    const second = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    assert.equal(second.status, 409);
+    assert.equal(interviews.length, 1);
+    assert.equal(applications[0].status, "CONVERTED");
+    assert.equal(applications[0].interviewId, interviews[0].id);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

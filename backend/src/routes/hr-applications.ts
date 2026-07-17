@@ -5,6 +5,7 @@ import {
   maybeTransitionToReady,
 } from "../utils/interview-readiness";
 import {
+  APPLICATION_ALREADY_CONVERTED,
   createInterviewWithJoinCode,
   parseOptionalScheduledAt,
   serializeInvitation,
@@ -179,21 +180,31 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
         displayName: application.vacancy.title,
         scheduledAt,
         candidateUserId: application.candidateUserId,
+        afterCreate: async (tx, { interview }) => {
+          const updated = await tx.vacancyApplication.updateMany({
+            where: { id: application.id, status: "PENDING" },
+            data: {
+              status: "CONVERTED",
+              interviewId: interview.id,
+            },
+          });
+          if (updated.count === 0) {
+            const err = new Error("Application already converted");
+            (err as { code?: string }).code = APPLICATION_ALREADY_CONVERTED;
+            throw err;
+          }
+        },
       });
     } catch (error) {
+      if ((error as { code?: string }).code === APPLICATION_ALREADY_CONVERTED) {
+        res.status(409).json({ error: "Application is not pending" });
+        return;
+      }
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[hr-applications:create-interview] failed:", detail);
       res.status(500).json({ error: "Failed to generate unique join code" });
       return;
     }
-
-    const updatedApplication = await prisma.vacancyApplication.update({
-      where: { id: application.id },
-      data: {
-        status: "CONVERTED",
-        interviewId: result.interview.id,
-      },
-    });
 
     const interview =
       (await maybeTransitionToReady(prisma, result.interview.id)) ?? result.interview;
@@ -210,9 +221,9 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
         invitation: serializeInvitation(result.invitation),
       },
       application: {
-        id: updatedApplication.id,
-        status: updatedApplication.status,
-        interviewId: updatedApplication.interviewId,
+        id: application.id,
+        status: "CONVERTED",
+        interviewId: result.interview.id,
       },
     });
   });

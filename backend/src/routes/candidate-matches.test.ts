@@ -97,7 +97,7 @@ function makeFakePrisma(seed: {
   let appSeq = applications.length;
   let notifSeq = notifications.length;
 
-  return {
+  const prisma = {
     vacancy: {
       findMany: async ({
         where,
@@ -255,6 +255,16 @@ function makeFakePrisma(seed: {
           status: string;
         };
       }) => {
+        if (
+          data.status === "PENDING" &&
+          applications.some(
+            (item) => item.candidateUserId === data.candidateUserId && item.status === "PENDING",
+          )
+        ) {
+          const err = new Error("Unique constraint failed on VacancyApplication");
+          (err as { code?: string }).code = "P2002";
+          throw err;
+        }
         appSeq += 1;
         const created: FakeApplication = { id: `app_${appSeq}`, ...data };
         applications.push(created);
@@ -273,10 +283,29 @@ function makeFakePrisma(seed: {
         return created;
       },
     },
+    $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => {
+      const appsSnap = applications.map((item) => ({ ...item }));
+      const notifsSnap = notifications.map((item) => ({ ...item }));
+      const appSeqSnap = appSeq;
+      const notifSeqSnap = notifSeq;
+      try {
+        return await fn(prisma);
+      } catch (error) {
+        applications.length = 0;
+        applications.push(...appsSnap);
+        notifications.length = 0;
+        notifications.push(...notifsSnap);
+        appSeq = appSeqSnap;
+        notifSeq = notifSeqSnap;
+        throw error;
+      }
+    },
     __offerDecisions: offerDecisions,
     __applications: applications,
     __notifications: notifications,
   };
+
+  return prisma;
 }
 
 const confirmedAt = new Date("2026-07-10T12:00:00.000Z");
@@ -553,6 +582,35 @@ test("POST /matches/:id/accept returns 409 when PENDING exists", async () => {
     const body = await response.json();
     assert.equal(body.error, "ACTIVE_APPLICATION_EXISTS");
     assert.equal(fakePrisma.__applications.length, 1);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /matches/:id/accept maps P2002 to 409 ACTIVE_APPLICATION_EXISTS", async () => {
+  const fakePrisma = makeFakePrisma(confirmedSeed());
+  // Simulate race: pre-check sees no pending, but unique index rejects create.
+  fakePrisma.vacancyApplication.findFirst = async () => null;
+  fakePrisma.vacancyApplication.create = async () => {
+    const err = new Error("Unique constraint failed");
+    (err as { code?: string }).code = "P2002";
+    throw err;
+  };
+
+  const app = makeApp(fakePrisma);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/matches/v1/accept`, {
+      method: "POST",
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "ACTIVE_APPLICATION_EXISTS");
+    assert.equal(fakePrisma.__applications.length, 0);
+    assert.equal(fakePrisma.__notifications.length, 0);
   } finally {
     server.close();
   }
