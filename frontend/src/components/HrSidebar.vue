@@ -30,6 +30,13 @@ function isHomeActive(): boolean {
     <RouterLink to="/interviews" class="nav-item" :class="{ active: isActive('/interviews') }">
       Співбесіди
     </RouterLink>
+    <RouterLink
+      to="/applications"
+      class="nav-item"
+      :class="{ active: isActive('/applications') }"
+    >
+      Заявки
+    </RouterLink>
     <RouterLink to="/reports" class="nav-item" :class="{ active: isActive('/reports') }">
       Звіти
     </RouterLink>

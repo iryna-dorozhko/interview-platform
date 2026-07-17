@@ -5,6 +5,8 @@ import {
   createInterviewFromApplication,
   fetchHrApplication,
   fetchHrApplications,
+  fetchHrNotifications,
+  markNotificationRead,
   type HrApplicationDetail,
 } from "../api/hr-applications";
 
@@ -147,6 +149,17 @@ function goToInterview(): void {
   router.push({ name: "interview-detail", params: { id: detail.value.interviewId } });
 }
 
+async function markUnreadNotifications(): Promise<void> {
+  try {
+    const notifications = await fetchHrNotifications();
+    const unread = notifications.filter((item) => item.readAt == null);
+    if (unread.length === 0) return;
+    await Promise.all(unread.map((item) => markNotificationRead(item.id)));
+  } catch {
+    // Non-fatal: inbox still works if mark-read fails.
+  }
+}
+
 watch(selectedId, (id) => {
   if (id) void loadDetail(id);
   else {
@@ -157,6 +170,7 @@ watch(selectedId, (id) => {
 
 onMounted(() => {
   void loadList();
+  void markUnreadNotifications();
 });
 </script>
 
