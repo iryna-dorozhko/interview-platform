@@ -5,6 +5,7 @@ import {
   parseCandidateProfileExtraction,
 } from "./candidate-agent";
 import { CANDIDATE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/candidate-agent.uk";
+import { CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/candidate-profile-extraction.uk";
 
 test("buildCandidateAgentMessages prepends system prompt and maps author types", () => {
   const history = [
@@ -73,6 +74,14 @@ test("candidate prompt includes contact bootstrap rules", () => {
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /представ/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /email.*реєстрац/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /телефон.*поясн/i);
+});
+
+test("extraction prompt encodes work conditions in goals with prefixes", () => {
+  assert.match(CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /Формат:/);
+  assert.match(CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /Зарплата:/);
+  assert.match(CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /Графік:/);
+  assert.match(CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /Релокація:/);
+  assert.match(CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /Ціль:/);
 });
 
 test("parseCandidateProfileExtraction parses full contact payload", () => {
