@@ -48,7 +48,7 @@ onMounted(async () => {
 <style scoped>
 .page {
   font-family: var(--font);
-  max-width: 40rem;
+  max-width: 100%;
 }
 .header {
   margin-bottom: 1rem;

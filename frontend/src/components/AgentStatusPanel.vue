@@ -76,11 +76,12 @@ function formatTime(iso: string): string {
 
 <style scoped>
 .agent-panel {
-  margin-bottom: 1rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
+  position: sticky;
+  top: 1rem;
 }
 .panel-title {
   margin: 0 0 0.5rem;
@@ -145,7 +146,7 @@ function formatTime(iso: string): string {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  max-height: 9rem;
+  max-height: 20rem;
   overflow-y: auto;
 }
 .process-item {

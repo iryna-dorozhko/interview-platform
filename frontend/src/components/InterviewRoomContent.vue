@@ -95,23 +95,36 @@ async function onEndInterview(): Promise<void> {
   <p v-if="endError" class="error-banner">{{ endError }}</p>
   <p v-if="phaseBanner" class="phase-banner">{{ phaseBanner }}</p>
   <p v-if="agentError" class="agent-error-banner" role="alert">{{ agentError }}</p>
-  <AgentStatusPanel
-    v-if="currentRole === 'HR'"
-    :agent-thinking="agentThinking"
-    :process-log="arbiterProcessLog"
-  />
-  <LiveChatPanel
-    :messages="messages"
-    :current-role="currentRole"
-    :connection-state="connectionState"
-    :disabled="isReadOnly"
-    :error-message="errorMessage"
-    :agent-thinking="agentThinking"
-    @send="sendMessage"
-  />
+  <div class="room-body" :class="{ 'room-body--with-sidebar': currentRole === 'HR' }">
+    <LiveChatPanel
+      :messages="messages"
+      :current-role="currentRole"
+      :connection-state="connectionState"
+      :disabled="isReadOnly"
+      :error-message="errorMessage"
+      :agent-thinking="agentThinking"
+      @send="sendMessage"
+    />
+    <AgentStatusPanel
+      v-if="currentRole === 'HR'"
+      :agent-thinking="agentThinking"
+      :process-log="arbiterProcessLog"
+    />
+  </div>
 </template>
 
 <style scoped>
+.room-body--with-sidebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 48rem) {
+  .room-body--with-sidebar {
+    grid-template-columns: 1fr;
+  }
+}
 .room-toolbar {
   display: flex;
   justify-content: flex-end;
