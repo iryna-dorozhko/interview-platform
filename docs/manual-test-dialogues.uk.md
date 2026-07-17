@@ -248,7 +248,7 @@ candidate@test.com
 | Етап | URL | Скільки повідомлень | Дія після чату |
 |------|-----|---------------------|----------------|
 | HR-анкета | `/vacancies/:id/prep` | 4–5 | Finish → Confirm |
-| Анкета кандидата | `/candidate/prep/:id` | 7–8 (контакти + профіль) | Finish → Confirm |
+| Анкета кандидата | `/candidate/prep/:id` | 11–12 (контакти + профіль + умови) | Finish → Confirm |
 | Live-чат | `/interviews/:id/room` + `/candidate/interview` | 2 вітання + 2–4 питання | HR: «Завершити співбесіду» |
 
 **Порядок повного E2E:**
