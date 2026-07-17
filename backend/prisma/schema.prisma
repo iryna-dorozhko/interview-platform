@@ -55,6 +55,21 @@ enum InvitationStatus {
   CANCELLED
 }
 
+enum VacancyApplicationStatus {
+  PENDING
+  CONVERTED
+  WITHDRAWN
+  DECLINED_BY_HR
+}
+
+enum VacancyOfferDecisionType {
+  REJECTED
+}
+
+enum HrNotificationType {
+  VACANCY_APPLICATION
+}
+
 model User {
   id                 String              @id @default(cuid())
   email              String              @unique
@@ -65,8 +80,12 @@ model User {
   interviewsAsHr     Interview[]         @relation("HrInterviews")
   interviewsAsCd     Interview[]         @relation("CandidateInterviews")
   vacanciesAsHr      Vacancy[]           @relation("HrVacancies")
-  hrCompanyProfile   HrCompanyProfile?   @relation("HrCompanyProfiles")
-  prepSessionCompany PrepSessionCompany? @relation("HrCompanyPrepSessions")
+  hrCompanyProfile    HrCompanyProfile?    @relation("HrCompanyProfiles")
+  prepSessionCompany  PrepSessionCompany?  @relation("HrCompanyPrepSessions")
+  vacancyApplications VacancyApplication[] @relation("CandidateVacancyApplications")
+  offerDecisions      VacancyOfferDecision[] @relation("CandidateVacancyOfferDecisions")
+  matchScores         VacancyMatchScore[]    @relation("CandidateVacancyMatchScores")
+  hrNotifications     HrNotification[]       @relation("HrNotifications")
 }
 
 model Vacancy {
@@ -81,6 +100,9 @@ model Vacancy {
   companyProfile CompanyProfile?
   prepSessionHr  PrepSessionHr?
   interviews     Interview[]
+  applications   VacancyApplication[]
+  offerDecisions VacancyOfferDecision[]
+  matchScores    VacancyMatchScore[]
 
   @@index([hrUserId, createdAt(sort: Desc)])
 }
@@ -102,8 +124,9 @@ model Interview {
   candidateProfile CandidateProfile?
   prepSessionCd    PrepSessionCandidate?
   liveSession      LiveSession?
-  finalReport      FinalReport?
-  invitations      Invitation[]
+  finalReport        FinalReport?
+  invitations        Invitation[]
+  vacancyApplication VacancyApplication?
 
   @@index([hrUserId, createdAt(sort: Desc)])
   @@index([candidateUserId])
@@ -266,4 +289,66 @@ model FinalReport {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   interview      Interview      @relation(fields: [interviewId], references: [id])
+}
+
+model VacancyApplication {
+  id               String                   @id @default(cuid())
+  candidateUserId  String
+  vacancyId        String
+  matchScore       Int
+  candidateSummary String
+  status           VacancyApplicationStatus @default(PENDING)
+  interviewId      String?                  @unique
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  candidateUser User       @relation("CandidateVacancyApplications", fields: [candidateUserId], references: [id])
+  vacancy       Vacancy    @relation(fields: [vacancyId], references: [id])
+  interview     Interview? @relation(fields: [interviewId], references: [id])
+
+  @@index([candidateUserId, status])
+  @@index([vacancyId, createdAt(sort: Desc)])
+}
+
+model VacancyOfferDecision {
+  id              String                    @id @default(cuid())
+  candidateUserId String
+  vacancyId       String
+  decision        VacancyOfferDecisionType
+  createdAt       DateTime                  @default(now())
+
+  candidateUser User    @relation("CandidateVacancyOfferDecisions", fields: [candidateUserId], references: [id])
+  vacancy       Vacancy @relation(fields: [vacancyId], references: [id])
+
+  @@unique([candidateUserId, vacancyId])
+  @@index([candidateUserId])
+}
+
+model HrNotification {
+  id        String             @id @default(cuid())
+  hrUserId  String
+  type      HrNotificationType
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  hrUser User @relation("HrNotifications", fields: [hrUserId], references: [id])
+
+  @@index([hrUserId, createdAt(sort: Desc)])
+}
+
+model VacancyMatchScore {
+  id                   String   @id @default(cuid())
+  candidateUserId      String
+  vacancyId            String
+  matchScore           Int
+  rankedForConfirmedAt DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  candidateUser User    @relation("CandidateVacancyMatchScores", fields: [candidateUserId], references: [id])
+  vacancy       Vacancy @relation(fields: [vacancyId], references: [id])
+
+  @@unique([candidateUserId, vacancyId, rankedForConfirmedAt])
+  @@index([candidateUserId, rankedForConfirmedAt])
 }
