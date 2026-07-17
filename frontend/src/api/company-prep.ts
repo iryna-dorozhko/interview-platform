@@ -77,6 +77,19 @@ export async function confirmCompanyPrepProfile(): Promise<{ profile: HrCompanyP
   return response.json() as Promise<{ profile: HrCompanyProfile }>;
 }
 
+export async function updateCompanyPrepProfile(
+  payload: Partial<Omit<HrCompanyProfile, "confirmedAt">>
+): Promise<{ profile: HrCompanyProfile }> {
+  const response = await fetchWithAuth("/api/company-prep/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося зберегти профіль");
+  }
+  return response.json() as Promise<{ profile: HrCompanyProfile }>;
+}
+
 export async function deleteCompanyPrepChat(): Promise<void> {
   const response = await fetchWithAuth("/api/company-prep", { method: "DELETE" });
   if (!response.ok) {

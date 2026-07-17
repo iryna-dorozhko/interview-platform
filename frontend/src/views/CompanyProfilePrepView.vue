@@ -7,6 +7,7 @@ import {
   fetchCompanyPrepState,
   finishCompanyPrepChat,
   sendCompanyPrepMessage,
+  updateCompanyPrepProfile,
   type CompanyPrepMessage,
   type HrCompanyProfile,
 } from "../api/company-prep";
@@ -19,13 +20,39 @@ const errorMessage = ref<string | null>(null);
 const messages = ref<CompanyPrepMessage[]>([]);
 const isClosed = ref(false);
 const profile = ref<HrCompanyProfile | null>(null);
+const editableProfile = ref<HrCompanyProfile | null>(null);
 const viewingHistory = ref(false);
 
 const input = ref("");
 const sending = ref(false);
+const saving = ref(false);
 const confirming = ref(false);
 const lastReadyForConfirmation = ref(false);
 const messagesEl = ref<HTMLElement | null>(null);
+
+type ArrayField = "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach";
+
+function syncEditableProfile(next: HrCompanyProfile | null): void {
+  profile.value = next;
+  editableProfile.value = next && !next.confirmedAt ? { ...next } : null;
+}
+
+function textToArray(text: string): string[] {
+  return text
+    .split("\n")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function getArrayField(field: ArrayField): string {
+  return editableProfile.value?.[field].join("\n") ?? "";
+}
+
+function onArrayFieldInput(field: ArrayField, event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLTextAreaElement;
+  editableProfile.value[field] = textToArray(target.value);
+}
 
 async function scrollToBottom(): Promise<void> {
   await nextTick();
@@ -40,7 +67,7 @@ async function loadPrepState(): Promise<void> {
     const state = await fetchCompanyPrepState();
     messages.value = state.messages;
     isClosed.value = state.isClosed;
-    profile.value = state.profile;
+    syncEditableProfile(state.profile);
     viewingHistory.value = false;
     loadState.value = "ready";
 
@@ -119,7 +146,7 @@ async function onDeleteChat(): Promise<void> {
     await deleteCompanyPrepChat();
     messages.value = [];
     isClosed.value = false;
-    profile.value = null;
+    syncEditableProfile(null);
     viewingHistory.value = false;
     lastReadyForConfirmation.value = false;
     await triggerGreeting();
@@ -138,13 +165,33 @@ async function onFinishChat(): Promise<void> {
   sending.value = true;
   try {
     const response = await finishCompanyPrepChat();
-    profile.value = response.profile;
+    syncEditableProfile(response.profile);
     isClosed.value = true;
     viewingHistory.value = false;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося завершити чат";
   } finally {
     sending.value = false;
+  }
+}
+
+async function onSaveProfileEdits(): Promise<void> {
+  if (!editableProfile.value) return;
+  errorMessage.value = null;
+  saving.value = true;
+  try {
+    const { profile: updated } = await updateCompanyPrepProfile({
+      culture: editableProfile.value.culture,
+      companyDirection: editableProfile.value.companyDirection,
+      policies: editableProfile.value.policies,
+      workFormat: editableProfile.value.workFormat,
+      onboardingApproach: editableProfile.value.onboardingApproach,
+    });
+    syncEditableProfile(updated);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Не вдалося зберегти профіль";
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -161,7 +208,7 @@ async function onConfirmProfile(): Promise<void> {
   confirming.value = true;
   try {
     const response = await confirmCompanyPrepProfile();
-    profile.value = response.profile;
+    syncEditableProfile(response.profile);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
   } finally {
@@ -191,13 +238,71 @@ onMounted(loadPrepState);
       <button type="button" class="btn-secondary" @click="goHome">← До списку анкет</button>
     </header>
 
+    <p class="page-hint">
+      Заповніть один раз відповіді про культуру, напрям і політики компанії — вони автоматично
+      підтягуватимуться до кожної вакансії.
+    </p>
+
     <p v-if="loadState === 'loading'">Завантаження…</p>
     <p v-else-if="loadState === 'error'" class="error-banner">{{ errorMessage }}</p>
 
     <template v-else>
       <section v-if="isClosed && profile && !viewingHistory" class="profile-view">
         <h2>Зібраний профіль компанії</h2>
-        <dl>
+
+        <form
+          v-if="!profile.confirmedAt && editableProfile"
+          class="profile-form"
+          @submit.prevent="onSaveProfileEdits"
+        >
+          <label class="field">
+            <span class="field-label">Культура</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('culture')"
+              @input="onArrayFieldInput('culture', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Напрям компанії</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('companyDirection')"
+              @input="onArrayFieldInput('companyDirection', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Політики</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('policies')"
+              @input="onArrayFieldInput('policies', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Формат роботи</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('workFormat')"
+              @input="onArrayFieldInput('workFormat', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Онбординг</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="getArrayField('onboardingApproach')"
+              @input="onArrayFieldInput('onboardingApproach', $event)"
+            />
+          </label>
+        </form>
+
+        <dl v-else>
           <dt>Культура</dt>
           <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
           <dt>Напрям компанії</dt>
@@ -209,6 +314,9 @@ onMounted(loadPrepState);
           <dt>Онбординг</dt>
           <dd><ul><li v-for="(item, i) in profile.onboardingApproach" :key="i">{{ item }}</li></ul></dd>
         </dl>
+
+        <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
+
         <div class="actions">
           <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
           <button
@@ -223,8 +331,17 @@ onMounted(loadPrepState);
           <button
             v-if="!profile.confirmedAt"
             type="button"
+            class="btn-secondary"
+            :disabled="saving"
+            @click="onSaveProfileEdits"
+          >
+            {{ saving ? "Збереження…" : "Зберегти зміни" }}
+          </button>
+          <button
+            v-if="!profile.confirmedAt"
+            type="button"
             class="btn-primary"
-            :disabled="confirming"
+            :disabled="confirming || saving"
             @click="onConfirmProfile"
           >
             Підтвердити профіль
@@ -302,6 +419,12 @@ onMounted(loadPrepState);
 .header h1 {
   margin: 0;
   font-size: 1.25rem;
+}
+.page-hint {
+  margin: -0.75rem 0 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted, #6b7280);
+  line-height: 1.45;
 }
 .chat-header {
   display: flex;
@@ -418,6 +541,30 @@ onMounted(loadPrepState);
   grid-template-columns: 8rem 1fr;
   gap: 0.5rem 1rem;
   margin: 1rem 0;
+}
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.field-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.875rem;
+}
+.field-input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+  resize: vertical;
 }
 .profile-view dt {
   font-weight: 600;

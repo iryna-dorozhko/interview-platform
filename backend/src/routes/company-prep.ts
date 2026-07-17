@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   buildCompanyProfileAgentMessages,
   buildHrCompanyProfileExtractionMessages,
@@ -11,6 +11,14 @@ import type { LlmProvider } from "../llm/types";
 
 type MessageBody = {
   message?: unknown;
+};
+
+type ProfilePatchBody = {
+  culture?: unknown;
+  companyDirection?: unknown;
+  policies?: unknown;
+  workFormat?: unknown;
+  onboardingApproach?: unknown;
 };
 
 type HrCompanyProfileDto = {
@@ -38,6 +46,55 @@ function toProfileDto(profile: {
     onboardingApproach: profile.onboardingApproach as string[],
     confirmedAt: profile.confirmedAt ? profile.confirmedAt.toISOString() : null,
   };
+}
+
+function parseStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) {
+    return null;
+  }
+  const items = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+  if (items.length === 0 || items.length !== value.length) {
+    return null;
+  }
+  return items;
+}
+
+function asInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
+
+function parseProfilePatch(
+  body: ProfilePatchBody
+): { ok: true; data: Prisma.HrCompanyProfileUpdateInput } | { ok: false; error: string } {
+  const data: Prisma.HrCompanyProfileUpdateInput = {};
+  const hasField = (field: keyof ProfilePatchBody) => Object.prototype.hasOwnProperty.call(body, field);
+
+  if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
+    return { ok: false, error: "No fields to update" };
+  }
+
+  const arrayFields = [
+    "culture",
+    "companyDirection",
+    "policies",
+    "workFormat",
+    "onboardingApproach",
+  ] as const;
+
+  for (const field of arrayFields) {
+    if (!hasField(field)) {
+      continue;
+    }
+    const parsed = parseStringArray(body[field]);
+    if (!parsed) {
+      return { ok: false, error: `Invalid ${field}` };
+    }
+    data[field] = asInputJson(parsed);
+  }
+
+  return { ok: true, data };
 }
 
 export function createCompanyPrepRouter(
@@ -210,6 +267,47 @@ export function createCompanyPrepRouter(
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[company-prep:confirm] failed to confirm profile:", detail);
+      res.status(500).json({ error: "Internal error", detail });
+      return;
+    }
+
+    res.status(200).json({ profile: toProfileDto(updatedProfile) });
+  });
+
+  router.patch("/company-prep/profile", async (req: Request, res: Response) => {
+    const hrUserId = req.user?.id;
+    if (!hrUserId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const prisma = getPrisma();
+    const profile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
+    if (!profile) {
+      res.status(404).json({ error: "Profile not found" });
+      return;
+    }
+
+    if (profile.confirmedAt) {
+      res.status(409).json({ error: "Profile already confirmed" });
+      return;
+    }
+
+    const parsed = parseProfilePatch((req.body ?? {}) as ProfilePatchBody);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+
+    let updatedProfile;
+    try {
+      updatedProfile = await prisma.hrCompanyProfile.update({
+        where: { hrUserId },
+        data: parsed.data,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[company-prep:patch-profile] failed to update profile:", detail);
       res.status(500).json({ error: "Internal error", detail });
       return;
     }

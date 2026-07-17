@@ -303,3 +303,91 @@ test("DELETE /company-prep returns 409 when profile confirmed", async () => {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
+
+test("PATCH /company-prep/profile updates fields before confirm", async () => {
+  const fakePrisma = makeFakePrisma({
+    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        hrUserId: "hr_1",
+        culture: ["Відкритість"],
+        companyDirection: ["EdTech"],
+        policies: ["Remote-first"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        culture: ["прозорість"],
+        companyDirection: ["FinTech"],
+        policies: ["remote-first"],
+        workFormat: ["Remote"],
+        onboardingApproach: ["Ментор 1 місяць"],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.profile.culture, ["прозорість"]);
+    assert.deepEqual(body.profile.companyDirection, ["FinTech"]);
+    assert.equal(body.profile.confirmedAt, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("PATCH /company-prep/profile returns 409 after confirm", async () => {
+  const fakePrisma = makeFakePrisma({
+    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        hrUserId: "hr_1",
+        culture: ["Відкритість"],
+        companyDirection: ["EdTech"],
+        policies: ["Remote-first"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ culture: ["інше"] }),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Profile already confirmed");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
