@@ -9,12 +9,17 @@ import {
 import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 import { roomName } from "../socket/maybe-transition-live";
+import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME, isSelfServiceQuestionnaire } from "../utils/candidate-interview-kind";
 import { generateJoinCode } from "../utils/joinCode";
 import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
 import { assertInviteableEmail, cancelPendingInvitations } from "../utils/invitation";
 
 const MAX_CREATE_ATTEMPTS = 5;
 const EDITABLE_STATUSES = new Set(["AWAITING_CANDIDATE", "READY"]);
+
+function isHrVisibleInterview(interview: { displayName: string }): boolean {
+  return !isSelfServiceQuestionnaire(interview.displayName);
+}
 
 const interviewDetailInclude = {
   vacancy: { select: { title: true } },
@@ -100,7 +105,10 @@ export function createInterviewsRouter(
   router.get("/interviews/mine", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const interviews = await prisma.interview.findMany({
-      where: { hrUserId: req.user?.id },
+      where: {
+        hrUserId: req.user?.id,
+        displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME },
+      },
       orderBy: { createdAt: "desc" },
       include: {
         vacancy: { select: { title: true } },
@@ -108,6 +116,7 @@ export function createInterviewsRouter(
         invitations: { where: { status: "PENDING" }, take: 1 },
       },
     });
+
 
     res.status(200).json({
       interviews: interviews.map((item) => mapInterviewListItem(item)),
@@ -131,6 +140,10 @@ export function createInterviewsRouter(
     }
     if (interview.hrUserId !== req.user?.id) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (!isHrVisibleInterview(interview)) {
+      res.status(404).json({ error: "Interview not found" });
       return;
     }
 
@@ -251,6 +264,10 @@ export function createInterviewsRouter(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+    if (!isHrVisibleInterview(interview)) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
     if (!EDITABLE_STATUSES.has(interview.status) || interview.candidateUserId != null) {
       res.status(409).json({ error: "Cannot update invitation" });
       return;
@@ -306,6 +323,10 @@ export function createInterviewsRouter(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+    if (!isHrVisibleInterview(interview)) {
+      res.status(404).json({ error: "Interview not found" });
+      return;
+    }
     if (!EDITABLE_STATUSES.has(interview.status)) {
       res.status(409).json({ error: "Cannot update schedule" });
       return;
@@ -350,6 +371,12 @@ export function createInterviewsRouter(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+
+    if (!isHrVisibleInterview(interview)) {
+      res.status(409).json({ error: "Self-service questionnaire cannot be deleted" });
+      return;
+    }
+
 
     await prisma.$transaction(async (tx) => {
       const liveSession = await tx.liveSession.findUnique({

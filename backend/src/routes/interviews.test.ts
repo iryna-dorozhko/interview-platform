@@ -78,7 +78,10 @@ function makeFakePrisma(
         where,
         include,
       }: {
-        where: { hrUserId: string };
+        where: {
+          hrUserId: string;
+          displayName?: string | { not: string };
+        };
         include?: {
           vacancy?: { select: { title: true } };
           finalReport?: { select: { id: true; recommendation: true } };
@@ -86,7 +89,21 @@ function makeFakePrisma(
         };
       }) => {
         const filtered = interviews
-          .filter((item) => item.hrUserId === where.hrUserId)
+          .filter((item) => {
+            if (item.hrUserId !== where.hrUserId) return false;
+            const displayNameFilter = where.displayName;
+            if (typeof displayNameFilter === "string") {
+              return item.displayName === displayNameFilter;
+            }
+            if (
+              displayNameFilter &&
+              typeof displayNameFilter === "object" &&
+              "not" in displayNameFilter
+            ) {
+              return item.displayName !== displayNameFilter.not;
+            }
+            return true;
+          })
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
         if (include?.vacancy || include?.finalReport || include?.invitations) {
@@ -1160,6 +1177,7 @@ test("DELETE /interviews/:id returns 403 for another HR", async () => {
         joinCode: "ABC123",
         status: "AWAITING_CANDIDATE",
         createdAt: new Date(),
+        scheduledAt: null,
       },
     ],
     [confirmedVacancy]
@@ -1173,6 +1191,108 @@ test("DELETE /interviews/:id returns 403 for another HR", async () => {
     assert.equal(response.status, 403);
     const body = await response.json();
     assert.equal(body.error, "Forbidden");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("DELETE /interviews/:id returns 409 for self-service questionnaire", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "int_questionnaire",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Моя анкета",
+        joinCode: "SELF01",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(),
+        scheduledAt: null,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await deleteInterview(port, "int_questionnaire");
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "Self-service questionnaire cannot be deleted");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/mine excludes self-service questionnaires", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "int_real",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Backend",
+        joinCode: "ABC123",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date("2026-07-16T12:00:00.000Z"),
+        scheduledAt: null,
+      },
+      {
+        id: "int_questionnaire",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Моя анкета",
+        joinCode: "SELF01",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date("2026-07-16T13:00:00.000Z"),
+        scheduledAt: null,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/mine`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interviews.length, 1);
+    assert.equal(body.interviews[0].id, "int_real");
+    assert.equal(body.interviews[0].displayName, "Backend");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /interviews/:id returns 404 for self-service questionnaire", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "int_questionnaire",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Моя анкета",
+        joinCode: "SELF01",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(),
+        scheduledAt: null,
+      },
+    ],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/int_questionnaire`);
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.equal(body.error, "Interview not found");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
