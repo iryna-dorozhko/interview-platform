@@ -43,6 +43,25 @@ test("candidate system prompt mentions experience, strengths, weaknesses, and go
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /READY:true/);
 });
 
+test("candidate system prompt includes work conditions and deep follow-up rules", () => {
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /умови роботи/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /формат/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /зарплат/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /графік/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /релокац/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /доки відповідь не стане конкретною/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /обов'язково заглиб/i);
+});
+
+test("candidate system prompt READY gate requires all five profile topics", () => {
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /умови роботи/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /кар'єрні цілі/i);
+  assert.doesNotMatch(
+    CANDIDATE_AGENT_SYSTEM_PROMPT_UK,
+    /одне коротке уточнювальне питання/i,
+  );
+});
+
 test("candidate system prompt explains next step with HR code and shared interview", () => {
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /код.*HR|HR.*код/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /спільн.*співбесід|live-співбесід/i);
