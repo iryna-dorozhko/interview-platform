@@ -342,6 +342,11 @@ export function createRoomOrchestrator(
         }
 
         if (runCandidateActions) {
+          // Guardrail: never spam ANSWER after Candidate already spoke this turn
+          if (candidatePostedThisTurn && command.action === "ANSWER") {
+            break;
+          }
+
           emitThinking(io, interviewId, {
             active: true,
             agentType: "AGENT_CANDIDATE",
@@ -363,6 +368,11 @@ export function createRoomOrchestrator(
                 reply.message,
               );
               candidatePostedThisTurn = true;
+            }
+
+            // Silence or deferral to live human: stop conductor, keep pendingQuestion
+            if (!reply.post || reply.needsHuman === true) {
+              break;
             }
           } catch (error) {
             candidateStepFailed = true;

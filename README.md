@@ -1225,7 +1225,7 @@ Auth: JWT у `handshake.auth.token` (той самий `auth_token` з localStor
 3. Надіслати офтоп або повторити те саме кілька разів → Arbiter публікує модеруючий коментар.
 4. Швидко надіслати 3 повідомлення → Arbiter відповідає один раз (debounce).
 
-> **Примітка (Day 18):** Orchestrator розширено до ланцюжка Arbiter → Company → Candidate — див. [День 18](#день-18--company-і-candidate-agent-у-кімнаті).
+> **Примітка:** Orchestrator використовує Arbiter Conductor (структуровані команди + selective Company/Candidate) — див. [День 18](#день-18--company-і-candidate-agent-у-кімнаті) та `docs/superpowers/specs/2026-07-16-arbiter-conductor-design.md`.
 
 ---
 

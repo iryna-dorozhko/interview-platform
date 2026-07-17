@@ -65,13 +65,13 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 }
 
 export const COMPANY_QUESTION_NUDGE_UK =
-  "[Система] Company Agent поставив питання. Відповідай про кандидата (третя особа) згідно з профілем.";
+  "[Система] Company Agent поставив питання. Відповідай про кандидата (третя особа) згідно з профілем. Не повторюй факти з попередніх повідомлень AGENT_CANDIDATE або HUMAN_CANDIDATE у цьому чаті — лише нове для поточного питання.";
 
 export const ANSWER_NUDGE_UK =
-  "[Система] Команда Arbiter: ANSWER. Відповідай на відкрите питання про кандидата (третя особа) згідно з профілем. Якщо з профілю видно прогалину — post:true, needsHuman:true, висунь припущення і попроси підтвердити/доповнити. Якщо даних немає — post:true, needsHuman:true і природно попроси живу людину відповісти (не мовчи, не копіюй шаблон).";
+  "[Система] Команда Arbiter: ANSWER. Відповідай на відкрите питання про кандидата (третя особа) згідно з профілем. Спочатку перевір історію чату — не дублюй уже сказане. Якщо з профілю видно прогалину — post:true, needsHuman:true, висунь припущення і попроси підтвердити/доповнити. Якщо даних немає — post:true, needsHuman:true і природно попроси живу людину відповісти (не мовчи, не копіюй шаблон).";
 
 export const CANDIDATE_QUESTIONS_NUDGE_UK =
-  "[Система] Команда Arbiter: CANDIDATE_QUESTIONS. Постав одне питання компанії в інтересах кандидата, або коротко скажи, що питань немає.";
+  "[Система] Команда Arbiter: CANDIDATE_QUESTIONS. Постав одне нове питання компанії в інтересах кандидата (не те, що вже питали або на яке відповіли в чаті), або коротко скажи, що питань немає.";
 
 export function formatCandidateTurnNudge(turnContext: LiveAgentTurnContext): string {
   const brief = turnContext.briefUk?.trim();

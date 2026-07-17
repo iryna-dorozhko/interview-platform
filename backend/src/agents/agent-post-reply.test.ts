@@ -34,3 +34,17 @@ test("parsePostReply throws when post:true but message is empty", () => {
 test("parsePostReply throws when post field is missing", () => {
   assert.throws(() => parsePostReply('{ "message": "hi" }'), AgentPostReplyParseError);
 });
+
+test("parsePostReply parses needsHuman:true with message", () => {
+  const result = parsePostReply(
+    '{ "post": true, "message": "У профілі немає відповіді. Ірино, дай відповідь.", "needsHuman": true }',
+  );
+  assert.equal(result.post, true);
+  assert.equal(result.needsHuman, true);
+  assert.match(result.message ?? "", /Ірино/);
+});
+
+test("parsePostReply defaults needsHuman to false when omitted", () => {
+  const result = parsePostReply('{ "post": true, "message": "Я працював з Node.js." }');
+  assert.equal(result.needsHuman, false);
+});

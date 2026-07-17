@@ -376,3 +376,100 @@ test("orchestrator close clears timers and prevents new turns", async () => {
 
   assert.equal(calls, 0);
 });
+
+test("orchestrator stops after Candidate post:false (no ANSWER spam)", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterN = 0;
+  let candidateCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 6,
+    runArbiterTurn: async () => {
+      arbiterN += 1;
+      return cmd({ action: "ANSWER", summaryUk: "Відповісти" });
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return { post: false };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 100));
+
+  assert.equal(arbiterN, 1);
+  assert.equal(candidateCalls, 1);
+  assert.equal(emitted.filter((e) => e.event === "room:messages").length, 0);
+});
+
+test("orchestrator stops after Candidate needsHuman (no deferral spam)", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterN = 0;
+  let candidateCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 6,
+    runArbiterTurn: async () => {
+      arbiterN += 1;
+      return cmd({ action: "ANSWER", summaryUk: "Відповісти" });
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return {
+        post: true,
+        message: "У профілі немає деталей. Ірино, дай відповідь сама.",
+        needsHuman: true,
+      };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 100));
+
+  assert.equal(arbiterN, 1);
+  assert.equal(candidateCalls, 1);
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.equal(agentMessages.length, 1);
+  assert.match(
+    (agentMessages[0].payload as { messages: Array<{ content: string }> }).messages[0]
+      .content,
+    /Ірино/,
+  );
+});
+
+test("orchestrator does not re-ANSWER after Candidate already posted this turn", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io } = makeIo();
+  let arbiterN = 0;
+  let candidateCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 6,
+    runArbiterTurn: async () => {
+      arbiterN += 1;
+      if (arbiterN === 1) {
+        return cmd({ action: "ANSWER", summaryUk: "Перша відповідь" });
+      }
+      // Bad Arbiter: keeps asking ANSWER after a real answer was posted
+      return cmd({ action: "ANSWER", summaryUk: "Знову відповісти" });
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return { post: true, message: "Я працював з Vue 3 на навчальних проєктах." };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 100));
+
+  assert.equal(candidateCalls, 1);
+  assert.equal(arbiterN, 2);
+});

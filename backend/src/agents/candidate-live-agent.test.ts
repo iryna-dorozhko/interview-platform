@@ -102,10 +102,23 @@ test("candidate live prompt requires third person and three ANSWER modes", () =>
   );
 });
 
+test("candidate live prompt forbids repeating information from chat history", () => {
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /без повтор/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /AGENT_CANDIDATE/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /HUMAN_CANDIDATE/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /лише нові для чату/i);
+});
+
 test("ANSWER nudge mentions third person and confirmation deferral", () => {
   assert.match(ANSWER_NUDGE_UK, /про кандидата|трет/i);
   assert.match(ANSWER_NUDGE_UK, /needsHuman:true/);
   assert.match(ANSWER_NUDGE_UK, /підтверд|доповн/i);
+  assert.match(ANSWER_NUDGE_UK, /не дублюй/i);
+});
+
+test("company and candidate question nudges discourage repetition", () => {
+  assert.match(COMPANY_QUESTION_NUDGE_UK, /Не повторюй/i);
+  assert.match(CANDIDATE_QUESTIONS_NUDGE_UK, /нове питання/i);
 });
 
 test("runCandidateLiveTurn loads profile, calls LLM, parses reply", async () => {

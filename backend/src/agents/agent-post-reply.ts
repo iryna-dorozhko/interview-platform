@@ -1,6 +1,8 @@
 export interface ParsedPostReply {
   post: boolean;
   message?: string;
+  /** Candidate asks the live human to answer; conductor must stop and WAIT. */
+  needsHuman?: boolean;
 }
 
 export class AgentPostReplyParseError extends Error {
@@ -29,17 +31,25 @@ export function parsePostReply(rawText: string): ParsedPostReply {
     throw new AgentPostReplyParseError("Agent reply is not a JSON object");
   }
 
-  const { post, message } = data as Record<string, unknown>;
+  const { post, message, needsHuman } = data as Record<string, unknown>;
 
   if (typeof post !== "boolean") {
     throw new AgentPostReplyParseError("missing or invalid field: post");
+  }
+
+  if (needsHuman !== undefined && typeof needsHuman !== "boolean") {
+    throw new AgentPostReplyParseError("invalid field: needsHuman");
   }
 
   if (post) {
     if (typeof message !== "string" || !message.trim()) {
       throw new AgentPostReplyParseError("missing or invalid field: message");
     }
-    return { post: true, message: message.trim() };
+    return {
+      post: true,
+      message: message.trim(),
+      needsHuman: needsHuman === true,
+    };
   }
 
   return { post: false };
