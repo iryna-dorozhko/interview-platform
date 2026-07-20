@@ -1,17 +1,94 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import type { ChatMessage, LlmProvider } from "../llm/types";
-import {
-  AgentPostReplyParseError,
-  parsePostReply,
-  type ParsedPostReply,
-} from "./agent-post-reply";
+import { AgentPostReplyParseError } from "./agent-post-reply";
 import type { LiveAgentTurnContext } from "./live-agent-turn-context";
 import { CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/candidate-live-agent.uk";
 import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
 
-export type ParsedCandidateLiveReply = ParsedPostReply;
+export type CandidateConfidenceLevel = "confirmed" | "inferred" | "unknown";
+
+export interface ParsedCandidateLiveReply {
+  post: boolean;
+  message?: string;
+  confidence?: CandidateConfidenceLevel;
+  needsHuman: boolean;
+}
+
 export { AgentPostReplyParseError as CandidateLiveReplyParseError };
 export type { LiveAgentTurnContext };
+
+const CONFIDENCE_LEVELS = new Set<CandidateConfidenceLevel>([
+  "confirmed",
+  "inferred",
+  "unknown",
+]);
+
+function parseConfidenceLevel(value: unknown): CandidateConfidenceLevel {
+  if (typeof value !== "string" || !CONFIDENCE_LEVELS.has(value as CandidateConfidenceLevel)) {
+    throw new AgentPostReplyParseError("missing or invalid field: confidence");
+  }
+  return value as CandidateConfidenceLevel;
+}
+
+export function parseCandidateLiveReply(
+  rawText: string,
+  options?: { requireConfidence?: boolean },
+): ParsedCandidateLiveReply {
+  const withoutFences = rawText.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, "$1");
+
+  let data: unknown;
+  try {
+    data = JSON.parse(withoutFences);
+  } catch {
+    throw new AgentPostReplyParseError("LLM returned invalid JSON for agent reply");
+  }
+
+  if (typeof data !== "object" || data === null) {
+    throw new AgentPostReplyParseError("Agent reply is not a JSON object");
+  }
+
+  const record = data as Record<string, unknown>;
+  const { post, message } = record;
+
+  if (typeof post !== "boolean") {
+    throw new AgentPostReplyParseError("missing or invalid field: post");
+  }
+
+  if (!post) {
+    return { post: false, needsHuman: false };
+  }
+
+  if (typeof message !== "string" || !message.trim()) {
+    throw new AgentPostReplyParseError("missing or invalid field: message");
+  }
+
+  const confidenceRaw = record.confidence;
+  if (confidenceRaw === undefined || confidenceRaw === null) {
+    if (options?.requireConfidence) {
+      throw new AgentPostReplyParseError("missing or invalid field: confidence");
+    }
+    return { post: true, message: message.trim(), needsHuman: false };
+  }
+
+  const confidence = parseConfidenceLevel(confidenceRaw);
+  return {
+    post: true,
+    message: message.trim(),
+    confidence,
+    needsHuman: confidence === "unknown",
+  };
+}
+
+export function toPrismaCandidateConfidence(
+  level: CandidateConfidenceLevel,
+): import("@prisma/client").CandidateConfidence {
+  const map = {
+    confirmed: "CONFIRMED",
+    inferred: "INFERRED",
+    unknown: "UNKNOWN",
+  } as const;
+  return map[level];
+}
 
 export interface CandidateLiveProfileContext {
   summary: string;
@@ -30,10 +107,6 @@ export class CandidateLiveContextError extends Error {
     super(message);
     this.name = "CandidateLiveContextError";
   }
-}
-
-export function parseCandidateLiveReply(rawText: string): ParsedCandidateLiveReply {
-  return parsePostReply(rawText);
 }
 
 function formatProfileBlock(data: CandidateLiveProfileContext): string {

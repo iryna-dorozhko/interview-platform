@@ -6,11 +6,54 @@ import {
   ANSWER_NUDGE_UK,
   buildCandidateLiveMessages,
   CANDIDATE_QUESTIONS_NUDGE_UK,
+  CandidateLiveReplyParseError,
   COMPANY_QUESTION_NUDGE_UK,
   formatCandidateTurnNudge,
+  parseCandidateLiveReply,
   runCandidateLiveTurn,
 } from "./candidate-live-agent";
 import { CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/candidate-live-agent.uk";
+
+test("parseCandidateLiveReply maps confidence to needsHuman", () => {
+  const confirmed = parseCandidateLiveReply(
+    '{ "post": true, "message": "Кандидат має досвід.", "confidence": "confirmed" }',
+    { requireConfidence: true },
+  );
+  assert.equal(confirmed.confidence, "confirmed");
+  assert.equal(confirmed.needsHuman, false);
+
+  const inferred = parseCandidateLiveReply(
+    '{ "post": true, "message": "З анкети видно…", "confidence": "inferred" }',
+    { requireConfidence: true },
+  );
+  assert.equal(inferred.confidence, "inferred");
+  assert.equal(inferred.needsHuman, false);
+
+  const unknown = parseCandidateLiveReply(
+    '{ "post": true, "message": "Ірино, відповідай сама.", "confidence": "unknown" }',
+    { requireConfidence: true },
+  );
+  assert.equal(unknown.confidence, "unknown");
+  assert.equal(unknown.needsHuman, true);
+});
+
+test("parseCandidateLiveReply requires confidence when requireConfidence is true", () => {
+  assert.throws(
+    () =>
+      parseCandidateLiveReply('{ "post": true, "message": "Без confidence." }', {
+        requireConfidence: true,
+      }),
+    CandidateLiveReplyParseError,
+  );
+});
+
+test("parseCandidateLiveReply ignores needsHuman from LLM JSON", () => {
+  const result = parseCandidateLiveReply(
+    '{ "post": true, "message": "Текст.", "confidence": "inferred", "needsHuman": true }',
+    { requireConfidence: true },
+  );
+  assert.equal(result.needsHuman, false);
+});
 
 const candidateProfile = {
   summary: "5 років досвіду з Node.js",
