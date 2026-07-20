@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { LlmProvider } from "../llm/types";
 import {
   ensureMatchScores,
-  getNextMatchOffer,
+  getTopMatchOffers,
   pickTopOffers,
   pickNextOffer,
   sortScoresDesc,
@@ -325,7 +325,7 @@ test("ensureMatchScores returns empty without calling LLM when no confirmed vaca
   assert.equal(completeCalls, 0);
 });
 
-test("getNextMatchOffer skips rejected vacancies", async () => {
+test("getTopMatchOffers skips rejected vacancies and returns remaining", async () => {
   const fakePrisma = makeFakePrisma(
     confirmedCandidateSeed({
       vacancies: [
@@ -373,23 +373,20 @@ test("getNextMatchOffer skips rejected vacancies", async () => {
       offerDecisions: [{ candidateUserId: "cd_1", vacancyId: "v1", decision: "REJECTED" }],
     }),
   );
-  let completeCalls = 0;
   const fakeLlm: LlmProvider = {
     name: "fake",
-    complete: async () => {
-      completeCalls += 1;
-      return '{"scores":[]}';
-    },
+    complete: async () => '{"scores":[]}',
   };
 
-  const next = await getNextMatchOffer(
+  const offers = await getTopMatchOffers(
     fakePrisma as unknown as PrismaClient,
     fakeLlm,
     "cd_1",
   );
 
-  assert.deepEqual(next, { vacancyId: "v2", title: "Platform Engineer", matchScore: 80 });
-  assert.equal(completeCalls, 0);
+  assert.deepEqual(offers, [
+    { vacancyId: "v2", title: "Platform Engineer", matchScore: 80 },
+  ]);
 });
 
 test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
@@ -449,7 +446,7 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
   );
 });
 
-test("getNextMatchOffer throws QUESTIONNAIRE_NOT_CONFIRMED when profile missing", async () => {
+test("getTopMatchOffers throws QUESTIONNAIRE_NOT_CONFIRMED when profile missing", async () => {
   const fakePrisma = makeFakePrisma({ vacancies: [], interviews: [], candidateProfiles: [] });
   const fakeLlm: LlmProvider = {
     name: "fake",
@@ -459,7 +456,7 @@ test("getNextMatchOffer throws QUESTIONNAIRE_NOT_CONFIRMED when profile missing"
   };
 
   await assert.rejects(
-    () => getNextMatchOffer(fakePrisma as unknown as PrismaClient, fakeLlm, "cd_1"),
+    () => getTopMatchOffers(fakePrisma as unknown as PrismaClient, fakeLlm, "cd_1"),
     (error: unknown) => {
       assert.ok(error instanceof VacancyMatchServiceError);
       assert.equal(error.code, "QUESTIONNAIRE_NOT_CONFIRMED");

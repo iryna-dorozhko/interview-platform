@@ -183,12 +183,12 @@ export async function ensureMatchScores(
   return offers;
 }
 
-export async function getNextMatchOffer(
+export async function getTopMatchOffers(
   prisma: PrismaClient,
   llm: LlmProvider,
   candidateUserId: string,
-): Promise<CandidateMatchOffer | null> {
+): Promise<CandidateMatchOffer[]> {
   const offers = await ensureMatchScores(prisma, llm, candidateUserId);
   const rejected = await getRejectedVacancyIds(prisma, candidateUserId);
-  return pickNextOffer(offers, rejected);
+  return pickTopOffers(offers, rejected, 5);
 }
