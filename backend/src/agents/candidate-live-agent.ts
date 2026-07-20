@@ -138,23 +138,46 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 }
 
 export const COMPANY_QUESTION_NUDGE_UK =
-  "[Система] Company Agent поставив питання. Відповідай про кандидата (третя особа) згідно з профілем. Не повторюй факти з попередніх повідомлень AGENT_CANDIDATE або HUMAN_CANDIDATE у цьому чаті — лише нове для поточного питання.";
+  "[Система] Company Agent поставив питання. Відповідай про кандидата (третя особа) з confidence: confirmed | inferred | unknown. Не перефразовуй питання.";
 
 export const ANSWER_NUDGE_UK =
-  "[Система] Команда Arbiter: ANSWER. Відповідай на відкрите питання про кандидата (третя особа) згідно з профілем. Спочатку перевір історію чату — не дублюй уже сказане. Якщо з профілю видно прогалину — post:true, needsHuman:true, висунь припущення і попроси підтвердити/доповнити. Якщо даних немає — post:true, needsHuman:true і природно попроси живу людину відповісти (не мовчи, не копіюй шаблон).";
+  "[Система] Команда Arbiter: ANSWER. Відповідай про кандидата (третя особа) згідно з профілем. Обов'язково вкажи confidence: confirmed (факт з профілю), inferred (висновок/часткові дані), unknown (немає даних — попроси живу людину). Не перефразовуй питання — лише відповідь. Не дублюй уже сказане в чаті.";
 
 export const CANDIDATE_QUESTIONS_NUDGE_UK =
-  "[Система] Команда Arbiter: CANDIDATE_QUESTIONS. Постав одне нове питання компанії в інтересах кандидата (не те, що вже питали або на яке відповіли в чаті), або коротко скажи, що питань немає.";
+  "[Система] Команда Arbiter: CANDIDATE_QUESTIONS. Постав одне нове питання компанії в інтересах кандидата (не те, що вже питали AGENT_COMPANY, HUMAN_HR або AGENT_CANDIDATE, і не перефразовуй їх), або коротко скажи, що питань немає.";
 
-export function formatCandidateTurnNudge(turnContext: LiveAgentTurnContext): string {
-  const brief = turnContext.briefUk?.trim();
-  const briefPart = brief ? ` Підказка Arbiter: ${brief}` : "";
+const INTERVIEWER_AUTHOR_TYPES = new Set<LiveAuthorType>(["AGENT_COMPANY", "HUMAN_HR"]);
 
-  if (turnContext.action === "CANDIDATE_QUESTIONS") {
-    return `${CANDIDATE_QUESTIONS_NUDGE_UK}${briefPart}`;
+export function collectRecentInterviewerQuestions(history: LiveHistoryItem[]): string[] {
+  return history
+    .filter((item) => INTERVIEWER_AUTHOR_TYPES.has(item.authorType))
+    .map((item) => item.content.trim())
+    .filter(Boolean);
+}
+
+export function formatInterviewerQuestionsBlock(history: LiveHistoryItem[]): string {
+  const questions = collectRecentInterviewerQuestions(history);
+  if (questions.length === 0) {
+    return "";
   }
 
-  return `${ANSWER_NUDGE_UK}${briefPart}`;
+  const lines = questions.map((question, index) => `${index + 1}. ${question}`).join("\n");
+  return `\n\nПитання Company/HR у чаті (не дублюй і не перефразовуй):\n${lines}`;
+}
+
+export function formatCandidateTurnNudge(
+  turnContext: LiveAgentTurnContext,
+  history: LiveHistoryItem[] = [],
+): string {
+  const brief = turnContext.briefUk?.trim();
+  const briefPart = brief ? ` Підказка Arbiter: ${brief}` : "";
+  const questionBlock = formatInterviewerQuestionsBlock(history);
+
+  if (turnContext.action === "CANDIDATE_QUESTIONS") {
+    return `${CANDIDATE_QUESTIONS_NUDGE_UK}${briefPart}${questionBlock}`;
+  }
+
+  return `${ANSWER_NUDGE_UK}${briefPart}${questionBlock}`;
 }
 
 export function buildCandidateLiveMessages(input: {
@@ -173,14 +196,17 @@ export function buildCandidateLiveMessages(input: {
   if (input.turnContext) {
     messages.push({
       role: "user",
-      content: formatCandidateTurnNudge(input.turnContext),
+      content: formatCandidateTurnNudge(input.turnContext, input.history),
     });
     return messages;
   }
 
   const last = input.history[input.history.length - 1];
   if (last?.authorType === "AGENT_COMPANY") {
-    messages.push({ role: "user", content: COMPANY_QUESTION_NUDGE_UK });
+    messages.push({
+      role: "user",
+      content: `${COMPANY_QUESTION_NUDGE_UK}${formatInterviewerQuestionsBlock(input.history)}`,
+    });
   }
 
   return messages;
@@ -225,5 +251,9 @@ export async function runCandidateLiveTurn(
   });
 
   const rawReply = await provider.complete(llmMessages);
-  return parseCandidateLiveReply(rawReply);
+
+  const requireConfidence =
+    turnContext?.action === "ANSWER" || turnContext?.action === undefined;
+
+  return parseCandidateLiveReply(rawReply, { requireConfidence });
 }

@@ -7,6 +7,7 @@ import {
   buildCandidateLiveMessages,
   CANDIDATE_QUESTIONS_NUDGE_UK,
   CandidateLiveReplyParseError,
+  collectRecentInterviewerQuestions,
   COMPANY_QUESTION_NUDGE_UK,
   formatCandidateTurnNudge,
   parseCandidateLiveReply,
@@ -89,7 +90,8 @@ test("buildCandidateLiveMessages appends nudge when last message is from Company
   const messages = buildCandidateLiveMessages({ candidateProfile, history });
 
   assert.equal(messages.at(-1)?.role, "user");
-  assert.equal(messages.at(-1)?.content, COMPANY_QUESTION_NUDGE_UK);
+  assert.match(messages.at(-1)?.content ?? "", new RegExp(COMPANY_QUESTION_NUDGE_UK.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(messages.at(-1)?.content ?? "", /Розкажіть про досвід з Node\.js\./);
 });
 
 test("buildCandidateLiveMessages does not append company nudge when candidate already replied", () => {
@@ -116,7 +118,7 @@ test("buildCandidateLiveMessages uses turnContext ANSWER nudge", () => {
 
   assert.equal(
     messages.at(-1)?.content,
-    formatCandidateTurnNudge({ action: "ANSWER", briefUk: "Стек з профілю" }),
+    formatCandidateTurnNudge({ action: "ANSWER", briefUk: "Стек з профілю" }, history),
   );
   assert.match(messages.at(-1)!.content, new RegExp(ANSWER_NUDGE_UK.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
@@ -131,10 +133,8 @@ test("buildCandidateLiveMessages uses CANDIDATE_QUESTIONS nudge", () => {
   assert.equal(messages.at(-1)?.content, CANDIDATE_QUESTIONS_NUDGE_UK);
 });
 
-test("candidate live prompt requires third person and three ANSWER modes", () => {
+test("candidate live prompt requires third person", () => {
   assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /трет(я|ій) особ/i);
-  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /підтверд/i);
-  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /needsHuman:\s*true/);
   assert.doesNotMatch(
     CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK,
     /Відповідай від імені кандидата \(перша особа/,
@@ -145,6 +145,13 @@ test("candidate live prompt requires third person and three ANSWER modes", () =>
   );
 });
 
+test("candidate live prompt defines three confidence levels", () => {
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /confidence.*confirmed/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /inferred/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /unknown/i);
+  assert.doesNotMatch(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /needsHuman:\s*true/);
+});
+
 test("candidate live prompt forbids repeating information from chat history", () => {
   assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /без повтор/i);
   assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /AGENT_CANDIDATE/i);
@@ -152,16 +159,72 @@ test("candidate live prompt forbids repeating information from chat history", ()
   assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /лише нові для чату/i);
 });
 
-test("ANSWER nudge mentions third person and confirmation deferral", () => {
+test("ANSWER nudge references confidence not needsHuman", () => {
+  assert.match(ANSWER_NUDGE_UK, /confidence/i);
+  assert.doesNotMatch(ANSWER_NUDGE_UK, /needsHuman:true/);
   assert.match(ANSWER_NUDGE_UK, /про кандидата|трет/i);
-  assert.match(ANSWER_NUDGE_UK, /needsHuman:true/);
-  assert.match(ANSWER_NUDGE_UK, /підтверд|доповн/i);
   assert.match(ANSWER_NUDGE_UK, /не дублюй/i);
 });
 
 test("company and candidate question nudges discourage repetition", () => {
-  assert.match(COMPANY_QUESTION_NUDGE_UK, /Не повторюй/i);
+  assert.match(COMPANY_QUESTION_NUDGE_UK, /confidence/i);
+  assert.match(COMPANY_QUESTION_NUDGE_UK, /Не перефразовуй/i);
   assert.match(CANDIDATE_QUESTIONS_NUDGE_UK, /нове питання/i);
+});
+
+test("candidate live prompt forbids duplicating Company Agent questions", () => {
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /AGENT_COMPANY/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /не (дублюй|повторюй|перефраз)/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /питан/i);
+});
+
+test("ANSWER nudge forbids echoing questions", () => {
+  assert.match(ANSWER_NUDGE_UK, /Не перефразовуй/i);
+  assert.match(ANSWER_NUDGE_UK, /не дублюй/i);
+});
+
+test("collectRecentInterviewerQuestions returns Company and HR messages", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_COMPANY", content: "Розкажіть про досвід з Node.js." },
+    { authorType: "AGENT_CANDIDATE", content: "Кандидат має 5 років досвіду." },
+    { authorType: "HUMAN_HR", content: "Як ви підходите до code review?" },
+  ];
+
+  assert.deepEqual(collectRecentInterviewerQuestions(history), [
+    "Розкажіть про досвід з Node.js.",
+    "Як ви підходите до code review?",
+  ]);
+});
+
+test("buildCandidateLiveMessages lists Company questions in ANSWER nudge", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_COMPANY", content: "Розкажіть про досвід з Node.js." },
+  ];
+
+  const messages = buildCandidateLiveMessages({
+    candidateProfile,
+    history,
+    turnContext: { action: "ANSWER", briefUk: "Node.js" },
+  });
+
+  assert.match(messages.at(-1)!.content, /Розкажіть про досвід з Node\.js\./);
+  assert.match(messages.at(-1)!.content, /не дублюй|не повторюй|не перефраз/i);
+});
+
+test("buildCandidateLiveMessages lists Company questions in CANDIDATE_QUESTIONS nudge", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_COMPANY", content: "Який у вас досвід з Docker?" },
+    { authorType: "AGENT_CANDIDATE", content: "Кандидат працював з Docker у production." },
+  ];
+
+  const messages = buildCandidateLiveMessages({
+    candidateProfile,
+    history,
+    turnContext: { action: "CANDIDATE_QUESTIONS" },
+  });
+
+  assert.match(messages.at(-1)!.content, /Який у вас досвід з Docker\?/);
+  assert.match(messages.at(-1)!.content, /не дублюй|не повторюй|не перефраз/i);
 });
 
 test("runCandidateLiveTurn loads profile, calls LLM, parses reply", async () => {
@@ -187,7 +250,7 @@ test("runCandidateLiveTurn loads profile, calls LLM, parses reply", async () => 
     name: "test",
     complete: async (messages) => {
       assert.match(messages.at(-1)!.content, /ANSWER/);
-      return '{ "post": true, "message": "Я працював з Node.js понад 5 років." }';
+      return '{ "post": true, "message": "Кандидат має 5 років досвіду.", "confidence": "confirmed" }';
     },
   };
 
@@ -195,5 +258,7 @@ test("runCandidateLiveTurn loads profile, calls LLM, parses reply", async () => 
     action: "ANSWER",
   });
   assert.equal(result.post, true);
-  assert.equal(result.message, "Я працював з Node.js понад 5 років.");
+  assert.equal(result.message, "Кандидат має 5 років досвіду.");
+  assert.equal(result.confidence, "confirmed");
+  assert.equal(result.needsHuman, false);
 });
