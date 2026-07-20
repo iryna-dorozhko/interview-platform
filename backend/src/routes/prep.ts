@@ -8,6 +8,7 @@ import {
 } from "../agents/company-agent";
 import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
+import { parseVacancyCompensation, parseWorkConditionsArray } from "../utils/vacancy-work-conditions";
 
 type MessageBody = {
   message?: unknown;
@@ -22,6 +23,8 @@ type ProfilePatchBody = {
   policies?: unknown;
   workFormat?: unknown;
   onboardingApproach?: unknown;
+  workConditions?: unknown;
+  compensation?: unknown;
 };
 
 function serializeVacancyProfile(profile: CompanyProfile) {
@@ -34,6 +37,8 @@ function serializeVacancyProfile(profile: CompanyProfile) {
     policies: (profile.policies as string[] | null) ?? [],
     workFormat: (profile.workFormat as string[] | null) ?? [],
     onboardingApproach: (profile.onboardingApproach as string[] | null) ?? [],
+    workConditions: parseWorkConditionsArray(profile.workConditions),
+    compensation: parseVacancyCompensation(profile.compensation),
     confirmedAt: profile.confirmedAt,
   };
 }
@@ -112,6 +117,18 @@ function parseProfilePatch(
       return { ok: false, error: `Invalid ${field}` };
     }
     data[field] = parsed;
+  }
+
+  if (hasField("workConditions")) {
+    const parsed = parseStringArray(body.workConditions);
+    if (!parsed) return { ok: false, error: "Invalid workConditions" };
+    data.workConditions = parsed;
+  }
+
+  if (hasField("compensation")) {
+    const parsed = parseVacancyCompensation(body.compensation);
+    if (!parsed) return { ok: false, error: "Invalid compensation" };
+    data.compensation = asInputJson(parsed);
   }
 
   return { ok: true, data };
@@ -269,6 +286,8 @@ export function createPrepRouter(
           role: extracted.role,
           requirements: extracted.requirements,
           expectations: extracted.expectations,
+          workConditions: extracted.workConditions,
+          compensation: asInputJson(extracted.compensation),
           ...snapshotFields,
         },
         create: {
@@ -276,6 +295,8 @@ export function createPrepRouter(
           role: extracted.role,
           requirements: extracted.requirements,
           expectations: extracted.expectations,
+          workConditions: extracted.workConditions,
+          compensation: asInputJson(extracted.compensation),
           ...snapshotFields,
         },
       });
