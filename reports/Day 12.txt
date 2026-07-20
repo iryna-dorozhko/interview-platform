@@ -1,0 +1,334 @@
+ЗВІТ ЗА 17 ЛИПНЯ 2026
+AI-платформа співбесід — глибока анкета кандидата (умови роботи),
+підбір вакансій з % match і заявки для HR
+
+================================================================================
+
+НА СТАРТІ ДНЯ (EXECUTIVE)
+
+1. Що отримав продукт сьогодні
+   Глибший Candidate Prep (follow-up + блок умов роботи в goals);
+   sequential vacancy match після confirm анкети; in-app заявки для HR
+   зі створенням співбесіди з заявки.
+
+2. Що тепер може робити користувач
+   Кандидат у анкеті відповідає на формат/зарплату/графік/релокацію;
+   після confirm бачить одну вакансію з % match → Прийняти / Відхилити;
+   HR у «Заявках» бачить ім’я, email, % і короткий висновок і створює
+   Interview вручну.
+
+3. Який ризик знято
+   Поверхнева анкета без умов праці; відсутність каналу
+   «кандидат → вакансія» без ручного join-коду від HR; HR не бачив
+   вхідного інтересу до вакансії до створення співбесіди.
+
+4. Які метрики очікується покращити
+   Повнота CandidateProfile (goals з умовами) при утриманні часу анкети
+   в межах ~30 хв (ручний ввід); completion rate prep; конверсія
+   confirm → accept; час HR від заявки до Create Interview.
+
+5. Що планується завтра
+   Злити `feat/vacancy-match-application` у main; ручний E2E
+   confirm → match → accept → HR create-interview → LIVE;
+   перевірити LLM-scoring latency/cache; UX deferral з Day 11 (A–E).
+
+
+================================================================================
+КОРОТКИЙ ПІДСУМОК
+================================================================================
+
+Сьогодні два продуктові блоки + закриття WIP з Day 11:
+
+1. **Deep Candidate Prep** — глибокі follow-up; новий блок «Умови роботи»
+   (формат, зарплата, графік, релокація) у `goals` з префіксами; READY gate
+   вимагає всі 5 тем.
+2. **Vacancy Match & Application** — після confirm: sequential offer
+   CONFIRMED вакансій з LLM %-score; accept → `VacancyApplication` +
+   `HrNotification`; HR inbox і Create Interview з заявки.
+3. **Day 11 WIP** — editable company/candidate profile перед confirm;
+   Arbiter process feed у sidebar кімнати; прибрано debug-логи.
+
+Гілка реалізації match: `feat/vacancy-match-application` (worktree).
+Deep prep і editable profiles — уже в історії main / спільній базі гілки.
+
+За день — **27 комітів**, ~64 унікальні файли у комітах;
+vacancy-match diff ~4873 / 71; deep prep ~603 / 11.
+
+
+################################################################################
+# 1. DEEP CANDIDATE PREP (УМОВИ РОБОТИ + FOLLOW-UP)
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+- Spec: `docs/superpowers/specs/2026-07-17-candidate-prep-deep-interview-design.md`
+- Plan: `docs/superpowers/plans/2026-07-17-candidate-prep-deep-interview.md`
+- Оновлено manual test dialogues / cheat sheet під глибшу анкету
+
+2. АГЕНТ (PROMPT-ONLY)
+
+- П’ять тем після contact bootstrap: досвід → сильні сторони → зони росту →
+  **умови роботи** → кар’єрні цілі
+- Follow-up до конкретики (цифри, назви, приклади); обов’язкове заглиблення
+  у згадки кандидата
+- Умови: формат / зарплата / графік / релокація; відмова після уточнення =
+  `"<підтема>: не вказано"`
+- Extraction: умови в `goals` з префіксами (`Формат:`, `Зарплата:`, …)
+- READY:true лише коли зібрано всі теми (у т.ч. 4 підтеми умов)
+
+3. UI / ДОКУМЕНТАЦІЯ
+
+- Без зміни схеми БД; live Candidate Agent автоматично бачить багатший профіль
+- Скріншоти чату умов і підтвердженого профілю з goals-префіксами
+
+4. СКРІНШОТИ
+
+- `day12-candidate-prep-work-conditions.png` — чат: формат → зарплата → графік
+- `day12-candidate-profile-work-conditions.png` — confirmed профіль + цілі
+  з умовами + кнопка «Підібрати вакансію»
+
+
+################################################################################
+# 2. VACANCY MATCH & APPLICATION
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО
+================================================================================
+
+1. ПРОЄКТУВАННЯ
+
+- Spec: `docs/superpowers/specs/2026-07-17-vacancy-match-application-design.md`
+- Plan: `docs/superpowers/plans/2026-07-17-vacancy-match-application.md`
+- Статус: затверджено в brainstorming; імплементація в гілці
+  `feat/vacancy-match-application`
+
+2. ДАНІ (Prisma)
+
+- `VacancyApplication` (PENDING / CONVERTED / WITHDRAWN / DECLINED_BY_HR)
+- `VacancyOfferDecision` (REJECTED для sequential offers)
+- `HrNotification` (VACANCY_APPLICATION)
+- `VacancyMatchScore` (кеш LLM score на пару кандидат×вакансія)
+- Міграція `20260717134610_vacancy_match_application`
+- Інваріант: одна активна PENDING заявка на кандидата
+
+3. MATCH-СЕРВІС + АГЕНТ
+
+- Ranking helpers + `vacancy-match-agent` (LLM score 0–100)
+- Кеш score; resolve next offer з урахуванням REJECTED
+- Кандидату в API лише `vacancyId`, `title`, `matchScore` (без культури
+  компанії)
+
+4. API
+
+Candidate (`requireCandidate`):
+
+- `GET /api/candidate/matches/next`
+- `POST /api/candidate/matches/:vacancyId/reject|accept`
+- `GET /api/candidate/applications/active`
+
+HR (`requireHr`):
+
+- `GET /api/hr/notifications`, `POST .../read`
+- `GET /api/hr/applications`, `GET .../:id`
+- `POST /api/hr/applications/:id/create-interview` (transactional CONVERTED)
+
+5. UI
+
+- `CandidateMatchesView` — offer / pending / empty
+- CTA «Підібрати вакансію» на home і в confirmed profile; redirect після
+  confirm prep
+- `HrApplicationsView` + пункт «Заявки» у `HrSidebar`
+- HR: таблиця заявок + деталі (summary, %) + «Створити співбесіду»
+- Unread notifications позначаються прочитаними при відкритті inbox
+
+6. СКРІНШОТИ
+
+- `day12-candidate-home-match-cta.png` — CTA «Підібрати вакансію»
+- `day12-candidate-matches-offer.png` — Junior Frontend Engineer, 87%
+- `day12-candidate-matches-pending.png` — «Заявку надіслано…»
+- `day12-hr-applications-inbox.png` — inbox + деталі + Create Interview
+- `day12-hr-applications-sidebar.png` — активний пункт «Заявки»
+
+
+################################################################################
+# 3. ЗАКРИТТЯ WIP DAY 11 + ДРІБНІ ПРАВКИ LIVE
+################################################################################
+
+================================================================================
+ЩО БУЛО ЗРОБЛЕНО
+================================================================================
+
+- Editable company / candidate profile перед confirm (Day 11 WIP → коміти)
+- Contact preview у candidate-prep
+- Arbiter process feed перенесено в HR room sidebar
+- Conductor: stop on `needsHuman`, без повторів у чаті
+- Self-service questionnaire приховано від HR-списків
+- Прибрано leftover debug session instrumentation
+- Vetur validation вимкнено для Vue 3 workspace
+
+
+================================================================================
+СКРІНШОТИ (ПІДТВЕРДЖЕННЯ UI)
+================================================================================
+
+Файли в `reports/screenshots/` (нові за 17.07):
+
+  day12-candidate-prep-work-conditions.png    — блок умов у prep-чаті
+  day12-candidate-profile-work-conditions.png — goals з префіксами + match CTA
+  day12-candidate-home-match-cta.png          — home: Підібрати вакансію
+  day12-candidate-matches-offer.png           — offer: назва + % + дії
+  day12-candidate-matches-pending.png         — статус PENDING заявки
+  day12-hr-applications-inbox.png             — HR inbox + create interview
+  day12-hr-applications-sidebar.png           — пункт «Заявки» у sidebar
+
+Скрипт: `scripts/screenshot-day12.mjs`
+
+Примітка: UI match знято з worktree frontend (`feat/vacancy-match-application`);
+частина відповідей API для стабільних скрінів замокана в Playwright (як gate
+у Day 11).
+
+
+================================================================================
+ПРОДУКТОВІ МЕТРИКИ ТА ПРОГНОЗ ВПЛИВУ
+================================================================================
+
+Сьогодні продуктові метрики на широкій аудиторії не замірялися — design,
+імплементація, unit-тести, UI-скріншоти. Є орієнтир з ручного прогону:
+
+  База (ручний ввід): анкета кандидата (prep-чат до confirm) займає
+  до ~30 хвилин.
+
+Deep prep (більше follow-up + блок умов) підвищує повноту профілю, але
+тисне на цей бюджет часу — ключовий trade-off дня.
+
+1. ЧАС І COMPLETION АНКЕТИ (PREP → CONFIRM)
+
+База: до ~30 хв при ручному вводі відповідей кандидатом.
+Ризик deep prep: довші follow-up можуть виштовхнути сесію за 30 хв або
+підняти abandonment до confirm.
+Прогноз / ціль: тримати median часу prep у межах ~30 хв; не жертвувати
+completion ради «ще одного уточнення».
+Метрика: median / p90 хвилин від першого повідомлення агента до
+`confirmedAt`; % сесій, що дійшли до confirm; % сесій >30 хв; середня
+кількість повідомлень кандидата до READY.
+
+2. ПОВНОТА АНКЕТИ (УМОВИ РОБОТИ)
+
+База: goals без структурованих умов → live/FinalReport / match без
+зарплати/формату.
+Прогноз: вища частка confirmed профілів із 4 префіксами в goals — за
+рахунок тієї ж ~30-хвилинної сесії, не окремого другого опитування.
+Метрика: % confirmed з non-empty `Формат:` / `Зарплата:` / `Графік:` /
+`Релокація:` (включно з «не вказано»); кореляція повноти goals із часом
+prep (чи «дорогі» умови дають зайві хвилини).
+
+3. КОНВЕРСІЯ MATCH → ЗАЯВКА → СПІВБЕСІДА
+
+База: кандидат чекав join-код від HR.
+Прогноз: частина співбесід стартує з accept кандидата після тієї ж
+анкети (~30 хв інвестиції кандидата має окупатися швидким match).
+Метрика: % confirm → хоча б 1 offer shown; accept rate; median годин від
+PENDING до CONVERTED; % заявок без create-interview за 48 год;
+час від confirm до першого offer shown (окремо від 30 хв анкети).
+
+4. ЯКІСТЬ / ВАРТІСТЬ LLM SCORING
+
+Прогноз: кеш `VacancyMatchScore` знижує повторні виклики на той самий
+confirmedAt.
+Ризик: холодний старт / 503 при недоступному LLM → порожній або помилковий
+екран matches одразу після 30-хв анкети (поганий момент для фрустрації).
+Метрика: p50/p95 latency `matches/next`; cache hit rate; % 503.
+
+5. ПРИВАТНІСТЬ КОМПАНІЇ
+
+Контракт: кандидат не бачить культуру/філософію — лише title + %.
+Метрика (аудит API/UI): відсутність company fields у candidate match payload.
+
+
+################################################################################
+# СУМНІВИ / ВІДКРИТІ ПИТАННЯ
+################################################################################
+
+1. ГЛИБИНА vs 30 ХВ
+   Deep prep з необмеженими follow-up може роздути анкету понад ~30 хв
+   ручного вводу. Чи потрібен м’який ліміт раундів / «достатньо для READY»
+   раніше, чи лишаємо якість за будь-яку ціну часу?
+
+2. MATCH THRESHOLD
+   Чи показувати вакансії з низьким % (наприклад <40), чи різати зверху?
+   Зараз — повний ranking без порогу в UI.
+
+3. ОДНА PENDING ЗАЯВКА
+   Жорсткий ліміт захищає HR від спаму, але блокує кандидата після ~30 хв
+   анкети, поки HR не відповість. Чи потрібен timeout / withdraw у v1.1?
+
+4. AUTO vs MANUAL INTERVIEW
+   Залишили ручне створення з заявки (контроль HR). Альтернатива —
+   auto-create READY interview — швидше для кандидата, менше контролю HR.
+
+5. DEFERRAL UX (з Day 11)
+   Рішення A–E щодо assumption + confirm у live ще очікує поради керівника.
+
+
+================================================================================
+МЕТРИКИ ДНЯ (РОЗРОБКА)
+================================================================================
+
+  Коміти за день                    27
+  Design specs + plans              2 пари (deep prep, vacancy match)
+  Diff vacancy-match (spec→tip)     ~4873 insertions / 71 deletions
+  Diff deep prep                    ~603 / 11
+  Файлів у комітах (унікальних)     ~64
+  Скріншоти                         7 × day12-*.png (нові)
+  Скрипт верифікації                screenshot-day12.mjs
+  Гілка match                       feat/vacancy-match-application
+  Ключові поверхні                  CandidateMatchesView,
+                                    HrApplicationsView, deep prep prompts,
+                                    vacancy-match-agent + service
+
+
+================================================================================
+ЩО ЗАЛИШИЛОСЯ / ПЛАН НА ЗАВТРА
+================================================================================
+
+1. Merge `feat/vacancy-match-application` → main; застосувати міграцію на
+   спільній БД; переконатися, що Vite/backend з main піднімають match UI.
+2. Ручний E2E: deep prep → confirm → matches/next (реальний LLM) → accept →
+   HR applications → create-interview → join/LIVE; зафіксувати час анкети
+   (орієнтир ≤~30 хв ручним вводом).
+3. Заміряти latency scoring і поведінку при недоступному LLM (503 UI).
+4. Рішення по threshold %, candidate withdraw, і чи потрібен ліміт follow-up
+   щоб не роздувати prep понад ~30 хв.
+5. Фідбек по deferral UX (Day 11, варіанти A–E).
+
+
+================================================================================
+РЕФЛЕКСІЯ
+================================================================================
+
+Що сьогодні було найважливішим?
+
+  Інверсія частини флоу: кандидат після анкети сам ініціює інтерес до
+  вакансії, а HR реагує заявкою — замість єдиного шляху «HR створив
+  Interview → кандидат вводить код». Плюс глибша анкета дає match і live
+  агенту реальний контекст умов праці.
+
+Яке рішення було найскладнішим?
+
+  Межа приватності: LLM бачить повні профілі компанії/вакансії для score,
+  але кандидат у UI/API бачить лише назву й %. Друге — одна PENDING заявка
+  після ~30 хв анкети: простота інваріанту vs ризик «застрягти» в очікуванні
+  HR. Третє — deep prep vs бюджет часу: глибші follow-up цінні для match/live,
+  але не повинні систематично виштовхувати сесію за ~30 хв.
+
+Що варто пам'ятати далі?
+
+  Score кешується на `rankedForConfirmedAt` — зміна анкети після confirm
+  (через «почати заново») має інвалідувати/перерахувати offers. Create
+  Interview з заявки має лишатися transactional (application → CONVERTED +
+  interviewId), інакше легко отримати «висячі» PENDING.
