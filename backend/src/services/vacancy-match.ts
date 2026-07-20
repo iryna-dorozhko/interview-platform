@@ -40,6 +40,21 @@ export function pickNextOffer(
   return null;
 }
 
+export function pickTopOffers(
+  scores: CandidateMatchOffer[],
+  rejectedVacancyIds: Set<string>,
+  limit = 5,
+): CandidateMatchOffer[] {
+  const ordered = sortScoresDesc(scores);
+  const result: CandidateMatchOffer[] = [];
+  for (const item of ordered) {
+    if (rejectedVacancyIds.has(item.vacancyId)) continue;
+    result.push(item);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 export function toCandidateOfferPayload(offer: CandidateMatchOffer): CandidateMatchOffer {
   return offer;
 }

@@ -5,6 +5,7 @@ import type { LlmProvider } from "../llm/types";
 import {
   ensureMatchScores,
   getNextMatchOffer,
+  pickTopOffers,
   pickNextOffer,
   sortScoresDesc,
   VacancyMatchServiceError,
@@ -40,6 +41,44 @@ test("pickNextOffer returns null when all rejected", () => {
     new Set(["a"]),
   );
   assert.equal(next, null);
+});
+
+test("pickTopOffers returns top 5 by matchScore descending", () => {
+  const scores = [
+    { vacancyId: "v1", title: "One", matchScore: 95 },
+    { vacancyId: "v2", title: "Two", matchScore: 90 },
+    { vacancyId: "v3", title: "Three", matchScore: 85 },
+    { vacancyId: "v4", title: "Four", matchScore: 80 },
+    { vacancyId: "v5", title: "Five", matchScore: 75 },
+    { vacancyId: "v6", title: "Six", matchScore: 70 },
+  ];
+  const top = pickTopOffers(scores, new Set());
+  assert.equal(top.length, 5);
+  assert.deepEqual(
+    top.map((item) => item.vacancyId),
+    ["v1", "v2", "v3", "v4", "v5"],
+  );
+});
+
+test("pickTopOffers skips rejected vacancies", () => {
+  const scores = [
+    { vacancyId: "v1", title: "One", matchScore: 95 },
+    { vacancyId: "v2", title: "Two", matchScore: 90 },
+    { vacancyId: "v3", title: "Three", matchScore: 85 },
+  ];
+  const top = pickTopOffers(scores, new Set(["v1"]));
+  assert.deepEqual(
+    top.map((item) => item.vacancyId),
+    ["v2", "v3"],
+  );
+});
+
+test("pickTopOffers returns empty array when all rejected", () => {
+  const top = pickTopOffers(
+    [{ vacancyId: "v1", title: "One", matchScore: 50 }],
+    new Set(["v1"]),
+  );
+  assert.deepEqual(top, []);
 });
 
 test("candidate offer payload has only vacancyId, title, matchScore", () => {
