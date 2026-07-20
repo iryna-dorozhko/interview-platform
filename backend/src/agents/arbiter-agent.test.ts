@@ -31,10 +31,13 @@ test("arbiter prompt includes conductor actions and start/end guidance", () => {
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /Company Agent|Candidate/i);
 });
 
-test("arbiter prompt waits after candidate assumption or human deferral", () => {
-  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /попросив живу людину/i);
-  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /припущення/i);
-  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /підтверд|доповн/i);
+test("arbiter prompt waits only after unknown confidence deferral", () => {
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /unknown|немає даних|відповісти/i);
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /inferred/i);
+  assert.doesNotMatch(
+    ARBITER_AGENT_SYSTEM_PROMPT_UK,
+    /припущення.*підтверд.*WAIT/s,
+  );
 });
 
 test("arbiter system prompt includes COMPANY_ANSWER", () => {
