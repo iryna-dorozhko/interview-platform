@@ -35,7 +35,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 const canManageInvitation = computed(
   () =>
-    interview.value?.status === "AWAITING_CANDIDATE" || interview.value?.status === "READY",
+    !interview.value?.candidateLinked &&
+    (interview.value?.status === "AWAITING_CANDIDATE" || interview.value?.status === "READY"),
 );
 
 const formattedScheduledAt = computed(() =>
@@ -208,6 +209,14 @@ onMounted(loadInterview);
         </div>
       </section>
 
+      <section v-if="interview.candidateLinked" class="section">
+        <h2>Кандидат</h2>
+        <p class="hint">
+          Кандидат уже привʼязаний до співбесіди (наприклад, з заявки). Email-запрошення не
+          потрібне — він побачить зустріч у своєму кабінеті.
+        </p>
+      </section>
+
       <section v-if="canManageInvitation" class="section">
         <h2>Email-запрошення</h2>
 
@@ -290,7 +299,8 @@ onMounted(loadInterview);
 
 <style scoped>
 .page {
-  max-width: 40rem;
+  width: 100%;
+  min-width: 0;
 }
 .header {
   margin-bottom: 1rem;
