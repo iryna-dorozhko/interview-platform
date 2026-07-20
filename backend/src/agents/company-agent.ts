@@ -1,4 +1,6 @@
 import type { ChatMessage } from "../llm/types";
+import type { VacancyCompensation } from "../utils/vacancy-work-conditions";
+import { parseVacancyCompensation, parseWorkConditionsArray } from "../utils/vacancy-work-conditions";
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-agent.uk";
 import { VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/vacancy-profile-extraction.uk";
 
@@ -39,6 +41,8 @@ export interface ExtractedVacancyProfile {
   role: string;
   requirements: string[];
   expectations: string[];
+  workConditions: string[];
+  compensation: VacancyCompensation;
 }
 
 export class ProfileExtractionError extends Error {
@@ -74,16 +78,28 @@ export function parseVacancyProfileExtraction(rawText: string): ExtractedVacancy
     throw new ProfileExtractionError("LLM response is not a JSON object");
   }
 
-  const { role, requirements, expectations } = data as Record<string, unknown>;
+  const { role, requirements, expectations, workConditions, compensation } = data as Record<string, unknown>;
 
   if (typeof role !== "string" || !role.trim()) {
     throw new ProfileExtractionError("missing or invalid field: role");
+  }
+
+  const parsedWorkConditions = parseWorkConditionsArray(workConditions);
+  if (parsedWorkConditions.length === 0) {
+    throw new ProfileExtractionError("missing or invalid field: workConditions");
+  }
+
+  const parsedCompensation = parseVacancyCompensation(compensation);
+  if (!parsedCompensation) {
+    throw new ProfileExtractionError("missing or invalid field: compensation");
   }
 
   return {
     role: role.trim(),
     requirements: toStringArray(requirements, "requirements"),
     expectations: toStringArray(expectations, "expectations"),
+    workConditions: parsedWorkConditions,
+    compensation: parsedCompensation,
   };
 }
 

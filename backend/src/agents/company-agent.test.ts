@@ -46,17 +46,81 @@ test("buildCompanyAgentMessages does not append a placeholder when history alrea
   assert.deepEqual(messages[1], { role: "user", content: "Привіт" });
 });
 
+test("company agent system prompt includes work conditions block with seven subtopics", () => {
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /умови роботи/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /зарплат/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /формат/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /графік/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /бенефіт/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /релокац/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /випробувальн/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /обладнан/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /чотир/i); // 4 themes
+});
+
+test("extraction prompt encodes workConditions and compensation", () => {
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /workConditions/i);
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /compensation/i);
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /displayText/i);
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /Формат:/);
+});
+
+test("parseVacancyProfileExtraction parses workConditions and compensation", () => {
+  const raw = JSON.stringify({
+    role: "Backend Developer",
+    requirements: ["Node.js"],
+    expectations: ["Ownership"],
+    workConditions: [
+      "Формат: remote",
+      "Графік: повний день",
+      "Бенефіти: 24 дні відпустки",
+      "Релокація: не вказано",
+      "Випробувальний: 3 місяці",
+      "Обладнання: MacBook Pro",
+    ],
+    compensation: {
+      min: 3000,
+      max: 4500,
+      currency: "USD",
+      grossNet: "gross",
+      displayText: "$3000–4500 gross, USD",
+    },
+  });
+  const result = parseVacancyProfileExtraction(raw);
+  assert.equal(result.workConditions.length, 6);
+  assert.equal(result.compensation.displayText, "$3000–4500 gross, USD");
+  assert.equal(result.compensation.min, 3000);
+});
+
 test("parseVacancyProfileExtraction parses vacancy-only fields", () => {
   const raw = JSON.stringify({
     role: "Middle Backend Developer",
     requirements: ["Node.js"],
     expectations: ["Перший реліз за місяць"],
+    workConditions: [
+      "Формат: remote",
+      "Графік: повний день",
+      "Бенефіти: не вказано",
+      "Релокація: не вказано",
+      "Випробувальний: не вказано",
+      "Обладнання: не вказано",
+    ],
+    compensation: { displayText: "не вказано" },
   });
   const result = parseVacancyProfileExtraction(raw);
   assert.deepEqual(result, {
     role: "Middle Backend Developer",
     requirements: ["Node.js"],
     expectations: ["Перший реліз за місяць"],
+    workConditions: [
+      "Формат: remote",
+      "Графік: повний день",
+      "Бенефіти: не вказано",
+      "Релокація: не вказано",
+      "Випробувальний: не вказано",
+      "Обладнання: не вказано",
+    ],
+    compensation: { displayText: "не вказано" },
   });
 });
 
@@ -67,6 +131,15 @@ test("parseVacancyProfileExtraction strips markdown code fences around JSON", ()
       role: "QA Engineer",
       requirements: ["3+ роки"],
       expectations: ["не вказано"],
+      workConditions: [
+        "Формат: офіс",
+        "Графік: повний день",
+        "Бенефіти: не вказано",
+        "Релокація: не вказано",
+        "Випробувальний: не вказано",
+        "Обладнання: не вказано",
+      ],
+      compensation: { displayText: "не вказано" },
     }),
     "```",
   ].join("\n");
@@ -89,6 +162,15 @@ test("parseVacancyProfileExtraction throws when role is empty", () => {
     role: "",
     requirements: ["Figma"],
     expectations: ["не вказано"],
+    workConditions: [
+      "Формат: не вказано",
+      "Графік: не вказано",
+      "Бенефіти: не вказано",
+      "Релокація: не вказано",
+      "Випробувальний: не вказано",
+      "Обладнання: не вказано",
+    ],
+    compensation: { displayText: "не вказано" },
   });
   assert.throws(() => parseVacancyProfileExtraction(raw));
 });
