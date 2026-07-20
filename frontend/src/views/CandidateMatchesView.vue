@@ -14,24 +14,20 @@ type ViewState = "loading" | "pending" | "offer" | "empty" | "error";
 const viewState = ref<ViewState>("loading");
 const errorMessage = ref<string | null>(null);
 const application = ref<ActiveApplication | null>(null);
-const offer = ref<CandidateMatchOffer | null>(null);
+const offers = ref<CandidateMatchOffer[]>([]);
 const actionBusy = ref(false);
+const rejectingVacancyId = ref<string | null>(null);
 
-function applyOffer(next: CandidateMatchOffer): void {
-  if (next.vacancyId == null || next.title == null || next.matchScore == null) {
-    offer.value = null;
-    viewState.value = "empty";
-    return;
-  }
-  offer.value = next;
-  viewState.value = "offer";
+function applyOffers(next: CandidateMatchOffer[]): void {
+  offers.value = next;
+  viewState.value = next.length > 0 ? "offer" : "empty";
 }
 
 async function loadMatches(): Promise<void> {
   viewState.value = "loading";
   errorMessage.value = null;
   application.value = null;
-  offer.value = null;
+  offers.value = [];
 
   try {
     const active = await fetchActiveApplication();
@@ -41,8 +37,8 @@ async function loadMatches(): Promise<void> {
       return;
     }
 
-    const next = await fetchNextMatch();
-    applyOffer(next);
+    const { offers: nextOffers } = await fetchNextMatch();
+    applyOffers(nextOffers);
   } catch (error) {
     viewState.value = "error";
     errorMessage.value =
@@ -50,30 +46,32 @@ async function loadMatches(): Promise<void> {
   }
 }
 
-async function onReject(): Promise<void> {
-  if (!offer.value?.vacancyId || actionBusy.value) return;
+async function onReject(vacancyId: string): Promise<void> {
+  if (actionBusy.value) return;
   actionBusy.value = true;
+  rejectingVacancyId.value = vacancyId;
   errorMessage.value = null;
   try {
-    const next = await rejectMatch(offer.value.vacancyId);
-    applyOffer(next);
+    const { offers: nextOffers } = await rejectMatch(vacancyId);
+    applyOffers(nextOffers);
   } catch (error) {
     viewState.value = "error";
     errorMessage.value =
       error instanceof Error ? error.message : "Не вдалося відхилити вакансію";
   } finally {
     actionBusy.value = false;
+    rejectingVacancyId.value = null;
   }
 }
 
-async function onAccept(): Promise<void> {
-  if (!offer.value?.vacancyId || actionBusy.value) return;
+async function onAccept(vacancyId: string): Promise<void> {
+  if (actionBusy.value) return;
   actionBusy.value = true;
   errorMessage.value = null;
   try {
-    const { application: created } = await acceptMatch(offer.value.vacancyId);
+    const { application: created } = await acceptMatch(vacancyId);
     application.value = created;
-    offer.value = null;
+    offers.value = [];
     viewState.value = "pending";
   } catch (error) {
     viewState.value = "error";
@@ -106,22 +104,39 @@ onMounted(() => {
 
     <p v-else-if="viewState === 'empty'" class="empty">Немає підходящих вакансій</p>
 
-    <section v-else-if="viewState === 'offer' && offer" class="offer-card">
-      <h3 class="offer-title">{{ offer.title }}</h3>
-      <p class="offer-score">Відповідність: {{ offer.matchScore }}%</p>
-      <div class="actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          :disabled="actionBusy"
-          @click="onReject"
-        >
-          {{ actionBusy ? "Зачекайте…" : "Відхилити" }}
-        </button>
-        <button type="button" class="btn-primary" :disabled="actionBusy" @click="onAccept">
-          {{ actionBusy ? "Зачекайте…" : "Прийняти" }}
-        </button>
-      </div>
+    <section v-else-if="viewState === 'offer' && offers.length > 0" class="offers-list">
+      <article
+        v-for="item in offers"
+        :key="item.vacancyId"
+        class="offer-row"
+      >
+        <div class="offer-main">
+          <h3 class="offer-title">{{ item.title }}</h3>
+          <span class="offer-score-badge">{{ item.matchScore }}%</span>
+        </div>
+        <div class="actions">
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="actionBusy"
+            @click="onReject(item.vacancyId)"
+          >
+            {{
+              rejectingVacancyId === item.vacancyId
+                ? "Зачекайте…"
+                : "Відхилити"
+            }}
+          </button>
+          <button
+            type="button"
+            class="btn-primary"
+            :disabled="actionBusy"
+            @click="onAccept(item.vacancyId)"
+          >
+            {{ actionBusy ? "Зачекайте…" : "Прийняти" }}
+          </button>
+        </div>
+      </article>
     </section>
   </div>
 </template>
@@ -138,8 +153,7 @@ onMounted(() => {
   margin: 0;
   color: #555;
 }
-.status-card,
-.offer-card {
+.status-card {
   padding: 1rem;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
@@ -155,15 +169,37 @@ onMounted(() => {
   color: #6b7280;
   font-size: 0.875rem;
 }
+.offers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.offer-row {
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+.offer-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
 .offer-title {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 1.125rem;
   color: #111827;
 }
-.offer-score {
-  margin: 0 0 1rem;
-  font-size: 0.95rem;
-  color: #374151;
+.offer-score-badge {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #166534;
+  background: #dcfce7;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
 }
 .actions {
   display: flex;
