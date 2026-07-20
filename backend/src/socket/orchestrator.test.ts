@@ -112,8 +112,37 @@ test("orchestrator COMPANY_ANSWER runs company with ANSWER_CANDIDATE", async () 
   assert.ok(arbiterCalls >= 2);
 });
 
-test("orchestrator START posts arbiter, runs company, emits process", async () => {
+test("orchestrator onLiveStart does not schedule agents", async () => {
   const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      return cmd({ action: "START", summaryUk: "Старт", publicMessage: "Почнемо." });
+    },
+  });
+
+  orchestrator.onLiveStart(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 100));
+
+  assert.equal(arbiterCalls, 0);
+  assert.equal(emitted.filter((e) => e.event === "room:arbiter-process").length, 0);
+});
+
+test("orchestrator START posts arbiter, runs company, emits process", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Давайте почнемо співбесіду.",
+      createdAt: new Date(),
+    },
+  ];
   const prisma = makePrisma(messages);
   const { io, emitted } = makeIo();
   let arbiterCalls = 0;
@@ -129,7 +158,7 @@ test("orchestrator START posts arbiter, runs company, emits process", async () =
         return cmd({
           action: "START",
           summaryUk: "Початок співбесіди",
-          publicMessage: "Давайте почнемо співбесіду.",
+          publicMessage: "Вітаю! Я Arbiter — модерую хід співбесіди. Давайте почнемо.",
         });
       }
       return cmd({ action: "WAIT", summaryUk: "Чекаємо відповіді" });
@@ -145,7 +174,7 @@ test("orchestrator START posts arbiter, runs company, emits process", async () =
     },
   });
 
-  orchestrator.onLiveStart(io, "interview_1", "session_1");
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
   await new Promise((r) => setTimeout(r, 100));
 
   const processEvents = emitted.filter((e) => e.event === "room:arbiter-process");
@@ -164,7 +193,7 @@ test("orchestrator START posts arbiter, runs company, emits process", async () =
   assert.equal(
     (agentMessages[0].payload as { messages: Array<{ content: string }> }).messages[0]
       .content,
-    "Давайте почнемо співбесіду.",
+    "Вітаю! Я Arbiter — модерую хід співбесіди. Давайте почнемо.",
   );
   assert.equal(companyCalls, 1);
   assert.equal(candidateCalls, 0);

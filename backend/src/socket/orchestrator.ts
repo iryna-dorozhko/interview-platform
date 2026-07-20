@@ -467,20 +467,8 @@ export function createRoomOrchestrator(
       })();
     },
 
-    onLiveStart(io: Server, interviewId: string, sessionId: string): void {
-      if (closed) return;
-      void (async () => {
-        if (closed) return;
-        const interview = await getPrisma().interview.findUnique({
-          where: { id: interviewId },
-          select: { status: true },
-        });
-        if (closed || !interview || interview.status !== "LIVE") {
-          return;
-        }
-
-        scheduleTurn(io, interviewId, sessionId);
-      })();
+    onLiveStart(_io: Server, _interviewId: string, _sessionId: string): void {
+      // Agents wait for HR to signal the start of the interview via a human message.
     },
 
     close(): void {

@@ -133,6 +133,11 @@ test("buildCandidateLiveMessages uses CANDIDATE_QUESTIONS nudge", () => {
   assert.equal(messages.at(-1)?.content, CANDIDATE_QUESTIONS_NUDGE_UK);
 });
 
+test("candidate live prompt requires greeting on first message", () => {
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /перше повідомлення|AGENT_CANDIDATE/i);
+  assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /привіт/i);
+});
+
 test("candidate live prompt requires third person", () => {
   assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /трет(я|ій) особ/i);
   assert.doesNotMatch(

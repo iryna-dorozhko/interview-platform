@@ -18,6 +18,11 @@ const companyProfile = {
   compensation: null as { displayText: string } | null,
 };
 
+test("company live prompt requires greeting on first message", () => {
+  assert.match(COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK, /перше повідомлення|AGENT_COMPANY/i);
+  assert.match(COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK, /привіт/i);
+});
+
 test("buildCompanyLiveMessages includes company profile and maps history", () => {
   const history: Array<{ authorType: LiveAuthorType; content: string }> = [
     { authorType: "HUMAN_HR", content: "Доброго дня!" },
