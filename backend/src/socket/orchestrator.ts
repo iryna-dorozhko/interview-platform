@@ -1,5 +1,5 @@
 import type { Server } from "socket.io";
-import type { LiveAuthorType, LiveMessage, PrismaClient } from "@prisma/client";
+import type { CandidateConfidence, LiveAuthorType, LiveMessage, PrismaClient } from "@prisma/client";
 import type { ParsedPostReply } from "../agents/agent-post-reply";
 import {
   runArbiterTurn as defaultRunArbiterTurn,
@@ -10,6 +10,8 @@ import {
 } from "../agents/company-live-agent";
 import {
   runCandidateLiveTurn as defaultRunCandidateLiveTurn,
+  toPrismaCandidateConfidence,
+  type ParsedCandidateLiveReply,
 } from "../agents/candidate-live-agent";
 import type { LiveAgentTurnContext } from "../agents/live-agent-turn-context";
 import type { LlmProvider } from "../llm/types";
@@ -45,7 +47,7 @@ export type RunCandidateLiveTurnFn = (
   interviewId: string,
   sessionId: string,
   turnContext: LiveAgentTurnContext,
-) => Promise<ParsedPostReply>;
+) => Promise<ParsedCandidateLiveReply>;
 
 export type RoomOrchestratorOptions = {
   debounceMs?: number;
@@ -74,6 +76,7 @@ function toDto(message: LiveMessage): LiveMessageDto {
     id: message.id,
     authorType: message.authorType,
     content: message.content,
+    candidateConfidence: message.candidateConfidence ?? null,
     createdAt: message.createdAt.toISOString(),
   };
 }
@@ -203,9 +206,15 @@ export function createRoomOrchestrator(
     interviewId: string,
     authorType: LiveAuthorType,
     content: string,
+    candidateConfidence?: CandidateConfidence | null,
   ): Promise<LiveMessage> {
     const saved = await prisma.liveMessage.create({
-      data: { sessionId, authorType, content },
+      data: {
+        sessionId,
+        authorType,
+        content,
+        candidateConfidence: candidateConfidence ?? null,
+      },
     });
     io.to(roomName(interviewId)).emit("room:messages", {
       messages: [toDto(saved)],
@@ -365,6 +374,10 @@ export function createRoomOrchestrator(
               return;
             }
             if (reply.post && reply.message) {
+              const prismaConfidence =
+                reply.confidence != null
+                  ? toPrismaCandidateConfidence(reply.confidence)
+                  : null;
               await saveAndEmit(
                 io,
                 prisma,
@@ -372,6 +385,7 @@ export function createRoomOrchestrator(
                 interviewId,
                 "AGENT_CANDIDATE",
                 reply.message,
+                prismaConfidence,
               );
               candidatePostedThisTurn = true;
             }

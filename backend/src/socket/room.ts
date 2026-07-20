@@ -20,6 +20,7 @@ function toDto(message: LiveMessage): LiveMessageDto {
     id: message.id,
     authorType: message.authorType,
     content: message.content,
+    candidateConfidence: message.candidateConfidence ?? null,
     createdAt: message.createdAt.toISOString(),
   };
 }

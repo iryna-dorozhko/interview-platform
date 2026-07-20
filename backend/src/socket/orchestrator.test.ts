@@ -29,7 +29,12 @@ function makePrisma(messages: LiveMessage[], interviewStatus: "LIVE" | "READY" =
       create: async ({
         data,
       }: {
-        data: { sessionId: string; authorType: string; content: string };
+        data: {
+          sessionId: string;
+          authorType: string;
+          content: string;
+          candidateConfidence?: string | null;
+        };
       }) => {
         createCount += 1;
         const created = {
@@ -37,6 +42,7 @@ function makePrisma(messages: LiveMessage[], interviewStatus: "LIVE" | "READY" =
           sessionId: data.sessionId,
           authorType: data.authorType as LiveMessage["authorType"],
           content: data.content,
+          candidateConfidence: data.candidateConfidence ?? null,
           createdAt: new Date(),
         } as LiveMessage;
         messages.push(created);
@@ -459,6 +465,42 @@ test("orchestrator stops after Candidate post:false (no ANSWER spam)", async () 
   assert.equal(arbiterN, 1);
   assert.equal(candidateCalls, 1);
   assert.equal(emitted.filter((e) => e.event === "room:messages").length, 0);
+});
+
+test("orchestrator continues after Candidate inferred confidence", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io } = makeIo();
+  let arbiterN = 0;
+  let candidateCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 6,
+    runArbiterTurn: async () => {
+      arbiterN += 1;
+      if (arbiterN === 1) {
+        return cmd({ action: "ANSWER", summaryUk: "Відповісти" });
+      }
+      return cmd({ action: "NEXT_QUESTION", summaryUk: "Далі" });
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return {
+        post: true,
+        message: "З анкети видно, що кандидат вивчає Pinia.",
+        confidence: "inferred",
+        needsHuman: false,
+      };
+    },
+    runCompanyLiveTurn: async () => ({ post: true, message: "Наступне питання?" }),
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 150));
+
+  assert.equal(candidateCalls, 1);
+  assert.ok(arbiterN >= 2, "arbiter should continue after inferred");
 });
 
 test("orchestrator stops after Candidate needsHuman (no deferral spam)", async () => {

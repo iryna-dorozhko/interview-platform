@@ -5,10 +5,13 @@ export type LiveAuthorTypeDto =
   | "AGENT_COMPANY"
   | "AGENT_CANDIDATE";
 
+export type CandidateConfidenceDto = "CONFIRMED" | "INFERRED" | "UNKNOWN";
+
 export type LiveMessageDto = {
   id: string;
   authorType: LiveAuthorTypeDto;
   content: string;
+  candidateConfidence?: CandidateConfidenceDto | null;
   createdAt: string;
 };
 
