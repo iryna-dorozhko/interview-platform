@@ -53,6 +53,24 @@ function makeConfirmedHrProfile(hrUserId = "hr_1"): FakeHrCompanyProfile {
   };
 }
 
+function makeMockVacancyExtraction(overrides: Record<string, unknown> = {}) {
+  return {
+    role: "Middle Backend Developer",
+    requirements: ["Node.js"],
+    expectations: ["не вказано"],
+    workConditions: [
+      "Формат: remote",
+      "Графік: повний день",
+      "Бенефіти: не вказано",
+      "Релокація: не вказано",
+      "Випробувальний: не вказано",
+      "Обладнання: не вказано",
+    ],
+    compensation: { displayText: "не вказано" },
+    ...overrides,
+  };
+}
+
 function makeFakePrisma(
   seed: {
     vacancies?: FakeVacancy[];
@@ -387,11 +405,7 @@ test("POST /prep/:vacancyId/finish extracts profile, saves it, and closes the se
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
-      return JSON.stringify({
-        role: "Middle Backend Developer",
-        requirements: ["Node.js"],
-        expectations: ["не вказано"],
-      });
+      return JSON.stringify(makeMockVacancyExtraction());
     },
   };
 
@@ -433,11 +447,7 @@ test("POST /prep/:vacancyId/finish returns confirmedAt: null for a freshly gener
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
-      return JSON.stringify({
-        role: "Middle Backend Developer",
-        requirements: ["Node.js"],
-        expectations: ["не вказано"],
-      });
+      return JSON.stringify(makeMockVacancyExtraction());
     },
   };
 
@@ -1253,11 +1263,7 @@ test("POST /prep/:vacancyId/finish snapshots universal fields from HrCompanyProf
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
-      return JSON.stringify({
-        role: "Middle Backend Developer",
-        requirements: ["Node.js"],
-        expectations: ["не вказано"],
-      });
+      return JSON.stringify(makeMockVacancyExtraction());
     },
   };
 
