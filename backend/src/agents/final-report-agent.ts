@@ -1,10 +1,11 @@
-import type { LiveAuthorType } from "@prisma/client";
+import type { CandidateConfidence, LiveAuthorType } from "@prisma/client";
 import type { ChatMessage } from "../llm/types";
 import { FINAL_REPORT_SYSTEM_PROMPT_UK } from "./prompts/final-report.uk";
 
 export type LiveTranscriptItem = {
   authorType: LiveAuthorType;
   content: string;
+  candidateConfidence?: CandidateConfidence | null;
 };
 
 export type ExtractedFinalReport = {
@@ -44,10 +45,28 @@ function toStringArray(value: unknown, field: string): string[] {
   return value.map((item) => String(item));
 }
 
+const CONFIDENCE_LABELS: Record<string, string> = {
+  CONFIRMED: "confirmed",
+  INFERRED: "inferred",
+  UNKNOWN: "unknown",
+};
+
+function formatAuthorLabel(item: LiveTranscriptItem): string {
+  const base = AUTHOR_LABELS[item.authorType];
+  if (
+    item.authorType === "AGENT_CANDIDATE" &&
+    item.candidateConfidence &&
+    CONFIDENCE_LABELS[item.candidateConfidence]
+  ) {
+    return `${base} · ${CONFIDENCE_LABELS[item.candidateConfidence]}`;
+  }
+  return base;
+}
+
 export function formatLiveTranscript(messages: LiveTranscriptItem[]): string {
   if (messages.length === 0) return "(розмова порожня)";
   return messages
-    .map((item) => `[${AUTHOR_LABELS[item.authorType]}] ${item.content}`)
+    .map((item) => `[${formatAuthorLabel(item)}] ${item.content}`)
     .join("\n");
 }
 

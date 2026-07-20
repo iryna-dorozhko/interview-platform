@@ -15,6 +15,29 @@ test("formatLiveTranscript maps author types to Ukrainian labels", () => {
   assert.match(text, /\[Arbiter\] Почнемо./);
 });
 
+test("formatLiveTranscript includes confidence labels for AGENT_CANDIDATE", () => {
+  const text = formatLiveTranscript([
+    {
+      authorType: "AGENT_CANDIDATE",
+      content: "Кандидат має досвід.",
+      candidateConfidence: "CONFIRMED",
+    },
+    {
+      authorType: "AGENT_CANDIDATE",
+      content: "З анкети видно…",
+      candidateConfidence: "INFERRED",
+    },
+    {
+      authorType: "AGENT_CANDIDATE",
+      content: "Ірино, відповідай.",
+      candidateConfidence: "UNKNOWN",
+    },
+  ]);
+  assert.match(text, /\[Кандидат \(AI\) · confirmed\]/);
+  assert.match(text, /\[Кандидат \(AI\) · inferred\]/);
+  assert.match(text, /\[Кандидат \(AI\) · unknown\]/);
+});
+
 test("parseFinalReport parses valid JSON", () => {
   const raw = JSON.stringify({
     reportMarkdown: "## Підсумок\n\nДобре.",

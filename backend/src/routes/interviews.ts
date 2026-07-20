@@ -122,6 +122,7 @@ type InterviewWithRelations = {
   status: string;
   createdAt: Date;
   scheduledAt: Date | null;
+  candidateUserId?: string | null;
   vacancy: { title: string };
   finalReport?: { id: string; recommendation: string } | null;
   invitations?: { id: string; email: string; status: string }[];
@@ -139,6 +140,7 @@ function mapInterviewListItem(item: InterviewWithRelations) {
     createdAt: item.createdAt,
     scheduledAt: item.scheduledAt?.toISOString() ?? null,
     invitation: serializeInvitation(pendingInvitation),
+    candidateLinked: item.candidateUserId != null,
     reportSummary: item.finalReport?.recommendation ?? null,
     reportId: item.finalReport?.id ?? null,
   };
@@ -156,6 +158,7 @@ function mapInterviewDetail(item: InterviewWithRelations) {
     createdAt: item.createdAt,
     scheduledAt: item.scheduledAt?.toISOString() ?? null,
     invitation: serializeInvitation(pendingInvitation),
+    candidateLinked: item.candidateUserId != null,
     reportSummary: item.finalReport?.recommendation ?? null,
     reportId: item.finalReport?.id ?? null,
   };
@@ -484,7 +487,13 @@ export function createInterviewsRouter(
     }
 
     const llmMessages = buildFinalReportMessages({
-      transcript: formatLiveTranscript(messages),
+      transcript: formatLiveTranscript(
+        messages.map((m) => ({
+          authorType: m.authorType,
+          content: m.content,
+          candidateConfidence: m.candidateConfidence,
+        })),
+      ),
       companyProfile,
       candidateProfile,
     });
