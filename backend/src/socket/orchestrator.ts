@@ -65,7 +65,10 @@ export interface RoomOrchestrator {
 }
 
 const silentCompany: RunCompanyLiveTurnFn = async () => ({ post: false });
-const silentCandidate: RunCandidateLiveTurnFn = async () => ({ post: false });
+const silentCandidate: RunCandidateLiveTurnFn = async () => ({
+  post: false,
+  needsHuman: false,
+});
 
 function roomName(interviewId: string): string {
   return `interview:${interviewId}`;
