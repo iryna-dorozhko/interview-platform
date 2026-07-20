@@ -1513,10 +1513,10 @@ GEMINI_MODEL=gemini-2.0-flash
 
 ## Vacancy match & applications (підбір вакансій)
 
-Після підтвердження анкети кандидат отримує послідовні пропозиції вакансій (лише **назва** + **% відповідності**). Дані компанії / культура кандидату **не показуються**.
+Після підтвердження анкети кандидат бачить **топ-5** вакансій за відповідністю (лише **назва** + **% відповідності**). Дані компанії / культура кандидату **не показуються**.
 
-**Кандидат:** підтвердити профіль → `/candidate/matches` → Accept / Reject → при Accept створюється заявка.
+**Кандидат:** підтвердити профіль → `/candidate/matches` → бачить **топ-5** вакансій (назва + % match) → Accept / Reject на кожній → при Accept створюється заявка.
 
 **HR:** `/applications` (лінк «Заявки кандидатів» на головній) → перегляд заявки (`candidateSummary`) → «Створити співбесіду» (optional `scheduledAt`).
 
-**Candidate / HR flow (EN):** candidate confirms profile → sequential matches (title + % only; no company data) → accept creates application + HR notification → HR opens applications inbox → manually creates interview from the application.
+**Candidate / HR flow (EN):** candidate confirms profile → top-5 ranked matches (title + % only; no company data) → accept creates application + HR notification → HR opens applications inbox → manually creates interview from the application.
