@@ -439,7 +439,7 @@ test("GET /matches/next returns 403 when questionnaire not confirmed", async () 
   }
 });
 
-test("GET /matches/next returns only vacancyId title matchScore keys", async () => {
+test("GET /matches/next returns offers array with contract keys only", async () => {
   const fakePrisma = makeFakePrisma(confirmedSeed());
   const app = makeApp(fakePrisma);
   const server = app.listen(0);
@@ -450,13 +450,20 @@ test("GET /matches/next returns only vacancyId title matchScore keys", async () 
       headers: authHeaders(candidateUser),
     });
     assert.equal(response.status, 200);
-    const body = await response.json();
-    const keys = Object.keys(body).sort();
-    assert.deepEqual(keys, ["matchScore", "title", "vacancyId"]);
-    assert.ok(!("culture" in body));
-    assert.equal(body.vacancyId, "v1");
-    assert.equal(body.title, "Senior Backend");
-    assert.equal(body.matchScore, 90);
+    const body = (await response.json()) as {
+      offers: Array<Record<string, unknown>>;
+    };
+    assert.ok(Array.isArray(body.offers));
+    assert.equal(body.offers.length, 2);
+    assert.deepEqual(Object.keys(body).sort(), ["offers"]);
+    for (const offer of body.offers) {
+      assert.deepEqual(Object.keys(offer).sort(), ["matchScore", "title", "vacancyId"]);
+      assert.ok(!("culture" in offer));
+    }
+    assert.equal(body.offers[0]?.vacancyId, "v1");
+    assert.equal(body.offers[0]?.matchScore, 90);
+    assert.equal(body.offers[1]?.vacancyId, "v2");
+    assert.equal(body.offers[1]?.matchScore, 80);
   } finally {
     server.close();
   }
@@ -493,7 +500,7 @@ test("GET /matches/next returns 409 when PENDING application exists", async () =
   }
 });
 
-test("POST /matches/:id/reject records decision and returns next", async () => {
+test("POST /matches/:id/reject records decision and returns updated offers", async () => {
   const fakePrisma = makeFakePrisma(confirmedSeed());
   const app = makeApp(fakePrisma);
   const server = app.listen(0);
@@ -505,20 +512,112 @@ test("POST /matches/:id/reject records decision and returns next", async () => {
       headers: authHeaders(candidateUser),
     });
     assert.equal(response.status, 200);
-    const body = await response.json();
-    const keys = Object.keys(body).sort();
-    assert.deepEqual(keys, ["matchScore", "title", "vacancyId"]);
-    assert.ok(!("culture" in body));
-    assert.equal(body.vacancyId, "v2");
-    assert.equal(body.title, "Platform Engineer");
-    assert.equal(body.matchScore, 80);
+    const body = (await response.json()) as {
+      offers: Array<{ vacancyId: string; title: string; matchScore: number }>;
+    };
+    assert.deepEqual(Object.keys(body).sort(), ["offers"]);
+    assert.equal(body.offers.length, 1);
+    assert.equal(body.offers[0]?.vacancyId, "v2");
+    assert.equal(body.offers[0]?.title, "Platform Engineer");
+    assert.equal(body.offers[0]?.matchScore, 80);
     assert.equal(fakePrisma.__offerDecisions.length, 1);
     assert.equal(fakePrisma.__offerDecisions[0]?.vacancyId, "v1");
-    assert.equal(fakePrisma.__offerDecisions[0]?.decision, "REJECTED");
   } finally {
     server.close();
   }
 });
+
+test("GET /matches/next returns at most 5 offers sorted by score", async () => {
+  const vacancies = Array.from({ length: 6 }, (_, index) => ({
+    id: `v${index + 1}`,
+    hrUserId: "hr_1",
+    title: `Role ${index + 1}`,
+    status: "CONFIRMED",
+    companyProfile: {
+      role: "Dev",
+      requirements: {},
+      culture: {},
+      expectations: {},
+      confirmedAt,
+    },
+  }));
+  const matchScores = Array.from({ length: 6 }, (_, index) => ({
+    id: `s${index + 1}`,
+    candidateUserId: "candidate_1",
+    vacancyId: `v${index + 1}`,
+    matchScore: 99 - index,
+    rankedForConfirmedAt: confirmedAt,
+  }));
+
+  const fakePrisma = makeFakePrisma(
+    confirmedSeed({ vacancies, matchScores }),
+  );
+  const app = makeApp(fakePrisma);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/matches/next`, {
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { offers: Array<{ vacancyId: string }> };
+    assert.equal(body.offers.length, 5);
+    assert.deepEqual(
+      body.offers.map((item) => item.vacancyId),
+      ["v1", "v2", "v3", "v4", "v5"],
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /matches/:id/reject backfills sixth offer when available", async () => {
+  const vacancies = Array.from({ length: 6 }, (_, index) => ({
+    id: `v${index + 1}`,
+    hrUserId: "hr_1",
+    title: `Role ${index + 1}`,
+    status: "CONFIRMED",
+    companyProfile: {
+      role: "Dev",
+      requirements: {},
+      culture: {},
+      expectations: {},
+      confirmedAt,
+    },
+  }));
+  const matchScores = Array.from({ length: 6 }, (_, index) => ({
+    id: `s${index + 1}`,
+    candidateUserId: "candidate_1",
+    vacancyId: `v${index + 1}`,
+    matchScore: 99 - index,
+    rankedForConfirmedAt: confirmedAt,
+  }));
+
+  const fakePrisma = makeFakePrisma(
+    confirmedSeed({ vacancies, matchScores }),
+  );
+  const app = makeApp(fakePrisma);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/matches/v1/reject`, {
+      method: "POST",
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { offers: Array<{ vacancyId: string }> };
+    assert.equal(body.offers.length, 5);
+    assert.deepEqual(
+      body.offers.map((item) => item.vacancyId),
+      ["v2", "v3", "v4", "v5", "v6"],
+    );
+  } finally {
+    server.close();
+  }
+});
+
 
 test("POST /matches/:id/accept creates application and notification", async () => {
   const fakePrisma = makeFakePrisma(confirmedSeed());

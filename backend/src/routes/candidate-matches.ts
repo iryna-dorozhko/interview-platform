@@ -8,22 +8,19 @@ import { requireAuth, requireCandidate } from "../auth/middleware";
 import type { LlmProvider } from "../llm/types";
 import {
   getConfirmedCandidateProfile,
-  getNextMatchOffer,
+  getTopMatchOffers,
   ensureMatchScores,
   VacancyMatchServiceError,
   type CandidateMatchOffer,
 } from "../services/vacancy-match";
 
-function emptyOfferPayload() {
-  return { vacancyId: null, title: null, matchScore: null };
-}
-
-function offerPayload(offer: CandidateMatchOffer | null) {
-  if (!offer) return emptyOfferPayload();
+function offersPayload(offers: CandidateMatchOffer[]) {
   return {
-    vacancyId: offer.vacancyId,
-    title: offer.title,
-    matchScore: offer.matchScore,
+    offers: offers.map((offer) => ({
+      vacancyId: offer.vacancyId,
+      title: offer.title,
+      matchScore: offer.matchScore,
+    })),
   };
 }
 
@@ -78,8 +75,8 @@ export function createCandidateMatchesRouter(
     }
 
     try {
-      const offer = await getNextMatchOffer(prisma, getLlmProvider(), candidateUserId);
-      res.status(200).json(offerPayload(offer));
+      const offers = await getTopMatchOffers(prisma, getLlmProvider(), candidateUserId);
+      res.status(200).json(offersPayload(offers));
     } catch (error) {
       if (mapMatchServiceError(error, res)) return;
       const detail = error instanceof Error ? error.message : String(error);
@@ -118,8 +115,8 @@ export function createCandidateMatchesRouter(
         },
       });
 
-      const offer = await getNextMatchOffer(prisma, getLlmProvider(), candidateUserId);
-      res.status(200).json(offerPayload(offer));
+      const offers = await getTopMatchOffers(prisma, getLlmProvider(), candidateUserId);
+      res.status(200).json(offersPayload(offers));
     } catch (error) {
       if (mapMatchServiceError(error, res)) return;
       const detail = error instanceof Error ? error.message : String(error);
