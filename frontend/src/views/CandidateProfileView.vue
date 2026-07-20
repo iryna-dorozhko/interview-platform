@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { fetchCandidateQuestionnaire, startCandidateQuestionnaire, type CandidateInterview } from "../api/candidate-interview";
 import {
   confirmCandidatePrepProfile,
@@ -10,6 +11,8 @@ import {
   type CandidateProfile,
 } from "../api/candidate-prep";
 import CandidatePrepChat from "../components/CandidatePrepChat.vue";
+
+const router = useRouter();
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -206,6 +209,10 @@ async function onRestartConfirmed(): Promise<void> {
   }
 }
 
+function openMatches(): void {
+  router.push({ name: "candidate-matches" });
+}
+
 onMounted(loadProfile);
 </script>
 
@@ -381,6 +388,9 @@ onMounted(loadProfile);
           </p>
         </section>
         <div class="actions">
+          <button type="button" class="btn-primary" @click="openMatches">
+            Підібрати вакансію
+          </button>
           <button type="button" class="btn-secondary" @click="onRestartConfirmed">Почати заново</button>
         </div>
       </template>

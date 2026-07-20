@@ -6,9 +6,19 @@ import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
 import { formatScheduledAtUk } from "../utils/invite-message";
 import InviteCopyActions from "./InviteCopyActions.vue";
 
-const props = defineProps<{
-  open: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    initialVacancyId?: string;
+    initialCandidateEmail?: string;
+    lockedVacancy?: boolean;
+  }>(),
+  {
+    initialVacancyId: "",
+    initialCandidateEmail: "",
+    lockedVacancy: false,
+  },
+);
 
 const emit = defineEmits<{
   close: [];
@@ -39,8 +49,8 @@ watch(
 
     step.value = "form";
     createdInterview.value = null;
-    selectedVacancyId.value = "";
-    candidateEmail.value = "";
+    selectedVacancyId.value = props.initialVacancyId;
+    candidateEmail.value = props.initialCandidateEmail;
     scheduledAtLocal.value = "";
     error.value = null;
     loadError.value = null;
@@ -51,7 +61,12 @@ watch(
     try {
       const vacancies = await fetchMyVacancies();
       confirmedVacancies.value = vacancies.filter((v) => v.status === "CONFIRMED");
-      if (confirmedVacancies.value.length > 0) {
+      if (props.initialVacancyId) {
+        const hasInitial = confirmedVacancies.value.some((v) => v.id === props.initialVacancyId);
+        selectedVacancyId.value = hasInitial
+          ? props.initialVacancyId
+          : confirmedVacancies.value[0]?.id ?? "";
+      } else if (confirmedVacancies.value.length > 0) {
         selectedVacancyId.value = confirmedVacancies.value[0].id;
       }
     } catch (err) {
@@ -138,7 +153,10 @@ async function onSubmit(): Promise<void> {
         <form v-else @submit.prevent="onSubmit">
           <label class="field">
             <span>Анкета</span>
-            <select v-model="selectedVacancyId" :disabled="submitting">
+            <select
+              v-model="selectedVacancyId"
+              :disabled="submitting || lockedVacancy"
+            >
               <option v-for="vacancy in confirmedVacancies" :key="vacancy.id" :value="vacancy.id">
                 {{ vacancy.title }}
               </option>

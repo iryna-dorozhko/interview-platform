@@ -240,6 +240,7 @@ async function onConfirmProfile(): Promise<void> {
   try {
     const response = await confirmCandidatePrepProfile(interviewId.value);
     syncEditableProfile(response.profile);
+    await router.push({ name: "candidate-matches" });
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
   } finally {

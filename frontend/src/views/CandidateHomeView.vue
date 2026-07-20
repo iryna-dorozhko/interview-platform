@@ -61,6 +61,7 @@ const meetingStatus = computed(() => interviewStatusLabel(interview.value));
 const canJoinMeeting = computed(
   () => interview.value === null && prepState.value?.profile?.confirmedAt != null,
 );
+const canMatchVacancies = computed(() => prepState.value?.profile?.confirmedAt != null);
 const invitationActionBusy = computed(
   () => acceptingId.value !== null || decliningId.value !== null,
 );
@@ -128,6 +129,10 @@ function openProfile(): void {
   router.push({ name: "candidate-profile" });
 }
 
+function openMatches(): void {
+  router.push({ name: "candidate-matches" });
+}
+
 function restoreJoinedBanner(): void {
   const stored = consumeJoinedBanner();
   if (stored) joinedBanner.value = stored;
@@ -174,6 +179,14 @@ onMounted(() => {
         </button>
         <button type="button" class="btn-primary" @click="openProfile">
           Заповнити анкету
+        </button>
+        <button
+          v-if="canMatchVacancies"
+          type="button"
+          class="btn-primary"
+          @click="openMatches"
+        >
+          Підібрати вакансію
         </button>
       </div>
 

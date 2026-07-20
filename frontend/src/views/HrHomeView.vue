@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import CreateVacancyModal from "../components/CreateVacancyModal.vue";
+import { fetchHrNotifications } from "../api/hr-applications";
 import { fetchMyInterviews, type InterviewSummary } from "../api/interviews";
 import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
 
@@ -18,6 +19,7 @@ const router = useRouter();
 
 const vacancies = ref<VacancySummary[]>([]);
 const interviews = ref<InterviewSummary[]>([]);
+const unreadNotifications = ref(0);
 const loadState = ref<LoadState>("loading");
 const loadError = ref<string | null>(null);
 
@@ -50,12 +52,14 @@ async function loadDashboard(): Promise<void> {
   loadState.value = "loading";
   loadError.value = null;
   try {
-    const [vacancyList, interviewList] = await Promise.all([
+    const [vacancyList, interviewList, notifications] = await Promise.all([
       fetchMyVacancies(),
       fetchMyInterviews(),
+      fetchHrNotifications(),
     ]);
     vacancies.value = vacancyList;
     interviews.value = interviewList;
+    unreadNotifications.value = notifications.filter((item) => item.readAt == null).length;
     loadState.value = "ready";
   } catch (error) {
     loadState.value = "error";
@@ -101,12 +105,20 @@ onMounted(loadDashboard);
           <span class="card-value">{{ awaitingCandidateCount }}</span>
           <span class="card-label">Очікують кандидата</span>
         </div>
+        <div class="card">
+          <span class="card-value">{{ unreadNotifications }}</span>
+          <span class="card-label">Нові заявки</span>
+        </div>
       </div>
 
       <div class="dashboard-actions">
         <button type="button" class="btn-primary" @click="showVacancyModal = true">
           Створити нову анкету
         </button>
+        <RouterLink class="btn-secondary-link" :to="{ name: 'hr-applications' }">
+          Заявки кандидатів
+          <span v-if="unreadNotifications > 0" class="badge">{{ unreadNotifications }}</span>
+        </RouterLink>
       </div>
 
       <section v-if="recentActivity.length > 0" class="recent">
@@ -180,6 +192,31 @@ onMounted(loadDashboard);
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.btn-secondary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  color: #374151;
+  text-decoration: none;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 .recent {
   margin-top: 1.5rem;
