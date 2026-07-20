@@ -115,7 +115,8 @@ function applyPendingBeforeRoute(state: RoomState, action: ParsedArbiterCommand[
     action === "NEXT_QUESTION" ||
     action === "START" ||
     action === "CANDIDATE_QUESTIONS" ||
-    action === "SUGGEST_END"
+    action === "SUGGEST_END" ||
+    action === "COMPANY_ANSWER"
   ) {
     state.pendingQuestion = false;
   }
@@ -295,14 +296,17 @@ export function createRoomOrchestrator(
                   ? "CANDIDATE_QUESTIONS"
                   : command.action === "ANSWER"
                     ? "ANSWER"
-                    : "NEXT_QUESTION",
+                    : command.action === "COMPANY_ANSWER"
+                      ? "ANSWER_CANDIDATE"
+                      : "NEXT_QUESTION",
           briefUk: command.briefUk,
         };
 
         const runCompanyActions =
           command.action === "START" ||
           command.action === "NEXT_QUESTION" ||
-          command.action === "CLARIFY";
+          command.action === "CLARIFY" ||
+          command.action === "COMPANY_ANSWER";
         const runCandidateActions =
           command.action === "ANSWER" || command.action === "CANDIDATE_QUESTIONS";
 
@@ -328,7 +332,9 @@ export function createRoomOrchestrator(
                 reply.message,
               );
               companyPostedThisTurn = true;
-              state.pendingQuestion = true;
+              if (command.action !== "COMPANY_ANSWER") {
+                state.pendingQuestion = true;
+              }
             }
           } catch (error) {
             emitAgentError(io, interviewId, "AGENT_COMPANY", error);

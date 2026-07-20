@@ -1,5 +1,10 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "../llm/types";
+import {
+  parseVacancyCompensation,
+  parseWorkConditionsArray,
+  type VacancyCompensation,
+} from "../utils/vacancy-work-conditions";
 import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from "./prompts/arbiter-agent.uk";
 
 export const ARBITER_ACTIONS = [
@@ -8,6 +13,7 @@ export const ARBITER_ACTIONS = [
   "NEXT_QUESTION",
   "CLARIFY",
   "CANDIDATE_QUESTIONS",
+  "COMPANY_ANSWER",
   "WAIT",
   "SUGGEST_END",
 ] as const;
@@ -37,6 +43,8 @@ export interface ArbiterCompanyProfileContext {
   requirements: unknown;
   culture: unknown;
   expectations: unknown;
+  workConditions: string[];
+  compensation: VacancyCompensation | null;
 }
 
 export interface LiveHistoryItem {
@@ -161,7 +169,7 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 }
 
 export const PENDING_QUESTION_NUDGE_UK =
-  "[Система] Зараз є ВІДКРИТЕ питання (від HR або Company). Правила: якщо Candidate щойно попросив живу людину відповісти (немає даних у профілі) або висунув припущення з проханням підтвердити/доповнити — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.";
+  "[Система] Зараз є ВІДКРИТЕ питання. Якщо питання від Candidate до Company (про компанію, вакансію, умови) — COMPANY_ANSWER; якщо від HR або Company до Candidate — правила нижче. Якщо Candidate щойно попросив живу людину відповісти (немає даних у профілі) або висунув припущення з проханням підтвердити/доповнити — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.";
 
 export const NO_PENDING_QUESTION_NUDGE_UK =
   "[Система] Відкритого питання немає. Можна START / NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.";
@@ -219,6 +227,8 @@ export async function runArbiterTurn(
       requirements: companyProfile.requirements,
       culture: companyProfile.culture,
       expectations: companyProfile.expectations,
+      workConditions: parseWorkConditionsArray(companyProfile.workConditions),
+      compensation: parseVacancyCompensation(companyProfile.compensation),
     },
     history,
     pendingQuestion: options.pendingQuestion,

@@ -1,6 +1,11 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import type { ChatMessage, LlmProvider } from "../llm/types";
 import {
+  parseVacancyCompensation,
+  parseWorkConditionsArray,
+  type VacancyCompensation,
+} from "../utils/vacancy-work-conditions";
+import {
   AgentPostReplyParseError,
   parsePostReply,
   type ParsedPostReply,
@@ -17,6 +22,8 @@ export interface CompanyLiveProfileContext {
   requirements: unknown;
   culture: unknown;
   expectations: unknown;
+  workConditions: string[];
+  compensation: VacancyCompensation | null;
 }
 
 export interface LiveHistoryItem {
@@ -63,9 +70,15 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
   }
 }
 
+export const ANSWER_CANDIDATE_NUDGE_UK =
+  "[Система] Команда Arbiter: ANSWER_CANDIDATE. Відповідай на питання кандидата про компанію або умови вакансії з профілю. Якщо факту немає — попроси HR відповісти самому.";
+
 export function formatCompanyTurnNudge(turnContext: LiveAgentTurnContext): string {
   const brief = turnContext.briefUk?.trim();
   const briefPart = brief ? ` Підказка Arbiter: ${brief}` : "";
+  if (turnContext.action === "ANSWER_CANDIDATE") {
+    return `${ANSWER_CANDIDATE_NUDGE_UK}${briefPart}`;
+  }
   if (turnContext.action === "CLARIFY") {
     return `[Система] Команда Arbiter: CLARIFY. Постав одне уточнююче питання.${briefPart}`;
   }
@@ -127,6 +140,8 @@ export async function runCompanyLiveTurn(
       requirements: companyProfile.requirements,
       culture: companyProfile.culture,
       expectations: companyProfile.expectations,
+      workConditions: parseWorkConditionsArray(companyProfile.workConditions),
+      compensation: parseVacancyCompensation(companyProfile.compensation),
     },
     history,
     turnContext,

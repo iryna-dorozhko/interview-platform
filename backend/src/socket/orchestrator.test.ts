@@ -50,6 +50,62 @@ function cmd(partial: ParsedArbiterCommand): ParsedArbiterCommand {
   return partial;
 }
 
+test("orchestrator COMPANY_ANSWER runs company with ANSWER_CANDIDATE", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterCalls = 0;
+  let companyCalls = 0;
+  let candidateCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 4,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        return cmd({
+          action: "COMPANY_ANSWER",
+          summaryUk: "Company відповість",
+          briefUk: "Зарплата",
+        });
+      }
+      return cmd({ action: "WAIT", summaryUk: "Чекаємо" });
+    },
+    runCompanyLiveTurn: async (_i, _s, turnContext) => {
+      companyCalls += 1;
+      assert.equal(turnContext.action, "ANSWER_CANDIDATE");
+      assert.equal(turnContext.briefUk, "Зарплата");
+      return { post: true, message: "Зарплата — $4000 gross." };
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return { post: false };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 100));
+
+  const processEvents = emitted.filter((e) => e.event === "room:arbiter-process");
+  assert.ok(processEvents.length >= 1);
+  assert.equal(
+    (processEvents[0].payload as { action: string }).action,
+    "COMPANY_ANSWER",
+  );
+
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.equal(agentMessages.length, 1);
+  assert.equal(
+    (agentMessages[0].payload as { messages: Array<{ authorType: string; content: string }> })
+      .messages[0].authorType,
+    "AGENT_COMPANY",
+  );
+  assert.equal(companyCalls, 1);
+  assert.equal(candidateCalls, 0);
+  assert.ok(arbiterCalls >= 2);
+});
+
 test("orchestrator START posts arbiter, runs company, emits process", async () => {
   const messages: LiveMessage[] = [];
   const prisma = makePrisma(messages);

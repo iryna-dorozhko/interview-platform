@@ -14,6 +14,8 @@ const companyProfile = {
   requirements: ["Node.js", "PostgreSQL"],
   culture: ["remote-first"],
   expectations: ["ownership у перші 3 місяці"],
+  workConditions: [] as string[],
+  compensation: null as { displayText: string } | null,
 };
 
 test("buildCompanyLiveMessages includes company profile and maps history", () => {
@@ -34,6 +36,26 @@ test("buildCompanyLiveMessages includes company profile and maps history", () =>
   );
   assert.deepEqual(messages[1], { role: "user", content: "[HR] Доброго дня!" });
   assert.deepEqual(messages[2], { role: "assistant", content: "Давайте почнемо співбесіду." });
+});
+
+test("buildCompanyLiveMessages includes workConditions and compensation in profile block", () => {
+  const messages = buildCompanyLiveMessages({
+    companyProfile: {
+      ...companyProfile,
+      workConditions: ["Формат: remote"],
+      compensation: { displayText: "$4000 gross" },
+    },
+    history: [],
+  });
+  assert.match(messages[0].content, /workConditions/);
+  assert.match(messages[0].content, /remote/);
+  assert.match(messages[0].content, /\$4000 gross/);
+});
+
+test("formatCompanyTurnNudge handles ANSWER_CANDIDATE", () => {
+  const nudge = formatCompanyTurnNudge({ action: "ANSWER_CANDIDATE", briefUk: "Бенефіти" });
+  assert.match(nudge, /ANSWER_CANDIDATE/);
+  assert.match(nudge, /Бенефіти/);
 });
 
 test("buildCompanyLiveMessages appends turnContext nudge", () => {
@@ -65,6 +87,8 @@ test("runCompanyLiveTurn loads profile, calls LLM, parses reply", async () => {
             requirements: companyProfile.requirements,
             culture: companyProfile.culture,
             expectations: companyProfile.expectations,
+            workConditions: [],
+            compensation: null,
           },
         },
       }),

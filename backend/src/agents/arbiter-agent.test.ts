@@ -17,6 +17,8 @@ const companyProfile = {
   requirements: ["Node.js", "PostgreSQL"],
   culture: ["remote-first"],
   expectations: ["ownership"],
+  workConditions: [] as string[],
+  compensation: null as { displayText: string } | null,
 };
 
 test("arbiter prompt includes conductor actions and start/end guidance", () => {
@@ -33,6 +35,17 @@ test("arbiter prompt waits after candidate assumption or human deferral", () => 
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /попросив живу людину/i);
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /припущення/i);
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /підтверд|доповн/i);
+});
+
+test("arbiter system prompt includes COMPANY_ANSWER", () => {
+  assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /COMPANY_ANSWER/);
+});
+
+test("parseArbiterCommand parses COMPANY_ANSWER", () => {
+  const result = parseArbiterCommand(
+    '{ "action": "COMPANY_ANSWER", "summaryUk": "Company відповість", "briefUk": "Зарплата" }',
+  );
+  assert.equal(result.action, "COMPANY_ANSWER");
 });
 
 test("parseArbiterCommand parses WAIT", () => {
@@ -137,6 +150,8 @@ test("runArbiterTurn loads context, calls LLM, and parses command", async () => 
             requirements: ["Node.js"],
             culture: ["remote"],
             expectations: ["ship features"],
+            workConditions: [],
+            compensation: null,
           },
         },
       }),
