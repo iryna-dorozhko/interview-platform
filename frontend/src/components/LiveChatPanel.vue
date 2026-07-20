@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import type { AgentThinkingState, LiveMessage } from "../composables/useInterviewRoom";
-import { labelFor, messageStyles } from "../utils/live-message-styles";
+import {
+  confidenceBadgeFor,
+  labelFor,
+  messageStyles,
+} from "../utils/live-message-styles";
 
 const props = defineProps<{
   messages: LiveMessage[];
@@ -58,6 +62,10 @@ function onKeydown(event: KeyboardEvent): void {
     sendMessage();
   }
 }
+
+function messageConfidenceBadge(message: LiveMessage) {
+  return confidenceBadgeFor(message.authorType, message.candidateConfidence);
+}
 </script>
 
 <template>
@@ -82,6 +90,13 @@ function onKeydown(event: KeyboardEvent): void {
           :style="messageStyles(message.authorType, currentRole).label"
         >
           {{ labelFor(message.authorType) }}
+        </span>
+        <span
+          v-if="messageConfidenceBadge(message)"
+          class="confidence-badge"
+          :style="messageConfidenceBadge(message)!"
+        >
+          {{ messageConfidenceBadge(message)!.label }}
         </span>
         <p
           class="message-text"
@@ -150,6 +165,15 @@ function onKeydown(event: KeyboardEvent): void {
   padding: 0.1rem 0.5rem;
   border-radius: 9999px;
   margin-bottom: 0.25rem;
+}
+.confidence-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  margin-left: 0.35rem;
+  margin-bottom: 0.25rem;
+  vertical-align: middle;
 }
 .message-text {
   margin: 0;

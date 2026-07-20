@@ -19,10 +19,13 @@ export type ArbiterProcessEntry = {
   summaryUk: string;
 };
 
+export type CandidateConfidence = "CONFIRMED" | "INFERRED" | "UNKNOWN";
+
 export type LiveMessage = {
   id: string;
   authorType: LiveAuthorType;
   content: string;
+  candidateConfidence?: CandidateConfidence | null;
   createdAt: string;
 };
 
