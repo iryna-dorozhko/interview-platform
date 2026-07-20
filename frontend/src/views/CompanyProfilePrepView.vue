@@ -407,7 +407,8 @@ onMounted(loadPrepState);
 
 <style scoped>
 .page {
-  max-width: 40rem;
+  width: 100%;
+  min-width: 0;
 }
 .header {
   display: flex;
@@ -438,7 +439,8 @@ onMounted(loadPrepState);
   gap: 0.5rem;
 }
 .messages {
-  max-height: 24rem;
+  max-height: calc(100vh - 14rem);
+  min-height: 20rem;
   overflow-y: auto;
   border: 1px solid #eee;
   border-radius: 0.5rem;

@@ -87,7 +87,8 @@ function logout(): void {
 }
 .content {
   flex: 1;
-  padding: 1.25rem;
-  max-width: 56rem;
+  min-width: 0;
+  width: 100%;
+  padding: var(--content-padding-y) var(--content-padding-x);
 }
 </style>

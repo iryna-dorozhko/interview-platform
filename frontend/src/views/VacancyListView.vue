@@ -95,7 +95,7 @@ onMounted(loadVacancies);
 
 <template>
   <div class="vacancy-list">
-    <h1>Анкети</h1>
+    <h1>Вакансії</h1>
 
     <p v-if="listState === 'loading'">Завантаження…</p>
     <p v-else-if="listState === 'error'" class="fail">{{ listError }}</p>

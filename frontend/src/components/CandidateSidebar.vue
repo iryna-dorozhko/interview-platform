@@ -42,7 +42,8 @@ function isHomeActive(): boolean {
   padding: 1rem 0.75rem;
   border-right: 1px solid var(--border);
   background: var(--surface-muted);
-  min-width: 8.5rem;
+  flex: 0 0 var(--sidebar-width);
+  min-width: var(--sidebar-width);
 }
 .nav-item {
   display: block;

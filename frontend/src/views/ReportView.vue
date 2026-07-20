@@ -96,7 +96,8 @@ onMounted(loadReport);
 
 <style scoped>
 .report-page {
-  max-width: 48rem;
+  width: 100%;
+  min-width: 0;
 }
 .header {
   margin-bottom: 1rem;

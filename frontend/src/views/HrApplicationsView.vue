@@ -287,9 +287,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.applications {
+  width: 100%;
+  min-width: 0;
+}
 .page-title {
-  margin: 0 0 1rem;
-  font-size: 1.25rem;
+  margin: 0 0 1.25rem;
+  font-size: 1.375rem;
 }
 .muted {
   color: #6b7280;
@@ -299,8 +303,8 @@ onMounted(() => {
 }
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(22rem, 1fr);
+  gap: 1.5rem;
   align-items: start;
 }
 @media (max-width: 900px) {
@@ -311,12 +315,12 @@ onMounted(() => {
 .apps-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
 }
 .apps-table th,
 .apps-table td {
   text-align: left;
-  padding: 0.55rem 0.4rem;
+  padding: 0.7rem 0.6rem;
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
@@ -341,7 +345,7 @@ onMounted(() => {
   color: #6b7280;
 }
 .detail-panel {
-  padding: 1rem;
+  padding: 1.25rem;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;

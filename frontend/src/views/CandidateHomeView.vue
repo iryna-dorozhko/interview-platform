@@ -241,23 +241,23 @@ onMounted(() => {
 
 <style scoped>
 .page-title {
-  margin: 0 0 1rem;
-  font-size: 1.25rem;
+  margin: 0 0 1.25rem;
+  font-size: 1.375rem;
 }
 .fail {
   color: var(--danger);
 }
 .overview-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 .card {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem;
+  gap: 0.35rem;
+  padding: 1.25rem;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
