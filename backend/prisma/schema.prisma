@@ -32,6 +32,12 @@ enum LiveAuthorType {
   AGENT_CANDIDATE
 }
 
+enum CandidateConfidence {
+  CONFIRMED
+  INFERRED
+  UNKNOWN
+}
+
 enum PrepHrAuthorType {
   HUMAN_HR
   AGENT_COMPANY
@@ -257,12 +263,13 @@ model LiveSession {
 }
 
 model LiveMessage {
-  id         String         @id @default(cuid())
-  sessionId  String
-  authorType LiveAuthorType
-  content    String
-  createdAt  DateTime       @default(now())
-  session    LiveSession    @relation(fields: [sessionId], references: [id])
+  id                  String                @id @default(cuid())
+  sessionId           String
+  authorType          LiveAuthorType
+  content             String
+  candidateConfidence CandidateConfidence?
+  createdAt           DateTime              @default(now())
+  session             LiveSession           @relation(fields: [sessionId], references: [id])
 
   @@index([sessionId, createdAt])
 }
