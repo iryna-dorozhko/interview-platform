@@ -1,9 +1,13 @@
 import { fetchWithAuth } from "./client";
 
 export type CandidateMatchOffer = {
-  vacancyId: string | null;
-  title: string | null;
-  matchScore: number | null;
+  vacancyId: string;
+  title: string;
+  matchScore: number;
+};
+
+export type CandidateMatchOffersResponse = {
+  offers: CandidateMatchOffer[];
 };
 
 export type ActiveApplication = {
@@ -36,18 +40,18 @@ export async function fetchActiveApplication(): Promise<ActiveApplication | null
   return body.application;
 }
 
-export async function fetchNextMatch(): Promise<CandidateMatchOffer> {
+export async function fetchNextMatch(): Promise<CandidateMatchOffersResponse> {
   const response = await fetchWithAuth("/api/candidate/matches/next");
   if (!response.ok) {
     if (response.status === 503) {
       throw await parseError(response, "Підбір тимчасово недоступний");
     }
-    throw await parseError(response, "Не вдалося завантажити вакансію");
+    throw await parseError(response, "Не вдалося завантажити вакансії");
   }
-  return response.json() as Promise<CandidateMatchOffer>;
+  return response.json() as Promise<CandidateMatchOffersResponse>;
 }
 
-export async function rejectMatch(vacancyId: string): Promise<CandidateMatchOffer> {
+export async function rejectMatch(vacancyId: string): Promise<CandidateMatchOffersResponse> {
   const response = await fetchWithAuth(`/api/candidate/matches/${vacancyId}/reject`, {
     method: "POST",
   });
@@ -57,7 +61,7 @@ export async function rejectMatch(vacancyId: string): Promise<CandidateMatchOffe
     }
     throw await parseError(response, "Не вдалося відхилити вакансію");
   }
-  return response.json() as Promise<CandidateMatchOffer>;
+  return response.json() as Promise<CandidateMatchOffersResponse>;
 }
 
 export async function acceptMatch(
