@@ -144,6 +144,8 @@ model CompanyProfile {
   policies           Json?
   workFormat         Json?
   onboardingApproach Json?
+  workConditions     Json     @default("[]")
+  compensation       Json?
   confirmedAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
