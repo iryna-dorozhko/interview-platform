@@ -45,7 +45,24 @@ function textToArray(text: string): string[] {
 }
 
 function syncEditableProfile(next: CompanyProfile | null): void {
-  editableProfile.value = next ? { ...next } : null;
+  if (!next) {
+    editableProfile.value = null;
+    return;
+  }
+  editableProfile.value = {
+    ...next,
+    workConditions: next.workConditions ?? [],
+    compensation: next.compensation ?? null,
+  };
+}
+
+function getCompensationDisplayText(): string {
+  return editableProfile.value?.compensation?.displayText ?? "";
+}
+
+function setCompensationDisplayText(text: string): void {
+  if (!editableProfile.value) return;
+  editableProfile.value.compensation = { displayText: text.trim() };
 }
 
 watch(profile, (next) => {
@@ -205,6 +222,8 @@ async function onSaveProfileEdits(): Promise<void> {
       policies: editableProfile.value.policies,
       workFormat: editableProfile.value.workFormat,
       onboardingApproach: editableProfile.value.onboardingApproach,
+      workConditions: editableProfile.value.workConditions,
+      compensation: editableProfile.value.compensation,
     });
     profile.value = updated;
     syncEditableProfile(updated);
@@ -215,19 +234,28 @@ async function onSaveProfileEdits(): Promise<void> {
   }
 }
 
-function setArrayField(field: keyof Pick<CompanyProfile, "requirements" | "expectations" | "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach">, text: string): void {
+type ArrayProfileField = keyof Pick<
+  CompanyProfile,
+  | "requirements"
+  | "expectations"
+  | "culture"
+  | "companyDirection"
+  | "policies"
+  | "workFormat"
+  | "onboardingApproach"
+  | "workConditions"
+>;
+
+function setArrayField(field: ArrayProfileField, text: string): void {
   if (!editableProfile.value) return;
   editableProfile.value[field] = textToArray(text);
 }
 
-function getArrayField(field: keyof Pick<CompanyProfile, "requirements" | "expectations" | "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach">): string {
+function getArrayField(field: ArrayProfileField): string {
   return editableProfile.value?.[field].join("\n") ?? "";
 }
 
-function onArrayFieldInput(
-  field: keyof Pick<CompanyProfile, "requirements" | "expectations" | "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach">,
-  event: Event,
-): void {
+function onArrayFieldInput(field: ArrayProfileField, event: Event): void {
   setArrayField(field, (event.target as HTMLTextAreaElement).value);
 }
 
@@ -311,6 +339,25 @@ onMounted(loadPrepState);
               @input="onArrayFieldInput('expectations', $event)"
             />
           </label>
+          <h3 class="section-heading">Умови роботи</h3>
+          <label class="field">
+            <span class="field-label">Зарплата</span>
+            <input
+              type="text"
+              class="field-input"
+              :value="getCompensationDisplayText()"
+              @input="setCompensationDisplayText(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Умови (один пункт на рядок, з префіксами)</span>
+            <textarea
+              class="field-input"
+              rows="6"
+              :value="getArrayField('workConditions')"
+              @input="onArrayFieldInput('workConditions', $event)"
+            />
+          </label>
           <label class="field">
             <span class="field-label">Культура</span>
             <textarea
@@ -365,6 +412,10 @@ onMounted(loadPrepState);
           <dd><ul><li v-for="(item, i) in profile.requirements" :key="i">{{ item }}</li></ul></dd>
           <dt>Очікування</dt>
           <dd><ul><li v-for="(item, i) in profile.expectations" :key="i">{{ item }}</li></ul></dd>
+          <dt>Зарплата</dt>
+          <dd>{{ profile.compensation?.displayText ?? "не вказано" }}</dd>
+          <dt>Умови роботи</dt>
+          <dd><ul><li v-for="(item, i) in profile.workConditions" :key="i">{{ item }}</li></ul></dd>
           <dt>Культура</dt>
           <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
           <dt>Напрям компанії</dt>
@@ -619,6 +670,12 @@ onMounted(loadPrepState);
   flex-direction: column;
   gap: 0.75rem;
   margin: 1rem 0;
+}
+.section-heading {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
 }
 .field {
   display: flex;

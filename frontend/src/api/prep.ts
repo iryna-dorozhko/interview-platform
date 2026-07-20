@@ -9,6 +9,14 @@ export type PrepMessage = {
   createdAt: string;
 };
 
+export type VacancyCompensation = {
+  min?: number;
+  max?: number;
+  currency?: string;
+  grossNet?: "gross" | "net";
+  displayText: string;
+};
+
 export type CompanyProfile = {
   role: string;
   requirements: string[];
@@ -18,6 +26,8 @@ export type CompanyProfile = {
   policies: string[];
   workFormat: string[];
   onboardingApproach: string[];
+  workConditions: string[];
+  compensation: VacancyCompensation | null;
   confirmedAt: string | null;
 };
 
