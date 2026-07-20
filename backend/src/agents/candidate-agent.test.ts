@@ -51,12 +51,23 @@ test("candidate system prompt includes work conditions and deep follow-up rules"
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /графік/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /релокац/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /доки відповідь не стане конкретною/i);
-  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /обов'язково заглиб/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /заглиб/i);
+});
+
+test("candidate system prompt asks for concrete projects with bounded follow-ups", () => {
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /проєкт|кейс/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /конкретн.*проєкт|конкретн.*кейс/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /не затяг/i);
+  assert.doesNotMatch(
+    CANDIDATE_AGENT_SYSTEM_PROMPT_UK,
+    /Кількість уточнюючих раундів на тему не обмежена/,
+  );
 });
 
 test("candidate system prompt READY gate requires all five profile topics", () => {
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /умови роботи/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /кар'єрні цілі/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /хоча б один.*проєкт|хоча б один.*кейс/i);
   assert.doesNotMatch(
     CANDIDATE_AGENT_SYSTEM_PROMPT_UK,
     /одне коротке уточнювальне питання/i,
