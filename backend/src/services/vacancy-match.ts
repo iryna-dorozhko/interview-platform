@@ -6,11 +6,17 @@ import {
 } from "../agents/vacancy-match-agent";
 import type { LlmProvider } from "../llm/types";
 import { getConfirmedQuestionnaireProfile } from "../utils/interview-readiness";
+import {
+  formatSalaryDisplay,
+  formatWorkFormatDisplay,
+} from "../utils/vacancy-work-conditions";
 
 export type CandidateMatchOffer = {
   vacancyId: string;
   title: string;
   matchScore: number;
+  salaryDisplay: string | null;
+  workFormatDisplay: string | null;
 };
 
 export type VacancyMatchErrorCode = "QUESTIONNAIRE_NOT_CONFIRMED" | "MATCH_UNAVAILABLE";
@@ -53,6 +59,46 @@ export function pickTopOffers(
     if (result.length >= limit) break;
   }
   return result;
+}
+
+export function enrichOfferWithDisplays(
+  base: { vacancyId: string; title: string; matchScore: number },
+  profile: { workConditions: unknown; compensation: unknown } | null,
+): CandidateMatchOffer {
+  return {
+    ...base,
+    salaryDisplay: formatSalaryDisplay(profile?.compensation ?? null),
+    workFormatDisplay: formatWorkFormatDisplay(profile?.workConditions ?? null),
+  };
+}
+
+export async function attachDisplaysToOffers(
+  prisma: PrismaClient,
+  offers: Array<{ vacancyId: string; title: string; matchScore: number }>,
+): Promise<CandidateMatchOffer[]> {
+  if (offers.length === 0) return [];
+
+  const vacancyIds = offers.map((offer) => offer.vacancyId);
+  const vacancies = await prisma.vacancy.findMany({
+    where: { id: { in: vacancyIds } },
+    include: { companyProfile: true },
+  });
+  const profileByVacancyId = new Map(
+    vacancies.map((vacancy) => [vacancy.id, vacancy.companyProfile]),
+  );
+
+  return offers.map((offer) => {
+    const companyProfile = profileByVacancyId.get(offer.vacancyId);
+    return enrichOfferWithDisplays(
+      offer,
+      companyProfile
+        ? {
+            workConditions: companyProfile.workConditions,
+            compensation: companyProfile.compensation,
+          }
+        : null,
+    );
+  });
 }
 
 export function toCandidateOfferPayload(offer: CandidateMatchOffer): CandidateMatchOffer {
@@ -112,9 +158,13 @@ export async function getRejectedVacancyIds(
 }
 
 function toOffersFromCachedScores(
-  scores: Array<{ vacancyId: string; matchScore: number; vacancy: { title: string } | null }>,
-): CandidateMatchOffer[] {
-  const offers: CandidateMatchOffer[] = [];
+  scores: Array<{
+    vacancyId: string;
+    matchScore: number;
+    vacancy: { title: string } | null;
+  }>,
+): Array<{ vacancyId: string; title: string; matchScore: number }> {
+  const offers: Array<{ vacancyId: string; title: string; matchScore: number }> = [];
   for (const score of scores) {
     if (!score.vacancy) continue;
     offers.push({
@@ -144,10 +194,10 @@ export async function ensureMatchScores(
       candidateUserId,
       rankedForConfirmedAt: profile.confirmedAt,
     },
-    include: { vacancy: true },
+    include: { vacancy: { include: { companyProfile: true } } },
   });
   if (cached.length > 0) {
-    return toOffersFromCachedScores(cached);
+    return attachDisplaysToOffers(prisma, toOffersFromCachedScores(cached));
   }
 
   let ranked;
@@ -158,20 +208,20 @@ export async function ensureMatchScores(
   }
 
   const titleByVacancyId = new Map(vacancies.map((item) => [item.vacancyId, item.title]));
-  const offers: CandidateMatchOffer[] = [];
+  const baseOffers: Array<{ vacancyId: string; title: string; matchScore: number }> = [];
   for (const item of ranked) {
     const title = titleByVacancyId.get(item.vacancyId);
     if (!title) continue;
-    offers.push({
+    baseOffers.push({
       vacancyId: item.vacancyId,
       title,
       matchScore: item.matchScore,
     });
   }
 
-  if (offers.length > 0) {
+  if (baseOffers.length > 0) {
     await prisma.vacancyMatchScore.createMany({
-      data: offers.map((offer) => ({
+      data: baseOffers.map((offer) => ({
         candidateUserId,
         vacancyId: offer.vacancyId,
         matchScore: offer.matchScore,
@@ -180,7 +230,7 @@ export async function ensureMatchScores(
     });
   }
 
-  return offers;
+  return attachDisplaysToOffers(prisma, baseOffers);
 }
 
 export async function getTopMatchOffers(

@@ -4,6 +4,8 @@ export type CandidateMatchOffer = {
   vacancyId: string;
   title: string;
   matchScore: number;
+  salaryDisplay: string | null;
+  workFormatDisplay: string | null;
 };
 
 export type CandidateMatchOffersResponse = {

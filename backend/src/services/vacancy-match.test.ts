@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 import type { LlmProvider } from "../llm/types";
 import {
+  enrichOfferWithDisplays,
   ensureMatchScores,
   getTopMatchOffers,
   pickTopOffers,
@@ -81,9 +82,45 @@ test("pickTopOffers returns empty array when all rejected", () => {
   assert.deepEqual(top, []);
 });
 
-test("candidate offer payload has only vacancyId, title, matchScore", () => {
-  const offer = { vacancyId: "v1", title: "Backend", matchScore: 88 };
-  assert.deepEqual(Object.keys(offer).sort(), ["matchScore", "title", "vacancyId"]);
+test("enrichOfferWithDisplays adds salary and format from company profile", () => {
+  const offer = enrichOfferWithDisplays(
+    { vacancyId: "v1", title: "Backend", matchScore: 88 },
+    {
+      workConditions: ["Формат: remote, 2 дні в офісі"],
+      compensation: { displayText: "$4000 gross, USD" },
+    },
+  );
+  assert.equal(offer.salaryDisplay, "$4000 gross, USD");
+  assert.equal(offer.workFormatDisplay, "remote, 2 дні в офісі");
+});
+
+test("enrichOfferWithDisplays returns null displays for не вказано", () => {
+  const offer = enrichOfferWithDisplays(
+    { vacancyId: "v1", title: "Backend", matchScore: 50 },
+    {
+      workConditions: ["Формат: не вказано"],
+      compensation: { displayText: "не вказано" },
+    },
+  );
+  assert.equal(offer.salaryDisplay, null);
+  assert.equal(offer.workFormatDisplay, null);
+});
+
+test("candidate offer payload includes display fields", () => {
+  const offer = enrichOfferWithDisplays(
+    { vacancyId: "v1", title: "Backend", matchScore: 88 },
+    {
+      workConditions: ["Формат: remote"],
+      compensation: { displayText: "$4000 gross" },
+    },
+  );
+  assert.deepEqual(Object.keys(offer).sort(), [
+    "matchScore",
+    "salaryDisplay",
+    "title",
+    "vacancyId",
+    "workFormatDisplay",
+  ]);
 });
 
 type FakeVacancy = {
@@ -95,6 +132,8 @@ type FakeVacancy = {
     requirements: unknown;
     culture: unknown;
     expectations: unknown;
+    workConditions?: unknown;
+    compensation?: unknown;
     confirmedAt: Date | null;
   } | null;
 };
@@ -158,6 +197,7 @@ function makeFakePrisma(seed: {
       }: {
         where?: {
           status?: string;
+          id?: { in: string[] };
           companyProfile?: { confirmedAt?: { not: null } };
         };
         include?: { companyProfile?: boolean };
@@ -165,6 +205,7 @@ function makeFakePrisma(seed: {
         return vacancies
           .filter((item) => {
             if (where?.status != null && item.status !== where.status) return false;
+            if (where?.id?.in != null && !where.id.in.includes(item.id)) return false;
             if (where?.companyProfile?.confirmedAt?.not === null) {
               if (item.companyProfile?.confirmedAt == null) return false;
             }
@@ -385,7 +426,13 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
   );
 
   assert.deepEqual(offers, [
-    { vacancyId: "v2", title: "Platform Engineer", matchScore: 80 },
+    {
+      vacancyId: "v2",
+      title: "Platform Engineer",
+      matchScore: 80,
+      salaryDisplay: null,
+      workFormatDisplay: null,
+    },
   ]);
 });
 
@@ -434,7 +481,15 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
   );
 
   assert.equal(completeCalls, 1);
-  assert.deepEqual(offers, [{ vacancyId: "v1", title: "Backend", matchScore: 91 }]);
+  assert.deepEqual(offers, [
+    {
+      vacancyId: "v1",
+      title: "Backend",
+      matchScore: 91,
+      salaryDisplay: null,
+      workFormatDisplay: null,
+    },
+  ]);
   assert.equal(
     fakePrisma.__matchScores.some(
       (row) =>

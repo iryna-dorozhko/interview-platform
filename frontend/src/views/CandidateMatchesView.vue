@@ -111,7 +111,11 @@ onMounted(() => {
         class="offer-row"
       >
         <div class="offer-main">
-          <h3 class="offer-title">{{ item.title }}</h3>
+          <div class="offer-details">
+            <h3 class="offer-title">{{ item.title }}</h3>
+            <p v-if="item.salaryDisplay" class="offer-meta">💰 {{ item.salaryDisplay }}</p>
+            <p v-if="item.workFormatDisplay" class="offer-meta">🏢 {{ item.workFormatDisplay }}</p>
+          </div>
           <span class="offer-score-badge">{{ item.matchScore }}%</span>
         </div>
         <div class="actions">
@@ -143,8 +147,8 @@ onMounted(() => {
 
 <style scoped>
 .page-title {
-  margin: 0 0 1rem;
-  font-size: 1.25rem;
+  margin: 0 0 1.25rem;
+  font-size: 1.375rem;
 }
 .fail {
   color: var(--danger);
@@ -154,7 +158,7 @@ onMounted(() => {
   color: #555;
 }
 .status-card {
-  padding: 1rem;
+  padding: 1.25rem;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
@@ -170,22 +174,30 @@ onMounted(() => {
   font-size: 0.875rem;
 }
 .offers-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  gap: 1rem;
 }
 .offer-row {
-  padding: 1rem;
+  padding: 1.25rem;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
 }
 .offer-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
+}
+.offer-details {
+  min-width: 0;
+}
+.offer-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 .offer-title {
   margin: 0;

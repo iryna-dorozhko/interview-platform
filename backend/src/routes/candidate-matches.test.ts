@@ -457,7 +457,13 @@ test("GET /matches/next returns offers array with contract keys only", async () 
     assert.equal(body.offers.length, 2);
     assert.deepEqual(Object.keys(body).sort(), ["offers"]);
     for (const offer of body.offers) {
-      assert.deepEqual(Object.keys(offer).sort(), ["matchScore", "title", "vacancyId"]);
+      assert.deepEqual(Object.keys(offer).sort(), [
+        "matchScore",
+        "salaryDisplay",
+        "title",
+        "vacancyId",
+        "workFormatDisplay",
+      ]);
       assert.ok(!("culture" in offer));
     }
     assert.equal(body.offers[0]?.vacancyId, "v1");

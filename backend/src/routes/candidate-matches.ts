@@ -20,6 +20,8 @@ function offersPayload(offers: CandidateMatchOffer[]) {
       vacancyId: offer.vacancyId,
       title: offer.title,
       matchScore: offer.matchScore,
+      salaryDisplay: offer.salaryDisplay,
+      workFormatDisplay: offer.workFormatDisplay,
     })),
   };
 }
