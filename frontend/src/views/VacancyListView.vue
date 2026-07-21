@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import CreateVacancyModal from "../components/CreateVacancyModal.vue";
 import {
   deleteVacancy,
   fetchMyVacancies,
@@ -21,6 +22,7 @@ const vacancies = ref<VacancySummary[]>([]);
 const listState = ref<ListState>("loading");
 const listError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
+const showVacancyModal = ref(false);
 
 async function loadVacancies(): Promise<void> {
   listState.value = "loading";
@@ -49,6 +51,11 @@ function goToPrep(id: string): void {
 
 function goToDetail(id: string): void {
   router.push({ name: "vacancy-detail", params: { id } });
+}
+
+function onVacancyCreated(vacancyId: string): void {
+  showVacancyModal.value = false;
+  router.push({ name: "vacancy-prep", params: { id: vacancyId } });
 }
 
 async function onEditTitle(vacancy: VacancySummary): Promise<void> {
@@ -95,12 +102,17 @@ onMounted(loadVacancies);
 
 <template>
   <div class="vacancy-list">
-    <h1>Вакансії</h1>
+    <div class="list-header">
+      <h1>Вакансії</h1>
+      <button type="button" class="btn-primary" @click="showVacancyModal = true">
+        Створити вакансію
+      </button>
+    </div>
 
     <p v-if="listState === 'loading'">Завантаження…</p>
     <p v-else-if="listState === 'error'" class="fail">{{ listError }}</p>
     <p v-else-if="vacancies.length === 0" class="muted">
-      У вас ще немає анкет. Створіть першу на головній сторінці.
+      У вас ще немає вакансій. Натисніть «Створити вакансію», щоб додати першу.
     </p>
     <template v-else>
       <p v-if="actionError" class="fail" role="alert">{{ actionError }}</p>
@@ -146,12 +158,25 @@ onMounted(loadVacancies);
         </tbody>
       </table>
     </template>
+
+    <CreateVacancyModal
+      :open="showVacancyModal"
+      @close="showVacancyModal = false"
+      @created="onVacancyCreated"
+    />
   </div>
 </template>
 
 <style scoped>
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
 .vacancy-list h1 {
-  margin: 0 0 1rem;
+  margin: 0;
   font-size: 1.25rem;
 }
 .muted {
