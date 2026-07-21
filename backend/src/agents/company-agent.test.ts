@@ -92,6 +92,46 @@ test("parseVacancyProfileExtraction parses workConditions and compensation", () 
   assert.equal(result.compensation.min, 3000);
 });
 
+test("parseVacancyProfileExtraction parses structured critical/desired requirements", () => {
+  const raw = JSON.stringify({
+    role: "Backend Developer",
+    requirements: { critical: ["Node.js"], desired: ["Docker"] },
+    expectations: ["Ownership"],
+    workConditions: [
+      "Формат: remote",
+      "Графік: повний день",
+      "Бенефіти: не вказано",
+      "Релокація: не вказано",
+      "Випробувальний: не вказано",
+      "Обладнання: не вказано",
+    ],
+    compensation: { displayText: "не вказано" },
+  });
+  const result = parseVacancyProfileExtraction(raw);
+  assert.deepEqual(result.requirements, {
+    critical: ["Node.js"],
+    desired: ["Docker"],
+  });
+});
+
+test("parseVacancyProfileExtraction rejects empty critical and desired", () => {
+  const raw = JSON.stringify({
+    role: "Backend Developer",
+    requirements: { critical: [], desired: [] },
+    expectations: ["Ownership"],
+    workConditions: [
+      "Формат: remote",
+      "Графік: повний день",
+      "Бенефіти: не вказано",
+      "Релокація: не вказано",
+      "Випробувальний: не вказано",
+      "Обладнання: не вказано",
+    ],
+    compensation: { displayText: "не вказано" },
+  });
+  assert.throws(() => parseVacancyProfileExtraction(raw));
+});
+
 test("parseVacancyProfileExtraction parses vacancy-only fields", () => {
   const raw = JSON.stringify({
     role: "Middle Backend Developer",
@@ -110,7 +150,7 @@ test("parseVacancyProfileExtraction parses vacancy-only fields", () => {
   const result = parseVacancyProfileExtraction(raw);
   assert.deepEqual(result, {
     role: "Middle Backend Developer",
-    requirements: ["Node.js"],
+    requirements: { critical: [], desired: ["Node.js"] },
     expectations: ["Перший реліз за місяць"],
     workConditions: [
       "Формат: remote",
@@ -145,7 +185,7 @@ test("parseVacancyProfileExtraction strips markdown code fences around JSON", ()
   ].join("\n");
   const result = parseVacancyProfileExtraction(raw);
   assert.equal(result.role, "QA Engineer");
-  assert.deepEqual(result.requirements, ["3+ роки"]);
+  assert.deepEqual(result.requirements, { critical: [], desired: ["3+ роки"] });
 });
 
 test("parseVacancyProfileExtraction throws when response is not valid JSON", () => {

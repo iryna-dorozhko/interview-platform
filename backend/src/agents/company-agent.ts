@@ -1,6 +1,11 @@
 import type { ChatMessage } from "../llm/types";
 import type { VacancyCompensation } from "../utils/vacancy-work-conditions";
 import { parseVacancyCompensation, parseWorkConditionsArray } from "../utils/vacancy-work-conditions";
+import {
+  assertNonEmptyRequirements,
+  normalizeVacancyRequirements,
+  type VacancyRequirements,
+} from "../utils/vacancy-requirements";
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-agent.uk";
 import { VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/vacancy-profile-extraction.uk";
 
@@ -39,7 +44,7 @@ export function buildCompanyAgentMessages(history: PrepHistoryItem[]): ChatMessa
 
 export interface ExtractedVacancyProfile {
   role: string;
-  requirements: string[];
+  requirements: VacancyRequirements;
   expectations: string[];
   workConditions: string[];
   compensation: VacancyCompensation;
@@ -94,9 +99,14 @@ export function parseVacancyProfileExtraction(rawText: string): ExtractedVacancy
     throw new ProfileExtractionError("missing or invalid field: compensation");
   }
 
+  const normalizedRequirements = normalizeVacancyRequirements(requirements);
+  if (!normalizedRequirements || !assertNonEmptyRequirements(normalizedRequirements)) {
+    throw new ProfileExtractionError("missing or invalid field: requirements");
+  }
+
   return {
     role: role.trim(),
-    requirements: toStringArray(requirements, "requirements"),
+    requirements: normalizedRequirements,
     expectations: toStringArray(expectations, "expectations"),
     workConditions: parsedWorkConditions,
     compensation: parsedCompensation,
