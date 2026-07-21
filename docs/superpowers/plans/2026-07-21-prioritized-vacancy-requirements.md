@@ -427,24 +427,160 @@ git commit -m "feat(prep): extract critical and desired vacancy requirements"
 
 - [ ] **Step 1: Write failing route tests**
 
-Add/adjust in `prep.test.ts`:
+Update the existing PATCH assertion that expects `requirements: ["5+ років"]` to expect:
 
 ```typescript
-test("GET prep serializes structured requirements and legacy arrays", async () => {
-  // seed companyProfile.requirements as string[] → response has { critical:[], desired:[...] }
-});
-
-test("PATCH prep profile accepts critical/desired and rejects both empty", async () => {
-  // PATCH { requirements: { critical: [], desired: [] } } → 400
-  // PATCH { requirements: { critical: ["Node"], desired: ["Docker"] } } → 200
-});
-
-test("POST confirm rejects empty normalized requirements", async () => {
-  // profile with requirements {critical:[], desired:[]} → 400 before confirm
+assert.deepEqual(body.profile.requirements, {
+  critical: [],
+  desired: ["5+ років"],
 });
 ```
 
-(Use existing fake Prisma patterns in the file; mirror nearby tests.)
+when the stored value is still a legacy array **or** when PATCH sends structured object — prefer sending structured object in that test:
+
+```typescript
+body: JSON.stringify({
+  role: "Senior QA Engineer",
+  requirements: { critical: ["5+ років"], desired: ["Playwright"] },
+  expectations: ["автономність"],
+  culture: ["прозорість"],
+  companyDirection: ["FinTech"],
+  policies: ["remote-first"],
+  workFormat: ["Remote"],
+  onboardingApproach: ["Ментор 1 місяць"],
+}),
+// ...
+assert.deepEqual(body.profile.requirements, {
+  critical: ["5+ років"],
+  desired: ["Playwright"],
+});
+```
+
+Add these tests (same express + `makeFakePrisma` setup as nearby PATCH tests):
+
+```typescript
+test("GET /prep/:vacancyId serializes legacy requirements as desired", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        vacancyId: "vacancy_1",
+        role: "QA Engineer",
+        requirements: ["3+ роки"],
+        culture: ["відкритість"],
+        expectations: ["не вказано"],
+        companyDirection: ["EdTech"],
+        policies: ["гнучкий графік"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.profile.requirements, {
+      critical: [],
+      desired: ["3+ роки"],
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH /prep/:vacancyId/profile rejects empty critical and desired", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        vacancyId: "vacancy_1",
+        role: "QA Engineer",
+        requirements: { critical: ["Node.js"], desired: [] },
+        culture: ["відкритість"],
+        expectations: ["не вказано"],
+        companyDirection: ["EdTech"],
+        policies: ["гнучкий графік"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requirements: { critical: [], desired: [] } }),
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /prep/:vacancyId/confirm rejects empty requirements", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        vacancyId: "vacancy_1",
+        role: "QA Engineer",
+        requirements: { critical: [], desired: [] },
+        culture: ["відкритість"],
+        expectations: ["не вказано"],
+        companyDirection: ["EdTech"],
+        policies: ["гнучкий графік"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -938,22 +1074,156 @@ git commit -m "feat(match): request per-requirement LLM assessments"
 
 - [ ] **Step 1: Write failing service tests**
 
+Оновити fixtures: `requirements: { critical: ["TS"], desired: [] }`, `confirmedAt` на companyProfile, matchScores з `breakdown` і `rankedForVacancyConfirmedAt`.
+
 ```typescript
 test("ensureMatchScores ranks only vacancies missing current cache versions", async () => {
-  // cached v1 for candidateConfirmedAt + vacancyConfirmedAt
-  // v2 has no cache → LLM called once for [v2] only
-});
+  const vacancyConfirmedAt = confirmedAt;
+  let completeCalls = 0;
+  const fakePrisma = makeFakePrisma(
+    confirmedCandidateSeed({
+      vacancies: [
+        {
+          id: "v1",
+          title: "Backend",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Backend",
+            requirements: { critical: ["Node.js"], desired: [] },
+            culture: [],
+            expectations: [],
+            confirmedAt: vacancyConfirmedAt,
+          },
+        },
+        {
+          id: "v2",
+          title: "Platform",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Platform",
+            requirements: { critical: ["Go"], desired: ["K8s"] },
+            culture: [],
+            expectations: [],
+            confirmedAt: vacancyConfirmedAt,
+          },
+        },
+      ],
+      matchScores: [
+        {
+          id: "s1",
+          candidateUserId: "cd_1",
+          vacancyId: "v1",
+          matchScore: 90,
+          breakdown: { matchScore: 90, cappedByCriticalUnmet: false },
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: vacancyConfirmedAt,
+        },
+      ],
+    }),
+  );
+  const fakeLlm: LlmProvider = {
+    name: "fake",
+    complete: async (messages) => {
+      completeCalls += 1;
+      const user = messages.find((m) => m.role === "user")?.content ?? "";
+      assert.match(user, /v2/);
+      assert.doesNotMatch(user, /"vacancyId": "v1"/);
+      return JSON.stringify({
+        results: [
+          {
+            vacancyId: "v2",
+            contextFit: 80,
+            assessments: [
+              {
+                requirement: "Go",
+                priority: "critical",
+                status: "met",
+                evidence: "Є Go у skills",
+              },
+              {
+                requirement: "K8s",
+                priority: "desired",
+                status: "unknown",
+                evidence: "Не згадується",
+              },
+            ],
+          },
+        ],
+      });
+    },
+  };
 
-test("ensureMatchScores stores breakdown and vacancy confirmedAt version", async () => {
-  // after LLM assessments, createMany includes breakdown + rankedForVacancyConfirmedAt
+  const offers = await ensureMatchScores(
+    fakePrisma as unknown as PrismaClient,
+    fakeLlm,
+    "cd_1",
+  );
+
+  assert.equal(completeCalls, 1);
+  assert.equal(offers.length, 2);
+  assert.ok(offers.some((item) => item.vacancyId === "v2"));
 });
 
 test("ensureMatchScores applies critical unmet cap via computeMatchScore", async () => {
-  // LLM returns critical unmet + high context → matchScore === 69
+  const vacancyConfirmedAt = confirmedAt;
+  const fakePrisma = makeFakePrisma(
+    confirmedCandidateSeed({
+      vacancies: [
+        {
+          id: "v1",
+          title: "Backend",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Backend",
+            requirements: { critical: ["Rust"], desired: ["Docker"] },
+            culture: [],
+            expectations: [],
+            confirmedAt: vacancyConfirmedAt,
+          },
+        },
+      ],
+    }),
+  );
+  const fakeLlm: LlmProvider = {
+    name: "fake",
+    complete: async () =>
+      JSON.stringify({
+        results: [
+          {
+            vacancyId: "v1",
+            contextFit: 100,
+            assessments: [
+              {
+                requirement: "Rust",
+                priority: "critical",
+                status: "unmet",
+                evidence: "Немає Rust",
+              },
+              {
+                requirement: "Docker",
+                priority: "desired",
+                status: "met",
+                evidence: "Є Docker",
+              },
+            ],
+          },
+        ],
+      }),
+  };
+
+  const offers = await ensureMatchScores(
+    fakePrisma as unknown as PrismaClient,
+    fakeLlm,
+    "cd_1",
+  );
+
+  assert.equal(offers[0]?.matchScore, 69);
+  assert.equal(fakePrisma.__matchScores[0]?.breakdown.cappedByCriticalUnmet, true);
+  assert.ok(fakePrisma.__matchScores[0]?.rankedForVacancyConfirmedAt);
 });
 ```
 
-Оновити `listMatchableVacancies` fixtures: `requirements` як object; fake prisma `createMany` повинен приймати нові поля.
+Оновити `makeFakePrisma` / `createMany`, щоб зберігати `breakdown` і `rankedForVacancyConfirmedAt`.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1009,14 +1279,89 @@ git commit -m "feat(match): score with priorities and partial vacancy cache"
 
 - [ ] **Step 1: Write failing tests**
 
-```typescript
-// candidate-matches.test.ts
-test("POST accept stores matchBreakdown snapshot from score row", async () => { /* ... */ });
-test("candidate offer payload has no breakdown field", async () => { /* ... */ });
+In `candidate-matches.test.ts` (reuse `confirmedSeed` / accept fixtures; extend application create to capture `matchBreakdown`):
 
-// hr-applications.test.ts
-test("GET application detail includes matchBreakdown for owning HR", async () => { /* ... */ });
+```typescript
+test("GET /candidate/matches offers omit breakdown", async () => {
+  // existing top offers request
+  const body = await response.json();
+  assert.equal(body.offers[0]?.breakdown, undefined);
+  assert.deepEqual(Object.keys(body.offers[0]).sort(), [
+    "matchScore",
+    "salaryDisplay",
+    "title",
+    "vacancyId",
+    "workFormatDisplay",
+  ]);
+});
+
+test("POST /candidate/matches/:vacancyId/accept stores matchBreakdown snapshot", async () => {
+  // seed matchScores with breakdown object for vacancy
+  // after accept:
+  assert.equal(response.status, 200);
+  assert.ok(fakePrisma.__applications[0]?.matchBreakdown);
+  assert.equal(fakePrisma.__applications[0]?.matchBreakdown.matchScore, 90);
+  const body = await response.json();
+  assert.equal(body.application.breakdown, undefined);
+  assert.equal(body.application.matchBreakdown, undefined);
+});
 ```
+
+In `hr-applications.test.ts`:
+
+```typescript
+test("GET /hr/applications/:id includes matchBreakdown for owning HR", async () => {
+  const breakdown = {
+    assessments: [
+      {
+        requirement: "React",
+        priority: "critical",
+        status: "met",
+        evidence: "Є в skills",
+      },
+    ],
+    contextFit: 80,
+    criticalFit: 100,
+    desiredFit: null,
+    requirementsFit: 100,
+    rawScore: 96,
+    cappedByCriticalUnmet: false,
+    matchScore: 96,
+  };
+  const { prisma } = makeFakePrisma({
+    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 96,
+        matchBreakdown: breakdown,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.application.matchBreakdown, breakdown);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+```
+
+Оновити fake application type / `create` у тестах, щоб підтримувати `matchBreakdown`.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
