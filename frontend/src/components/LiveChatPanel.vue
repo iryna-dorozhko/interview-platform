@@ -138,7 +138,8 @@ function messageConfidenceBadge(message: LiveMessage) {
   font-size: 0.875rem;
 }
 .messages {
-  max-height: 24rem;
+  max-height: calc(100vh - 16rem);
+  min-height: 20rem;
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);

@@ -34,7 +34,7 @@ type ArrayField = "culture" | "companyDirection" | "policies" | "workFormat" | "
 
 function syncEditableProfile(next: HrCompanyProfile | null): void {
   profile.value = next;
-  editableProfile.value = next && !next.confirmedAt ? { ...next } : null;
+  editableProfile.value = next ? { ...next } : null;
 }
 
 function textToArray(text: string): string[] {
@@ -52,6 +52,12 @@ function onArrayFieldInput(field: ArrayField, event: Event): void {
   if (!editableProfile.value) return;
   const target = event.target as HTMLTextAreaElement;
   editableProfile.value[field] = textToArray(target.value);
+}
+
+function onCompanyNameInput(event: Event): void {
+  if (!editableProfile.value) return;
+  const target = event.target as HTMLInputElement;
+  editableProfile.value.companyName = target.value;
 }
 
 async function scrollToBottom(): Promise<void> {
@@ -180,13 +186,18 @@ async function onSaveProfileEdits(): Promise<void> {
   errorMessage.value = null;
   saving.value = true;
   try {
-    const { profile: updated } = await updateCompanyPrepProfile({
+    const payload: Partial<Omit<HrCompanyProfile, "confirmedAt">> = {
       culture: editableProfile.value.culture,
       companyDirection: editableProfile.value.companyDirection,
       policies: editableProfile.value.policies,
       workFormat: editableProfile.value.workFormat,
       onboardingApproach: editableProfile.value.onboardingApproach,
-    });
+    };
+    const companyName = editableProfile.value.companyName?.trim();
+    if (companyName) {
+      payload.companyName = companyName;
+    }
+    const { profile: updated } = await updateCompanyPrepProfile(payload);
     syncEditableProfile(updated);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося зберегти профіль";
@@ -196,11 +207,7 @@ async function onSaveProfileEdits(): Promise<void> {
 }
 
 async function onConfirmProfile(): Promise<void> {
-  if (
-    !window.confirm(
-      "Профіль компанії буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?"
-    )
-  ) {
+  if (!window.confirm("Підтвердити профіль компанії? Редагування залишиться доступним.")) {
     return;
   }
 
@@ -251,10 +258,19 @@ onMounted(loadPrepState);
         <h2>Зібраний профіль компанії</h2>
 
         <form
-          v-if="!profile.confirmedAt && editableProfile"
+          v-if="editableProfile"
           class="profile-form"
           @submit.prevent="onSaveProfileEdits"
         >
+          <label class="field">
+            <span class="field-label">Назва компанії</span>
+            <input
+              class="field-input"
+              type="text"
+              :value="editableProfile.companyName ?? ''"
+              @input="onCompanyNameInput"
+            />
+          </label>
           <label class="field">
             <span class="field-label">Культура</span>
             <textarea
@@ -303,6 +319,8 @@ onMounted(loadPrepState);
         </form>
 
         <dl v-else>
+          <dt>Назва компанії</dt>
+          <dd>{{ profile.companyName?.trim() || "Компанія" }}</dd>
           <dt>Культура</dt>
           <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
           <dt>Напрям компанії</dt>
@@ -329,10 +347,9 @@ onMounted(loadPrepState);
             Видалити чат
           </button>
           <button
-            v-if="!profile.confirmedAt"
             type="button"
             class="btn-secondary"
-            :disabled="saving"
+            :disabled="saving || !editableProfile"
             @click="onSaveProfileEdits"
           >
             {{ saving ? "Збереження…" : "Зберегти зміни" }}

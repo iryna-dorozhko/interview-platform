@@ -25,6 +25,13 @@ function isHomeActive(): boolean {
       Моя анкета
     </RouterLink>
     <RouterLink
+      to="/candidate/matches"
+      class="nav-item"
+      :class="{ active: isActive('/candidate/matches') }"
+    >
+      Доступні вакансії
+    </RouterLink>
+    <RouterLink
       to="/candidate/interview"
       class="nav-item"
       :class="{ active: isActive('/candidate/interview') }"

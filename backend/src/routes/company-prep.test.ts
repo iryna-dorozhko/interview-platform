@@ -16,6 +16,7 @@ type FakeMessage = {
 type FakeProfile = {
   id: string;
   hrUserId: string;
+  companyName: string | null;
   culture: string[];
   companyDirection: string[];
   policies: string[];
@@ -102,7 +103,7 @@ function makeFakePrisma(
         data,
       }: {
         where: { hrUserId: string };
-        data: { confirmedAt: Date };
+        data: Partial<Omit<FakeProfile, "id" | "hrUserId">>;
       }) => {
         const profile = profiles.find((item) => item.hrUserId === where.hrUserId);
         if (!profile) throw new Error("profile not found");
@@ -197,6 +198,7 @@ test("POST /company-prep/finish upserts HrCompanyProfile and closes session", as
     name: "omlx",
     async complete() {
       return JSON.stringify({
+        companyName: "Acme Corp",
         culture: ["Відкритість"],
         companyDirection: ["EdTech"],
         policies: ["Remote-first"],
@@ -218,12 +220,14 @@ test("POST /company-prep/finish upserts HrCompanyProfile and closes session", as
     const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/finish`, { method: "POST" });
     assert.equal(response.status, 200);
     const body = await response.json();
+    assert.equal(body.profile.companyName, "Acme Corp");
     assert.deepEqual(body.profile.culture, ["Відкритість"]);
     assert.deepEqual(body.profile.companyDirection, ["EdTech"]);
     assert.equal(body.profile.confirmedAt, null);
     assert.equal(fakePrisma.__sessions[0].isClosed, true);
     assert.equal(fakePrisma.__profiles.length, 1);
     assert.equal(fakePrisma.__profiles[0].hrUserId, "hr_1");
+    assert.equal(fakePrisma.__profiles[0].companyName, "Acme Corp");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -236,6 +240,7 @@ test("POST /company-prep/confirm sets confirmedAt", async () => {
       {
         id: "profile_1",
         hrUserId: "hr_1",
+        companyName: "Acme Corp",
         culture: ["Відкритість"],
         companyDirection: ["EdTech"],
         policies: ["Remote-first"],
@@ -260,7 +265,83 @@ test("POST /company-prep/confirm sets confirmedAt", async () => {
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.notEqual(body.profile.confirmedAt, null);
+    assert.equal(body.profile.companyName, "Acme Corp");
     assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /company-prep/confirm returns 400 when companyName is missing", async () => {
+  const fakePrisma = makeFakePrisma({
+    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        hrUserId: "hr_1",
+        companyName: null,
+        culture: ["Відкритість"],
+        companyDirection: ["EdTech"],
+        policies: ["Remote-first"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/confirm`, { method: "POST" });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Company name is required");
+    assert.equal(fakePrisma.__profiles[0].confirmedAt, null);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /company-prep/confirm returns 400 when companyName is blank", async () => {
+  const fakePrisma = makeFakePrisma({
+    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        hrUserId: "hr_1",
+        companyName: "   ",
+        culture: ["Відкритість"],
+        companyDirection: ["EdTech"],
+        policies: ["Remote-first"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/confirm`, { method: "POST" });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "Company name is required");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -273,6 +354,7 @@ test("DELETE /company-prep returns 409 when profile confirmed", async () => {
       {
         id: "profile_1",
         hrUserId: "hr_1",
+        companyName: "Acme Corp",
         culture: ["Відкритість"],
         companyDirection: ["EdTech"],
         policies: ["Remote-first"],
@@ -311,6 +393,7 @@ test("PATCH /company-prep/profile updates fields before confirm", async () => {
       {
         id: "profile_1",
         hrUserId: "hr_1",
+        companyName: "Acme Corp",
         culture: ["Відкритість"],
         companyDirection: ["EdTech"],
         policies: ["Remote-first"],
@@ -335,6 +418,7 @@ test("PATCH /company-prep/profile updates fields before confirm", async () => {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        companyName: " SoftServe ",
         culture: ["прозорість"],
         companyDirection: ["FinTech"],
         policies: ["remote-first"],
@@ -344,6 +428,7 @@ test("PATCH /company-prep/profile updates fields before confirm", async () => {
     });
     assert.equal(response.status, 200);
     const body = await response.json();
+    assert.equal(body.profile.companyName, "SoftServe");
     assert.deepEqual(body.profile.culture, ["прозорість"]);
     assert.deepEqual(body.profile.companyDirection, ["FinTech"]);
     assert.equal(body.profile.confirmedAt, null);
@@ -352,13 +437,14 @@ test("PATCH /company-prep/profile updates fields before confirm", async () => {
   }
 });
 
-test("PATCH /company-prep/profile returns 409 after confirm", async () => {
+test("PATCH /company-prep/profile succeeds on confirmed profile", async () => {
   const fakePrisma = makeFakePrisma({
     sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
     profiles: [
       {
         id: "profile_1",
         hrUserId: "hr_1",
+        companyName: "Acme Corp",
         culture: ["Відкритість"],
         companyDirection: ["EdTech"],
         policies: ["Remote-first"],
@@ -382,11 +468,13 @@ test("PATCH /company-prep/profile returns 409 after confirm", async () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/profile`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ culture: ["інше"] }),
+      body: JSON.stringify({ companyName: "New Name", culture: ["інше"] }),
     });
-    assert.equal(response.status, 409);
+    assert.equal(response.status, 200);
     const body = await response.json();
-    assert.equal(body.error, "Profile already confirmed");
+    assert.equal(body.profile.companyName, "New Name");
+    assert.deepEqual(body.profile.culture, ["інше"]);
+    assert.notEqual(body.profile.confirmedAt, null);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

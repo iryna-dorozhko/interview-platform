@@ -27,6 +27,7 @@ function offersPayload(offers: CandidateMatchOffer[]) {
       matchScore: offer.matchScore,
       salaryDisplay: offer.salaryDisplay,
       workFormatDisplay: offer.workFormatDisplay,
+      companyName: offer.companyName,
     })),
   };
 }

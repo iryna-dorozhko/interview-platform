@@ -53,8 +53,9 @@ test("buildCompanyProfileAgentMessages does not append a placeholder when histor
   assert.deepEqual(messages[1], { role: "user", content: "Привіт" });
 });
 
-test("parseHrCompanyProfileExtraction parses all five universal fields", () => {
+test("parseHrCompanyProfileExtraction parses companyName and all five universal fields", () => {
   const raw = JSON.stringify({
+    companyName: "Acme Corp",
     culture: ["Відкритість"],
     companyDirection: ["EdTech"],
     policies: ["Remote-first"],
@@ -62,6 +63,7 @@ test("parseHrCompanyProfileExtraction parses all five universal fields", () => {
     onboardingApproach: ["Buddy 2 тижні"],
   });
   assert.deepEqual(parseHrCompanyProfileExtraction(raw), {
+    companyName: "Acme Corp",
     culture: ["Відкритість"],
     companyDirection: ["EdTech"],
     policies: ["Remote-first"],
@@ -70,10 +72,23 @@ test("parseHrCompanyProfileExtraction parses all five universal fields", () => {
   });
 });
 
+test("parseHrCompanyProfileExtraction trims companyName", () => {
+  const raw = JSON.stringify({
+    companyName: "  SoftServe  ",
+    culture: ["Відкритість"],
+    companyDirection: ["EdTech"],
+    policies: ["Remote-first"],
+    workFormat: ["Гібрид"],
+    onboardingApproach: ["Buddy 2 тижні"],
+  });
+  assert.equal(parseHrCompanyProfileExtraction(raw).companyName, "SoftServe");
+});
+
 test("parseHrCompanyProfileExtraction strips markdown code fences around JSON", () => {
   const raw = [
     "```json",
     JSON.stringify({
+      companyName: "Acme Corp",
       culture: ["Відкритість"],
       companyDirection: ["EdTech"],
       policies: ["Remote-first"],
@@ -83,6 +98,7 @@ test("parseHrCompanyProfileExtraction strips markdown code fences around JSON", 
     "```",
   ].join("\n");
   const result = parseHrCompanyProfileExtraction(raw);
+  assert.equal(result.companyName, "Acme Corp");
   assert.deepEqual(result.culture, ["Відкритість"]);
   assert.deepEqual(result.companyDirection, ["EdTech"]);
 });
@@ -93,10 +109,34 @@ test("parseHrCompanyProfileExtraction throws when response is not valid JSON", (
 
 test("parseHrCompanyProfileExtraction throws when a required field is missing", () => {
   const raw = JSON.stringify({
+    companyName: "Acme Corp",
     culture: ["Відкритість"],
     companyDirection: ["EdTech"],
     policies: ["Remote-first"],
     workFormat: ["Гібрид"],
+  });
+  assert.throws(() => parseHrCompanyProfileExtraction(raw));
+});
+
+test("parseHrCompanyProfileExtraction throws when companyName is missing", () => {
+  const raw = JSON.stringify({
+    culture: ["Відкритість"],
+    companyDirection: ["EdTech"],
+    policies: ["Remote-first"],
+    workFormat: ["Гібрид"],
+    onboardingApproach: ["Buddy 2 тижні"],
+  });
+  assert.throws(() => parseHrCompanyProfileExtraction(raw));
+});
+
+test("parseHrCompanyProfileExtraction throws when companyName is blank", () => {
+  const raw = JSON.stringify({
+    companyName: "   ",
+    culture: ["Відкритість"],
+    companyDirection: ["EdTech"],
+    policies: ["Remote-first"],
+    workFormat: ["Гібрид"],
+    onboardingApproach: ["Buddy 2 тижні"],
   });
   assert.throws(() => parseHrCompanyProfileExtraction(raw));
 });

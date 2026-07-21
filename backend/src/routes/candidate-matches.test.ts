@@ -20,6 +20,9 @@ type FakeVacancy = {
     expectations: unknown;
     confirmedAt: Date | null;
   } | null;
+  hrUser?: {
+    hrCompanyProfile: { companyName: string | null } | null;
+  } | null;
 };
 
 type FakeInterview = {
@@ -108,13 +111,18 @@ function makeFakePrisma(seed: {
       }: {
         where?: {
           status?: string;
+          id?: { in: string[] };
           companyProfile?: { confirmedAt?: { not: null } };
         };
-        include?: { companyProfile?: boolean };
+        include?: {
+          companyProfile?: boolean;
+          hrUser?: boolean | { include?: { hrCompanyProfile?: boolean } };
+        };
       }) =>
         vacancies
           .filter((item) => {
             if (where?.status != null && item.status !== where.status) return false;
+            if (where?.id?.in != null && !where.id.in.includes(item.id)) return false;
             if (where?.companyProfile?.confirmedAt?.not === null) {
               if (item.companyProfile?.confirmedAt == null) return false;
             }
@@ -123,6 +131,9 @@ function makeFakePrisma(seed: {
           .map((item) => ({
             ...item,
             companyProfile: include?.companyProfile ? item.companyProfile : undefined,
+            hrUser: include?.hrUser
+              ? item.hrUser ?? { hrCompanyProfile: null }
+              : undefined,
           })),
       findUnique: async ({ where }: { where: { id: string } }) =>
         vacancies.find((item) => item.id === where.id) ?? null,
@@ -479,6 +490,7 @@ test("GET /matches/next returns offers array with contract keys only", async () 
     assert.deepEqual(Object.keys(body).sort(), ["offers"]);
     for (const offer of body.offers) {
       assert.deepEqual(Object.keys(offer).sort(), [
+        "companyName",
         "matchScore",
         "salaryDisplay",
         "title",
@@ -489,8 +501,60 @@ test("GET /matches/next returns offers array with contract keys only", async () 
     }
     assert.equal(body.offers[0]?.vacancyId, "v1");
     assert.equal(body.offers[0]?.matchScore, 90);
+    assert.equal(body.offers[0]?.companyName, null);
     assert.equal(body.offers[1]?.vacancyId, "v2");
     assert.equal(body.offers[1]?.matchScore, 80);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /matches/next includes companyName from hrCompanyProfile", async () => {
+  const fakePrisma = makeFakePrisma(
+    confirmedSeed({
+      vacancies: [
+        {
+          id: "v1",
+          hrUserId: "hr_1",
+          title: "Senior Backend",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Backend",
+            requirements: { critical: ["TS"], desired: [] },
+            culture: { values: ["ownership"] },
+            expectations: {},
+            confirmedAt,
+          },
+          hrUser: {
+            hrCompanyProfile: { companyName: "SoftServe" },
+          },
+        },
+      ],
+      matchScores: [
+        {
+          id: "s1",
+          candidateUserId: "candidate_1",
+          vacancyId: "v1",
+          matchScore: 90,
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
+        },
+      ],
+    }),
+  );
+  const app = makeApp(fakePrisma);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/matches/next`, {
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      offers: Array<{ companyName: string | null }>;
+    };
+    assert.equal(body.offers[0]?.companyName, "SoftServe");
   } finally {
     server.close();
   }
@@ -552,6 +616,7 @@ test("GET /candidate/matches offers omit breakdown", async () => {
     };
     assert.equal(body.offers[0]?.breakdown, undefined);
     assert.deepEqual(Object.keys(body.offers[0]!).sort(), [
+      "companyName",
       "matchScore",
       "salaryDisplay",
       "title",

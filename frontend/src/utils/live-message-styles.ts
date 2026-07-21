@@ -30,7 +30,7 @@ const STYLES: Record<
     labelStyle: { background: "#ede9fe", color: "#6d28d9" },
   },
   AGENT_COMPANY: {
-    label: "Компанія",
+    label: "Компанія (АІ)",
     accent: { background: "#fff7ed", color: "#ea580c" },
     labelStyle: { background: "#ffedd5", color: "#c2410c" },
   },

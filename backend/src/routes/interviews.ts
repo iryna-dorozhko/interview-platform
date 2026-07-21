@@ -105,7 +105,42 @@ export async function createInterviewWithJoinCode(
         throw error;
       }
       const isLastAttempt = attempt === MAX_CREATE_ATTEMPTS;
-      if (code === "P2002" && !isLastAttempt) {
+      const detail = error instanceof Error ? error.message : String(error);
+      const isCandidateUserIdConflict =
+        code === "P2002" && detail.includes("candidateUserId");
+      const willRetry = code === "P2002" && !isCandidateUserIdConflict && !isLastAttempt;
+      // #region agent log
+      if (code === "P2002") {
+        const target = (error as { meta?: { target?: string[] } }).meta?.target ?? null;
+        fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+          body: JSON.stringify({
+            sessionId: "66c73a",
+            runId: "post-fix",
+            hypothesisId: "C",
+            location: "interviews.ts:createInterviewWithJoinCode:P2002",
+            message: "unique constraint during interview create",
+            data: {
+              attempt,
+              isLastAttempt,
+              willRetry,
+              isCandidateUserIdConflict,
+              target,
+              hasCandidateUserId: Boolean(params.candidateUserId),
+              candidateUserIdSuffix: params.candidateUserId
+                ? params.candidateUserId.slice(-6)
+                : null,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+      }
+      // #endregion
+      if (isCandidateUserIdConflict) {
+        throw error;
+      }
+      if (willRetry) {
         continue;
       }
       throw error;

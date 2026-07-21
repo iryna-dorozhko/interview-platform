@@ -29,6 +29,7 @@ export function buildCompanyProfileAgentMessages(history: PrepHistoryItem[]): Ch
 }
 
 export interface HrCompanyProfileExtracted {
+  companyName: string;
   culture: string[];
   companyDirection: string[];
   policies: string[];
@@ -39,6 +40,17 @@ export interface HrCompanyProfileExtracted {
 function stripCodeFences(text: string): string {
   const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   return match ? match[1] : text;
+}
+
+function toNonEmptyTrimmedString(value: unknown, field: string): string {
+  if (typeof value !== "string") {
+    throw new ProfileExtractionError(`missing or invalid field: ${field}`);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new ProfileExtractionError(`missing or invalid field: ${field}`);
+  }
+  return trimmed;
 }
 
 function toStringArray(value: unknown, field: string): string[] {
@@ -62,10 +74,11 @@ export function parseHrCompanyProfileExtraction(rawText: string): HrCompanyProfi
     throw new ProfileExtractionError("LLM response is not a JSON object");
   }
 
-  const { culture, companyDirection, policies, workFormat, onboardingApproach } =
+  const { companyName, culture, companyDirection, policies, workFormat, onboardingApproach } =
     data as Record<string, unknown>;
 
   return {
+    companyName: toNonEmptyTrimmedString(companyName, "companyName"),
     culture: toStringArray(culture, "culture"),
     companyDirection: toStringArray(companyDirection, "companyDirection"),
     policies: toStringArray(policies, "policies"),

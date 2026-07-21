@@ -167,6 +167,24 @@ async function onCreateInterview(): Promise<void> {
   } catch (error) {
     createError.value =
       error instanceof Error ? error.message : "Не вдалося створити співбесіду";
+    // #region agent log
+    fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+      body: JSON.stringify({
+        sessionId: "66c73a",
+        runId: "post-fix",
+        hypothesisId: "D",
+        location: "HrApplicationsView.vue:onCreateInterview:catch",
+        message: "UI create interview error shown to HR",
+        data: {
+          applicationIdSuffix: detail.value?.id?.slice(-6) ?? null,
+          errorMessage: createError.value,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
   } finally {
     creating.value = false;
   }

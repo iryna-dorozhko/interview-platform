@@ -22,6 +22,7 @@ export type CandidateMatchOffer = {
   matchScore: number;
   salaryDisplay: string | null;
   workFormatDisplay: string | null;
+  companyName: string | null;
   /** Internal only — not exposed in candidate-facing serializers. */
   breakdown?: MatchBreakdown;
 };
@@ -44,6 +45,7 @@ type OfferBase = {
   vacancyId: string;
   title: string;
   matchScore: number;
+  companyName?: string | null;
   breakdown?: MatchBreakdown;
 };
 
@@ -80,9 +82,11 @@ export function pickTopOffers(
 export function enrichOfferWithDisplays(
   base: OfferBase,
   profile: { workConditions: unknown; compensation: unknown } | null,
+  companyName: string | null = base.companyName ?? null,
 ): CandidateMatchOffer {
   return {
     ...base,
+    companyName,
     salaryDisplay: formatSalaryDisplay(profile?.compensation ?? null),
     workFormatDisplay: formatWorkFormatDisplay(profile?.workConditions ?? null),
   };
@@ -97,14 +101,16 @@ export async function attachDisplaysToOffers(
   const vacancyIds = offers.map((offer) => offer.vacancyId);
   const vacancies = await prisma.vacancy.findMany({
     where: { id: { in: vacancyIds } },
-    include: { companyProfile: true },
+    include: {
+      companyProfile: true,
+      hrUser: { include: { hrCompanyProfile: true } },
+    },
   });
-  const profileByVacancyId = new Map(
-    vacancies.map((vacancy) => [vacancy.id, vacancy.companyProfile]),
-  );
+  const vacancyById = new Map(vacancies.map((vacancy) => [vacancy.id, vacancy]));
 
   return offers.map((offer) => {
-    const companyProfile = profileByVacancyId.get(offer.vacancyId);
+    const vacancy = vacancyById.get(offer.vacancyId);
+    const companyProfile = vacancy?.companyProfile;
     return enrichOfferWithDisplays(
       offer,
       companyProfile
@@ -113,6 +119,7 @@ export async function attachDisplaysToOffers(
             compensation: companyProfile.compensation,
           }
         : null,
+      vacancy?.hrUser.hrCompanyProfile?.companyName ?? null,
     );
   });
 }
@@ -124,6 +131,7 @@ export function toCandidateOfferPayload(offer: CandidateMatchOffer): CandidateMa
     matchScore: offer.matchScore,
     salaryDisplay: offer.salaryDisplay,
     workFormatDisplay: offer.workFormatDisplay,
+    companyName: offer.companyName,
   };
 }
 

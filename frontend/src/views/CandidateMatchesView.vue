@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 import {
   acceptMatch,
   fetchActiveApplication,
   fetchNextMatch,
+  isQuestionnaireNotConfirmedError,
   rejectMatch,
   type ActiveApplication,
   type CandidateMatchOffer,
 } from "../api/candidate-matches";
 
-type ViewState = "loading" | "pending" | "offer" | "empty" | "error";
+type ViewState = "loading" | "pending" | "offer" | "empty" | "needsQuestionnaire" | "error";
 
 const viewState = ref<ViewState>("loading");
 const errorMessage = ref<string | null>(null);
@@ -40,6 +42,10 @@ async function loadMatches(): Promise<void> {
     const { offers: nextOffers } = await fetchNextMatch();
     applyOffers(nextOffers);
   } catch (error) {
+    if (isQuestionnaireNotConfirmedError(error)) {
+      viewState.value = "needsQuestionnaire";
+      return;
+    }
     viewState.value = "error";
     errorMessage.value =
       error instanceof Error ? error.message : "Не вдалося завантажити підбір";
@@ -89,9 +95,14 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <h2 class="page-title">Підбір вакансій</h2>
+    <h2 class="page-title">Доступні вакансії</h2>
 
     <p v-if="viewState === 'loading'">Завантаження…</p>
+
+    <section v-else-if="viewState === 'needsQuestionnaire'" class="gate-banner">
+      <p>Підтвердьте анкету, щоб переглядати доступні вакансії.</p>
+      <RouterLink to="/candidate/profile" class="btn-primary">Перейти до анкети</RouterLink>
+    </section>
 
     <p v-else-if="viewState === 'error'" class="fail" role="alert">{{ errorMessage }}</p>
 
@@ -112,6 +123,7 @@ onMounted(() => {
       >
         <div class="offer-main">
           <div class="offer-details">
+            <p class="offer-company">{{ item.companyName?.trim() || "Компанія" }}</p>
             <h3 class="offer-title">{{ item.title }}</h3>
             <p v-if="item.salaryDisplay" class="offer-meta">💰 {{ item.salaryDisplay }}</p>
             <p v-if="item.workFormatDisplay" class="offer-meta">🏢 {{ item.workFormatDisplay }}</p>
@@ -153,6 +165,23 @@ onMounted(() => {
 .fail {
   color: var(--danger);
 }
+.gate-banner {
+  padding: 1rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.gate-banner p {
+  margin: 0;
+  color: #92400e;
+}
+.gate-banner .btn-primary {
+  align-self: flex-start;
+  text-decoration: none;
+}
 .empty {
   margin: 0;
   color: #555;
@@ -193,6 +222,11 @@ onMounted(() => {
 }
 .offer-details {
   min-width: 0;
+}
+.offer-company {
+  margin: 0 0 0.15rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
 }
 .offer-meta {
   margin: 0.25rem 0 0;

@@ -10,6 +10,7 @@ export type CompanyPrepMessage = {
 };
 
 export type HrCompanyProfile = {
+  companyName: string | null;
   culture: string[];
   companyDirection: string[];
   policies: string[];

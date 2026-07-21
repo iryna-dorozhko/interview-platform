@@ -46,6 +46,18 @@ test("arbiter prompt waits only after unknown confidence deferral", () => {
   );
 });
 
+test("arbiter prompt routes human-to-candidate-agent address as ANSWER", () => {
+  assert.match(
+    ARBITER_AGENT_SYSTEM_PROMPT_UK,
+    /HUMAN_CANDIDATE|людин.*кандидат|кандидат.*людин/i,
+  );
+  assert.match(
+    ARBITER_AGENT_SYSTEM_PROMPT_UK,
+    /зверт.*(Candidate|агент)|агент.*кандидат.*ANSWER|ANSWER.*агент/i,
+  );
+  assert.match(PENDING_QUESTION_NUDGE_UK, /зверт|агент.*кандидат|Candidate Agent/i);
+});
+
 test("arbiter system prompt includes COMPANY_ANSWER", () => {
   assert.match(ARBITER_AGENT_SYSTEM_PROMPT_UK, /COMPANY_ANSWER/);
 });

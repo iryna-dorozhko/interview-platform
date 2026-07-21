@@ -118,6 +118,20 @@ export async function createInterviewFromApplication(
     }),
   });
   if (!response.ok) {
+    if (response.status === 409) {
+      let body: ErrorBody = {};
+      try {
+        body = (await response.json()) as ErrorBody;
+      } catch {
+        // ignore parse errors
+      }
+      if (body.error === "Candidate already has active interview") {
+        throw new Error("У кандидата вже є активна співбесіда");
+      }
+      if (body.error === "Application is not pending") {
+        throw new Error("Заявка вже оброблена");
+      }
+    }
     throw await parseError(response, "Не вдалося створити співбесіду з заявки");
   }
   return (await response.json()) as CreateInterviewFromApplicationResult;

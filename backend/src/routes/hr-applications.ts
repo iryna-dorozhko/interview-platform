@@ -1,9 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import {
+  ACTIVE_CANDIDATE_INTERVIEW_STATUSES,
   getConfirmedQuestionnaireProfile,
   maybeTransitionToReady,
 } from "../utils/interview-readiness";
+import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME } from "../utils/candidate-interview-kind";
 import {
   APPLICATION_ALREADY_CONVERTED,
   createInterviewWithJoinCode,
@@ -173,6 +175,65 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
       return;
     }
 
+    const blockingActive = await prisma.interview.findFirst({
+      where: {
+        candidateUserId: application.candidateUserId,
+        status: { in: [...ACTIVE_CANDIDATE_INTERVIEW_STATUSES] },
+        displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME },
+      },
+      select: { id: true, status: true, displayName: true },
+    });
+    // #region agent log
+    fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+      body: JSON.stringify({
+        sessionId: "66c73a",
+        runId: "post-fix",
+        hypothesisId: "A",
+        location: "hr-applications.ts:create-interview:precheck",
+        message: "create-interview precheck existing candidate interviews",
+        data: {
+          applicationIdSuffix: application.id.slice(-6),
+          candidateUserIdSuffix: application.candidateUserId.slice(-6),
+          vacancyStatus: application.vacancy.status,
+          applicationStatus: application.status,
+          blockingActive: blockingActive
+            ? {
+                idSuffix: blockingActive.id.slice(-6),
+                status: blockingActive.status,
+                displayName: blockingActive.displayName,
+              }
+            : null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    if (blockingActive) {
+      // #region agent log
+      fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+        body: JSON.stringify({
+          sessionId: "66c73a",
+          runId: "post-fix",
+          hypothesisId: "B",
+          location: "hr-applications.ts:create-interview:blocked",
+          message: "create-interview rejected: candidate has active interview",
+          data: {
+            mappedResponse: "Candidate already has active interview",
+            status: 409,
+            blockingIdSuffix: blockingActive.id.slice(-6),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      res.status(409).json({ error: "Candidate already has active interview" });
+      return;
+    }
+
     let result: Awaited<ReturnType<typeof createInterviewWithJoinCode>>;
     try {
       result = await createInterviewWithJoinCode(prisma, {
@@ -202,8 +263,37 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
         return;
       }
       const detail = error instanceof Error ? error.message : String(error);
+      const prismaCode = (error as { code?: string }).code ?? null;
+      const isCandidateConflict =
+        prismaCode === "P2002" && detail.includes("candidateUserId");
+      const mappedResponse = isCandidateConflict
+        ? "Candidate already has active interview"
+        : "Failed to generate unique join code";
+      const mappedStatus = isCandidateConflict ? 409 : 500;
+      // #region agent log
+      const prismaMeta = (error as { code?: string; meta?: { target?: string[] } }).meta;
+      fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+        body: JSON.stringify({
+          sessionId: "66c73a",
+          runId: "post-fix",
+          hypothesisId: "B",
+          location: "hr-applications.ts:create-interview:catch",
+          message: "create-interview failed",
+          data: {
+            prismaCode,
+            prismaTarget: prismaMeta?.target ?? null,
+            detailSnippet: detail.slice(0, 280),
+            mappedResponse,
+            mappedStatus,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       console.error("[hr-applications:create-interview] failed:", detail);
-      res.status(500).json({ error: "Failed to generate unique join code" });
+      res.status(mappedStatus).json({ error: mappedResponse });
       return;
     }
 

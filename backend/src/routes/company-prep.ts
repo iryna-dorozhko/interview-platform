@@ -14,6 +14,7 @@ type MessageBody = {
 };
 
 type ProfilePatchBody = {
+  companyName?: unknown;
   culture?: unknown;
   companyDirection?: unknown;
   policies?: unknown;
@@ -22,6 +23,7 @@ type ProfilePatchBody = {
 };
 
 type HrCompanyProfileDto = {
+  companyName: string | null;
   culture: string[];
   companyDirection: string[];
   policies: string[];
@@ -31,6 +33,7 @@ type HrCompanyProfileDto = {
 };
 
 function toProfileDto(profile: {
+  companyName: string | null;
   culture: unknown;
   companyDirection: unknown;
   policies: unknown;
@@ -39,6 +42,7 @@ function toProfileDto(profile: {
   confirmedAt: Date | null;
 }): HrCompanyProfileDto {
   return {
+    companyName: profile.companyName,
     culture: profile.culture as string[],
     companyDirection: profile.companyDirection as string[],
     policies: profile.policies as string[],
@@ -61,6 +65,14 @@ function parseStringArray(value: unknown): string[] | null {
   return items;
 }
 
+function parseCompanyName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function asInputJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
@@ -73,6 +85,14 @@ function parseProfilePatch(
 
   if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
     return { ok: false, error: "No fields to update" };
+  }
+
+  if (hasField("companyName")) {
+    const parsed = parseCompanyName(body.companyName);
+    if (!parsed) {
+      return { ok: false, error: "Invalid companyName" };
+    }
+    data.companyName = parsed;
   }
 
   const arrayFields = [
@@ -213,6 +233,7 @@ export function createCompanyPrepRouter(
       profile = await prisma.hrCompanyProfile.upsert({
         where: { hrUserId },
         update: {
+          companyName: extracted.companyName,
           culture: extracted.culture,
           companyDirection: extracted.companyDirection,
           policies: extracted.policies,
@@ -221,6 +242,7 @@ export function createCompanyPrepRouter(
         },
         create: {
           hrUserId,
+          companyName: extracted.companyName,
           culture: extracted.culture,
           companyDirection: extracted.companyDirection,
           policies: extracted.policies,
@@ -258,6 +280,11 @@ export function createCompanyPrepRouter(
       return;
     }
 
+    if (!profile.companyName?.trim()) {
+      res.status(400).json({ error: "Company name is required" });
+      return;
+    }
+
     let updatedProfile;
     try {
       updatedProfile = await prisma.hrCompanyProfile.update({
@@ -285,11 +312,6 @@ export function createCompanyPrepRouter(
     const profile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
     if (!profile) {
       res.status(404).json({ error: "Profile not found" });
-      return;
-    }
-
-    if (profile.confirmedAt) {
-      res.status(409).json({ error: "Profile already confirmed" });
       return;
     }
 

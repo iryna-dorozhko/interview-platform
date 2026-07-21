@@ -74,6 +74,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
       mergeMessages(payload.messages);
       if (payload.messages.some((m) => m.authorType.startsWith("AGENT_"))) {
         agentThinking.value = { active: false };
+        agentError.value = null;
       }
     }
   }
@@ -87,6 +88,9 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
 
   function onAgentThinking(payload: { active?: boolean; agentType?: LiveAuthorType }): void {
     if (typeof payload?.active !== "boolean") return;
+    if (payload.active) {
+      agentError.value = null;
+    }
     agentThinking.value = {
       active: payload.active,
       agentType: payload.agentType,

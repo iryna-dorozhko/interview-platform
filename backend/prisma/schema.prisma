@@ -198,6 +198,7 @@ model PrepMessageHr {
 model HrCompanyProfile {
   id                 String    @id @default(cuid())
   hrUserId           String    @unique
+  companyName        String?
   culture            Json
   companyDirection   Json
   policies           Json

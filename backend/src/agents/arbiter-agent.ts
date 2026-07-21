@@ -169,10 +169,10 @@ function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
 }
 
 export const PENDING_QUESTION_NUDGE_UK =
-  "[Система] Зараз є ВІДКРИТЕ питання. Якщо питання від Candidate до Company (про компанію, вакансію, умови) — COMPANY_ANSWER; якщо від HR або Company до Candidate — правила нижче. Якщо Candidate щойно попросив живу людину відповісти (немає даних у профілі) або висунув припущення з проханням підтвердити/доповнити — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.";
+  "[Система] Зараз є ВІДКРИТЕ питання. Якщо HUMAN_CANDIDATE звертається до Candidate Agent / просить його відповісти — ANSWER. Якщо питання від Candidate до Company (про компанію, вакансію, умови) — COMPANY_ANSWER; якщо від HR або Company до Candidate — правила нижче. Якщо Candidate Agent щойно попросив живу людину відповісти (немає даних у профілі) — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.";
 
 export const NO_PENDING_QUESTION_NUDGE_UK =
-  "[Система] Відкритого питання немає. START лише після явного повідомлення HR про початок роботи; інакше WAIT. Далі — NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.";
+  "[Система] Відкритого питання немає. START лише після явного повідомлення HR про початок роботи; інакше WAIT. Якщо HUMAN_CANDIDATE звертається до Candidate Agent — ANSWER. Далі — NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.";
 
 export function buildArbiterMessages(input: {
   companyProfile: ArbiterCompanyProfileContext;

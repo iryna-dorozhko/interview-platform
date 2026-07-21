@@ -655,6 +655,73 @@ test("POST /hr/applications/:id/create-interview converts PENDING and links inte
   }
 });
 
+test("POST /hr/applications/:id/create-interview returns 409 when candidate has active interview", async () => {
+  const { prisma, interviews } = makeFakePrisma({
+    vacancies: [
+      {
+        id: "v1",
+        hrUserId: "hr_1",
+        title: "Frontend",
+        status: "CONFIRMED",
+        companyProfile: { confirmedAt: new Date() },
+      },
+    ],
+    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+    interviews: [
+      {
+        id: "int_live",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        candidateUserId: "cd_1",
+        displayName: "Product Manager",
+        joinCode: "LIVE01",
+        status: "LIVE",
+        createdAt: new Date(),
+        scheduledAt: null,
+      },
+    ],
+    questionnaireInterviews: [
+      {
+        id: "q1",
+        candidateUserId: "cd_1",
+        displayName: "Моя анкета",
+        status: "READY",
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+    );
+    assert.equal(response.status, 409);
+    const body = (await response.json()) as { error: string };
+    assert.equal(body.error, "Candidate already has active interview");
+    assert.equal(interviews.length, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
 test("POST /hr/applications/:id/create-interview returns 409 when not PENDING", async () => {
   const { prisma } = makeFakePrisma({
     vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],

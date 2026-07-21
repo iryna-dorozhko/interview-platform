@@ -1,4 +1,4 @@
-import { fetchWithAuth } from "./client";
+import { ApiError, fetchWithAuth } from "./client";
 
 export type CandidateMatchOffer = {
   vacancyId: string;
@@ -6,6 +6,7 @@ export type CandidateMatchOffer = {
   matchScore: number;
   salaryDisplay: string | null;
   workFormatDisplay: string | null;
+  companyName: string | null;
 };
 
 export type CandidateMatchOffersResponse = {
@@ -42,9 +43,16 @@ export async function fetchActiveApplication(): Promise<ActiveApplication | null
   return body.application;
 }
 
+export function isQuestionnaireNotConfirmedError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403;
+}
+
 export async function fetchNextMatch(): Promise<CandidateMatchOffersResponse> {
   const response = await fetchWithAuth("/api/candidate/matches/next");
   if (!response.ok) {
+    if (response.status === 403) {
+      throw new ApiError("Questionnaire not confirmed", 403);
+    }
     if (response.status === 503) {
       throw await parseError(response, "Підбір тимчасово недоступний");
     }

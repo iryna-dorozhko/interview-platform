@@ -4,6 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { LlmProvider } from "../llm/types";
 import type { MatchBreakdown } from "./match-score";
 import {
+  attachDisplaysToOffers,
   enrichOfferWithDisplays,
   ensureMatchScores,
   getTopMatchOffers,
@@ -110,13 +111,14 @@ test("enrichOfferWithDisplays returns null displays for не вказано", ()
 
 test("candidate offer payload includes display fields", () => {
   const offer = enrichOfferWithDisplays(
-    { vacancyId: "v1", title: "Backend", matchScore: 88 },
+    { vacancyId: "v1", title: "Backend", matchScore: 88, companyName: "Acme" },
     {
       workConditions: ["Формат: remote"],
       compensation: { displayText: "$4000 gross" },
     },
   );
-  assert.deepEqual(Object.keys(offer).sort(), [
+  assert.deepEqual(Object.keys(toCandidateOfferPayload(offer)).sort(), [
+    "companyName",
     "matchScore",
     "salaryDisplay",
     "title",
@@ -129,6 +131,7 @@ type FakeVacancy = {
   id: string;
   title: string;
   status: string;
+  hrUserId?: string;
   companyProfile: {
     role: string;
     requirements: unknown;
@@ -137,6 +140,9 @@ type FakeVacancy = {
     workConditions?: unknown;
     compensation?: unknown;
     confirmedAt: Date | null;
+  } | null;
+  hrUser?: {
+    hrCompanyProfile: { companyName: string | null } | null;
   } | null;
 };
 
@@ -204,7 +210,10 @@ function makeFakePrisma(seed: {
           id?: { in: string[] };
           companyProfile?: { confirmedAt?: { not: null } };
         };
-        include?: { companyProfile?: boolean };
+        include?: {
+          companyProfile?: boolean;
+          hrUser?: boolean | { include?: { hrCompanyProfile?: boolean } };
+        };
       }) => {
         return vacancies
           .filter((item) => {
@@ -218,6 +227,9 @@ function makeFakePrisma(seed: {
           .map((item) => ({
             ...item,
             companyProfile: include?.companyProfile ? item.companyProfile : undefined,
+            hrUser: include?.hrUser
+              ? item.hrUser ?? { hrCompanyProfile: null }
+              : undefined,
           }));
       },
     },
@@ -316,6 +328,64 @@ function makeFakePrisma(seed: {
 
 const confirmedAt = new Date("2026-07-10T12:00:00.000Z");
 const olderConfirmedAt = new Date("2026-07-01T12:00:00.000Z");
+
+test("attachDisplaysToOffers sets companyName from hrCompanyProfile", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [
+      {
+        id: "v1",
+        title: "Backend",
+        status: "CONFIRMED",
+        hrUserId: "hr_1",
+        companyProfile: {
+          role: "Backend",
+          requirements: { critical: [], desired: [] },
+          culture: [],
+          expectations: [],
+          confirmedAt,
+        },
+        hrUser: {
+          hrCompanyProfile: { companyName: "SoftServe" },
+        },
+      },
+    ],
+  });
+
+  const offers = await attachDisplaysToOffers(fakePrisma as unknown as PrismaClient, [
+    { vacancyId: "v1", title: "Backend", matchScore: 88 },
+  ]);
+
+  assert.equal(offers[0]?.companyName, "SoftServe");
+});
+
+test("attachDisplaysToOffers yields null companyName when profile name is missing", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [
+      {
+        id: "v1",
+        title: "Backend",
+        status: "CONFIRMED",
+        hrUserId: "hr_1",
+        companyProfile: {
+          role: "Backend",
+          requirements: { critical: [], desired: [] },
+          culture: [],
+          expectations: [],
+          confirmedAt,
+        },
+        hrUser: {
+          hrCompanyProfile: { companyName: null },
+        },
+      },
+    ],
+  });
+
+  const offers = await attachDisplaysToOffers(fakePrisma as unknown as PrismaClient, [
+    { vacancyId: "v1", title: "Backend", matchScore: 50 },
+  ]);
+
+  assert.equal(offers[0]?.companyName, null);
+});
 
 function confirmedCandidateSeed(overrides?: {
   confirmedAt?: Date;
@@ -442,6 +512,7 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
       matchScore: 80,
       salaryDisplay: null,
       workFormatDisplay: null,
+      companyName: null,
     },
   ]);
 });
@@ -515,6 +586,7 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
       matchScore: 91,
       salaryDisplay: null,
       workFormatDisplay: null,
+      companyName: null,
     },
   ]);
   assert.equal(
