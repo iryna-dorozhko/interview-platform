@@ -305,6 +305,7 @@ model VacancyApplication {
   candidateUserId  String
   vacancyId        String
   matchScore       Int
+  matchBreakdown   Json                     @default("{}")
   candidateSummary String
   status           VacancyApplicationStatus @default(PENDING)
   interviewId      String?                  @unique
@@ -347,17 +348,19 @@ model HrNotification {
 }
 
 model VacancyMatchScore {
-  id                   String   @id @default(cuid())
-  candidateUserId      String
-  vacancyId            String
-  matchScore           Int
-  rankedForConfirmedAt DateTime
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  candidateUserId             String
+  vacancyId                   String
+  matchScore                  Int
+  breakdown                   Json     @default("{}")
+  rankedForConfirmedAt        DateTime
+  rankedForVacancyConfirmedAt DateTime
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   candidateUser User    @relation("CandidateVacancyMatchScores", fields: [candidateUserId], references: [id])
   vacancy       Vacancy @relation(fields: [vacancyId], references: [id])
 
-  @@unique([candidateUserId, vacancyId, rankedForConfirmedAt])
+  @@unique([candidateUserId, vacancyId, rankedForConfirmedAt, rankedForVacancyConfirmedAt])
   @@index([candidateUserId, rankedForConfirmedAt])
 }

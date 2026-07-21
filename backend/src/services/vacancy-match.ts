@@ -7,9 +7,14 @@ import {
 import type { LlmProvider } from "../llm/types";
 import { getConfirmedQuestionnaireProfile } from "../utils/interview-readiness";
 import {
+  assertNonEmptyRequirements,
+  normalizeVacancyRequirements,
+} from "../utils/vacancy-requirements";
+import {
   formatSalaryDisplay,
   formatWorkFormatDisplay,
 } from "../utils/vacancy-work-conditions";
+import { computeMatchScore, type MatchBreakdown } from "./match-score";
 
 export type CandidateMatchOffer = {
   vacancyId: string;
@@ -17,6 +22,8 @@ export type CandidateMatchOffer = {
   matchScore: number;
   salaryDisplay: string | null;
   workFormatDisplay: string | null;
+  /** Internal only — not exposed in candidate-facing serializers. */
+  breakdown?: MatchBreakdown;
 };
 
 export type VacancyMatchErrorCode = "QUESTIONNAIRE_NOT_CONFIRMED" | "MATCH_UNAVAILABLE";
@@ -30,6 +37,15 @@ export class VacancyMatchServiceError extends Error {
     this.code = code;
   }
 }
+
+type MatchableVacancy = VacancyMatchInput & { confirmedAt: Date };
+
+type OfferBase = {
+  vacancyId: string;
+  title: string;
+  matchScore: number;
+  breakdown?: MatchBreakdown;
+};
 
 export function sortScoresDesc<T extends { matchScore: number }>(items: T[]): T[] {
   return [...items].sort((a, b) => b.matchScore - a.matchScore);
@@ -62,7 +78,7 @@ export function pickTopOffers(
 }
 
 export function enrichOfferWithDisplays(
-  base: { vacancyId: string; title: string; matchScore: number },
+  base: OfferBase,
   profile: { workConditions: unknown; compensation: unknown } | null,
 ): CandidateMatchOffer {
   return {
@@ -74,7 +90,7 @@ export function enrichOfferWithDisplays(
 
 export async function attachDisplaysToOffers(
   prisma: PrismaClient,
-  offers: Array<{ vacancyId: string; title: string; matchScore: number }>,
+  offers: OfferBase[],
 ): Promise<CandidateMatchOffer[]> {
   if (offers.length === 0) return [];
 
@@ -102,7 +118,13 @@ export async function attachDisplaysToOffers(
 }
 
 export function toCandidateOfferPayload(offer: CandidateMatchOffer): CandidateMatchOffer {
-  return offer;
+  return {
+    vacancyId: offer.vacancyId,
+    title: offer.title,
+    matchScore: offer.matchScore,
+    salaryDisplay: offer.salaryDisplay,
+    workFormatDisplay: offer.workFormatDisplay,
+  };
 }
 
 export async function getConfirmedCandidateProfile(
@@ -123,7 +145,7 @@ export async function getConfirmedCandidateProfile(
   };
 }
 
-export async function listMatchableVacancies(prisma: PrismaClient): Promise<VacancyMatchInput[]> {
+export async function listMatchableVacancies(prisma: PrismaClient): Promise<MatchableVacancy[]> {
   const vacancies = await prisma.vacancy.findMany({
     where: {
       status: "CONFIRMED",
@@ -132,16 +154,19 @@ export async function listMatchableVacancies(prisma: PrismaClient): Promise<Vaca
     include: { companyProfile: true },
   });
 
-  const result: VacancyMatchInput[] = [];
+  const result: MatchableVacancy[] = [];
   for (const vacancy of vacancies) {
-    if (!vacancy.companyProfile) continue;
+    if (!vacancy.companyProfile || vacancy.companyProfile.confirmedAt == null) continue;
+    const requirements = normalizeVacancyRequirements(vacancy.companyProfile.requirements);
+    if (!requirements || !assertNonEmptyRequirements(requirements)) continue;
     result.push({
       vacancyId: vacancy.id,
       title: vacancy.title,
       role: vacancy.companyProfile.role,
-      requirements: vacancy.companyProfile.requirements,
+      requirements,
       culture: vacancy.companyProfile.culture,
       expectations: vacancy.companyProfile.expectations,
+      confirmedAt: vacancy.companyProfile.confirmedAt,
     });
   }
   return result;
@@ -157,20 +182,37 @@ export async function getRejectedVacancyIds(
   return new Set(decisions.map((item) => item.vacancyId));
 }
 
+function sameInstant(a: Date, b: Date): boolean {
+  return a.getTime() === b.getTime();
+}
+
+function toVacancyMatchInput(vacancy: MatchableVacancy): VacancyMatchInput {
+  return {
+    vacancyId: vacancy.vacancyId,
+    title: vacancy.title,
+    role: vacancy.role,
+    requirements: vacancy.requirements,
+    culture: vacancy.culture,
+    expectations: vacancy.expectations,
+  };
+}
+
 function toOffersFromCachedScores(
   scores: Array<{
     vacancyId: string;
     matchScore: number;
+    breakdown?: MatchBreakdown | null;
     vacancy: { title: string } | null;
   }>,
-): Array<{ vacancyId: string; title: string; matchScore: number }> {
-  const offers: Array<{ vacancyId: string; title: string; matchScore: number }> = [];
+): OfferBase[] {
+  const offers: OfferBase[] = [];
   for (const score of scores) {
     if (!score.vacancy) continue;
     offers.push({
       vacancyId: score.vacancyId,
       title: score.vacancy.title,
       matchScore: score.matchScore,
+      ...(score.breakdown != null ? { breakdown: score.breakdown as MatchBreakdown } : {}),
     });
   }
   return offers;
@@ -196,41 +238,73 @@ export async function ensureMatchScores(
     },
     include: { vacancy: { include: { companyProfile: true } } },
   });
-  if (cached.length > 0) {
-    return attachDisplaysToOffers(prisma, toOffersFromCachedScores(cached));
+
+  const cachedHits: typeof cached = [];
+  const toRank: MatchableVacancy[] = [];
+
+  for (const vacancy of vacancies) {
+    const hit = cached.find(
+      (row) =>
+        row.vacancyId === vacancy.vacancyId &&
+        sameInstant(row.rankedForVacancyConfirmedAt, vacancy.confirmedAt),
+    );
+    if (hit) {
+      cachedHits.push(hit);
+    } else {
+      toRank.push(vacancy);
+    }
+  }
+
+  if (toRank.length === 0) {
+    return attachDisplaysToOffers(prisma, toOffersFromCachedScores(cachedHits));
   }
 
   let ranked;
   try {
-    ranked = await rankVacanciesWithLlm(llm, profile, vacancies);
+    ranked = await rankVacanciesWithLlm(llm, profile, toRank.map(toVacancyMatchInput));
   } catch {
     throw new VacancyMatchServiceError("MATCH_UNAVAILABLE");
   }
 
-  const titleByVacancyId = new Map(vacancies.map((item) => [item.vacancyId, item.title]));
-  const baseOffers: Array<{ vacancyId: string; title: string; matchScore: number }> = [];
+  const vacancyById = new Map(toRank.map((item) => [item.vacancyId, item]));
+  const newOffers: OfferBase[] = [];
+  const createData: Array<{
+    candidateUserId: string;
+    vacancyId: string;
+    matchScore: number;
+    breakdown: MatchBreakdown;
+    rankedForConfirmedAt: Date;
+    rankedForVacancyConfirmedAt: Date;
+  }> = [];
+
   for (const item of ranked) {
-    const title = titleByVacancyId.get(item.vacancyId);
-    if (!title) continue;
-    baseOffers.push({
+    const vacancy = vacancyById.get(item.vacancyId);
+    if (!vacancy) continue;
+    const breakdown = computeMatchScore(item.assessments, item.contextFit);
+    createData.push({
+      candidateUserId,
       vacancyId: item.vacancyId,
-      title,
-      matchScore: item.matchScore,
+      matchScore: breakdown.matchScore,
+      breakdown,
+      rankedForConfirmedAt: profile.confirmedAt,
+      rankedForVacancyConfirmedAt: vacancy.confirmedAt,
+    });
+    newOffers.push({
+      vacancyId: item.vacancyId,
+      title: vacancy.title,
+      matchScore: breakdown.matchScore,
+      breakdown,
     });
   }
 
-  if (baseOffers.length > 0) {
-    await prisma.vacancyMatchScore.createMany({
-      data: baseOffers.map((offer) => ({
-        candidateUserId,
-        vacancyId: offer.vacancyId,
-        matchScore: offer.matchScore,
-        rankedForConfirmedAt: profile.confirmedAt,
-      })),
-    });
+  if (createData.length > 0) {
+    await prisma.vacancyMatchScore.createMany({ data: createData });
   }
 
-  return attachDisplaysToOffers(prisma, baseOffers);
+  return attachDisplaysToOffers(prisma, [
+    ...toOffersFromCachedScores(cachedHits),
+    ...newOffers,
+  ]);
 }
 
 export async function getTopMatchOffers(

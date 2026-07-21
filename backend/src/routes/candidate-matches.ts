@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   buildCandidateSummaryMessages,
   parseCandidateSummary,
 } from "../agents/vacancy-match-agent";
 import { requireAuth, requireCandidate } from "../auth/middleware";
 import type { LlmProvider } from "../llm/types";
+import type { MatchBreakdown } from "../services/match-score";
 import {
   getConfirmedCandidateProfile,
   getTopMatchOffers,
@@ -13,6 +14,10 @@ import {
   VacancyMatchServiceError,
   type CandidateMatchOffer,
 } from "../services/vacancy-match";
+
+function asInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
 
 function offersPayload(offers: CandidateMatchOffer[]) {
   return {
@@ -168,6 +173,16 @@ export function createCandidateMatchesRouter(
         return;
       }
 
+      let matchBreakdown: MatchBreakdown | unknown = offer.breakdown;
+      if (matchBreakdown == null) {
+        const scoreRow = await prisma.vacancyMatchScore.findUnique({
+          where: {
+            candidateUserId_vacancyId: { candidateUserId, vacancyId },
+          },
+        });
+        matchBreakdown = scoreRow?.breakdown ?? {};
+      }
+
       let candidateSummary: string;
       try {
         const messages = buildCandidateSummaryMessages(profile, vacancy.title);
@@ -183,6 +198,7 @@ export function createCandidateMatchesRouter(
             candidateUserId,
             vacancyId,
             matchScore: offer.matchScore,
+            matchBreakdown: asInputJson(matchBreakdown),
             candidateSummary,
             status: "PENDING",
           },

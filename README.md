@@ -367,7 +367,7 @@ curl -X POST "http://localhost:3000/api/prep/$INTERVIEW_ID/finish" \
 Очікувана відповідь:
 
 ```json
-{ "profile": { "role": "...", "requirements": ["..."], "culture": ["..."], "expectations": ["..."] } }
+{ "profile": { "role": "...", "requirements": { "critical": ["..."], "desired": ["..."] }, "culture": ["..."], "expectations": ["..."] } }
 ```
 
 Видалити чат (повний рестарт):
@@ -409,7 +409,10 @@ curl "http://localhost:3000/api/interviews/mine" \
 ```json
 {
   "role": "Middle Backend Developer",
-  "requirements": ["Node.js", "PostgreSQL", "2+ роки досвіду"],
+  "requirements": {
+    "critical": ["Node.js", "PostgreSQL"],
+    "desired": ["Досвід із черговими системами", "GraphQL"]
+  },
   "culture": ["remote-first", "код-рев'ю обов'язкове"],
   "expectations": ["2-3 фічі за квартал", "участь у дизайн-рев'ю"],
   "confirmedAt": null
@@ -417,7 +420,9 @@ curl "http://localhost:3000/api/interviews/mine" \
 ```
 
 - `role` — рядок (посада, рівень).
-- `requirements` / `culture` / `expectations` — масиви коротких рядків (`string[]`), збережені в БД як `Json`. Якщо тема не обговорювалась у чаті, LLM пише `"не вказано"` замість вигадування фактів.
+- `requirements` — структурований об'єкт `{ critical: string[]; desired: string[]; }`, збережений у БД як `Json`. `critical` — обов'язкові вимоги (їх невиконання обмежує % match), `desired` — бажані. Агент під час анкетування збирає обидва списки окремо, а HR може відредагувати їх перед підтвердженням. Хоча б один із списків має бути непорожнім.
+- **Legacy-сумісність:** старі профілі, де `requirements` був простим `string[]`, автоматично нормалізуються як `{ critical: [], desired: [...] }` (усі елементи трактуються як бажані).
+- `culture` / `expectations` — масиви коротких рядків (`string[]`), збережені в БД як `Json`. Якщо тема не обговорювалась у чаті, LLM пише `"не вказано"` замість вигадування фактів.
 - `confirmedAt` — `null` одразу після `finish`; встановлюється окремим кроком підтвердження (Day 7).
 - Якщо LLM повернула невалідний JSON — `finish` відповідає `502`, а prep-сесія лишається відкритою для повторної спроби (профіль не зберігається).
 
@@ -458,7 +463,7 @@ curl -X POST "http://localhost:3000/api/prep/$INTERVIEW_ID/confirm" \
 {
   "profile": {
     "role": "Middle Backend Developer",
-    "requirements": ["Node.js"],
+    "requirements": { "critical": ["Node.js"], "desired": [] },
     "culture": ["не вказано"],
     "expectations": ["не вказано"],
     "confirmedAt": "2026-07-07T09:00:00.000Z"
@@ -1520,3 +1525,20 @@ GEMINI_MODEL=gemini-2.0-flash
 **HR:** `/applications` (лінк «Заявки кандидатів» на головній) → перегляд заявки (`candidateSummary`) → «Створити співбесіду» (optional `scheduledAt`).
 
 **Candidate / HR flow (EN):** candidate confirms profile → top-5 ranked matches (title + % only; no company data) → accept creates application + HR notification → HR opens applications inbox → manually creates interview from the application.
+
+### Як рахується % match
+
+Оцінка відповідності **детермінована** — її рахує код, а не LLM. LLM виступає лише оцінювачем окремих вимог:
+
+1. **LLM-оцінка (per-requirement).** Для кожної вимоги вакансії LLM повертає статус — `met` / `unknown` / `unmet` — з коротким обґрунтуванням (`evidence`) на основі профілю кандидата, плюс загальний `contextFit` (0–100) за культурою/очікуваннями. LLM **не** повертає готовий відсоток.
+2. **Формула (код, `backend/src/services/match-score.ts`).** Бали за статус: `met = 100`, `unknown = 50`, `unmet = 0`.
+   - `criticalFit` — середнє по критичних вимогах, `desiredFit` — по бажаних.
+   - `requirementsFit = 0.75 × criticalFit + 0.25 × desiredFit` (якщо присутні обидві категорії; інакше — наявна; `null`, якщо вимог немає).
+   - `rawScore = 0.8 × requirementsFit + 0.2 × contextFit` (або лише `contextFit`, якщо вимог немає).
+   - **Cap 69:** якщо хоч одна **критична** вимога має статус `unmet`, підсумковий `matchScore` обмежується зверху **69** (кандидат не може мати «прохідний» %, поки не закриті критичні вимоги). Статус `unknown` знижує бал, але **не** активує cap.
+   - Результат округлюється й обмежується діапазоном `0..100`.
+3. **Кешування.** Оцінки кешуються з версіонуванням за `confirmedAt` і кандидата, і вакансії. При зміні будь-якого профілю переранжовуються лише ті вакансії, у яких немає актуального кешу (partial re-rank).
+
+**Що бачить кандидат:** лише підсумковий **% match** (без деталізації, без даних компанії).
+
+**Що бачить HR:** у деталях заявки (`GET /hr/applications/:id`, доступно лише власнику вакансії) — повний **breakdown**: список вимог за пріоритетами зі статусами й обґрунтуванням, а також позначку, чи спрацював cap за невиконаними критичними вимогами. Breakdown фіксується снапшотом у заявці на момент її створення (Accept) і **ніколи не потрапляє** в кандидатські відповіді API.

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 import type { LlmProvider } from "../llm/types";
+import type { MatchBreakdown } from "./match-score";
 import {
   enrichOfferWithDisplays,
   ensureMatchScores,
@@ -9,6 +10,7 @@ import {
   pickTopOffers,
   pickNextOffer,
   sortScoresDesc,
+  toCandidateOfferPayload,
   VacancyMatchServiceError,
 } from "./vacancy-match";
 
@@ -162,7 +164,9 @@ type FakeMatchScore = {
   candidateUserId: string;
   vacancyId: string;
   matchScore: number;
+  breakdown?: MatchBreakdown | Record<string, unknown>;
   rankedForConfirmedAt: Date;
+  rankedForVacancyConfirmedAt: Date;
 };
 
 type FakeOfferDecision = {
@@ -255,7 +259,7 @@ function makeFakePrisma(seed: {
           candidateUserId: string;
           rankedForConfirmedAt?: Date;
         };
-        include?: { vacancy?: boolean };
+        include?: { vacancy?: boolean | { include?: { companyProfile?: boolean } } };
       }) => {
         return matchScores
           .filter((item) => {
@@ -282,7 +286,9 @@ function makeFakePrisma(seed: {
           candidateUserId: string;
           vacancyId: string;
           matchScore: number;
+          breakdown?: MatchBreakdown | Record<string, unknown>;
           rankedForConfirmedAt: Date;
+          rankedForVacancyConfirmedAt: Date;
         }>;
       }) => {
         for (const row of data) {
@@ -352,7 +358,7 @@ test("ensureMatchScores returns empty without calling LLM when no confirmed vaca
     name: "fake",
     complete: async () => {
       completeCalls += 1;
-      return '{"scores":[]}';
+      return '{"results":[]}';
     },
   };
 
@@ -376,9 +382,9 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
           status: "CONFIRMED",
           companyProfile: {
             role: "Backend",
-            requirements: {},
-            culture: {},
-            expectations: {},
+            requirements: { critical: ["TS"], desired: [] },
+            culture: [],
+            expectations: [],
             confirmedAt,
           },
         },
@@ -388,9 +394,9 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
           status: "CONFIRMED",
           companyProfile: {
             role: "Platform",
-            requirements: {},
-            culture: {},
-            expectations: {},
+            requirements: { critical: ["Go"], desired: [] },
+            culture: [],
+            expectations: [],
             confirmedAt,
           },
         },
@@ -401,14 +407,18 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
           candidateUserId: "cd_1",
           vacancyId: "v1",
           matchScore: 90,
+          breakdown: { matchScore: 90, cappedByCriticalUnmet: false },
           rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
         },
         {
           id: "s2",
           candidateUserId: "cd_1",
           vacancyId: "v2",
           matchScore: 80,
+          breakdown: { matchScore: 80, cappedByCriticalUnmet: false },
           rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
         },
       ],
       offerDecisions: [{ candidateUserId: "cd_1", vacancyId: "v1", decision: "REJECTED" }],
@@ -416,7 +426,7 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
   );
   const fakeLlm: LlmProvider = {
     name: "fake",
-    complete: async () => '{"scores":[]}',
+    complete: async () => '{"results":[]}',
   };
 
   const offers = await getTopMatchOffers(
@@ -425,7 +435,7 @@ test("getTopMatchOffers skips rejected vacancies and returns remaining", async (
     "cd_1",
   );
 
-  assert.deepEqual(offers, [
+  assert.deepEqual(offers.map(toCandidateOfferPayload), [
     {
       vacancyId: "v2",
       title: "Platform Engineer",
@@ -447,9 +457,9 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
           status: "CONFIRMED",
           companyProfile: {
             role: "Backend",
-            requirements: { lang: "TS" },
-            culture: { remote: true },
-            expectations: { ownership: "high" },
+            requirements: { critical: ["TS"], desired: [] },
+            culture: [],
+            expectations: [],
             confirmedAt,
           },
         },
@@ -460,7 +470,9 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
           candidateUserId: "cd_1",
           vacancyId: "v1",
           matchScore: 40,
+          breakdown: { matchScore: 40, cappedByCriticalUnmet: false },
           rankedForConfirmedAt: olderConfirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
         },
       ],
     }),
@@ -470,7 +482,22 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
     name: "fake",
     complete: async () => {
       completeCalls += 1;
-      return JSON.stringify({ scores: [{ vacancyId: "v1", matchScore: 91 }] });
+      return JSON.stringify({
+        results: [
+          {
+            vacancyId: "v1",
+            contextFit: 55,
+            assessments: [
+              {
+                requirement: "TS",
+                priority: "critical",
+                status: "met",
+                evidence: "Є TS у skills",
+              },
+            ],
+          },
+        ],
+      });
     },
   };
 
@@ -481,7 +508,7 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
   );
 
   assert.equal(completeCalls, 1);
-  assert.deepEqual(offers, [
+  assert.deepEqual(offers.map(toCandidateOfferPayload), [
     {
       vacancyId: "v1",
       title: "Backend",
@@ -495,10 +522,164 @@ test("ensureMatchScores re-ranks when confirmedAt changes", async () => {
       (row) =>
         row.vacancyId === "v1" &&
         row.matchScore === 91 &&
-        sameInstant(row.rankedForConfirmedAt, confirmedAt),
+        sameInstant(row.rankedForConfirmedAt, confirmedAt) &&
+        sameInstant(row.rankedForVacancyConfirmedAt, confirmedAt),
     ),
     true,
   );
+});
+
+test("ensureMatchScores ranks only vacancies missing current cache versions", async () => {
+  const vacancyConfirmedAt = confirmedAt;
+  let completeCalls = 0;
+  const fakePrisma = makeFakePrisma(
+    confirmedCandidateSeed({
+      vacancies: [
+        {
+          id: "v1",
+          title: "Backend",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Backend",
+            requirements: { critical: ["Node.js"], desired: [] },
+            culture: [],
+            expectations: [],
+            confirmedAt: vacancyConfirmedAt,
+          },
+        },
+        {
+          id: "v2",
+          title: "Platform",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Platform",
+            requirements: { critical: ["Go"], desired: ["K8s"] },
+            culture: [],
+            expectations: [],
+            confirmedAt: vacancyConfirmedAt,
+          },
+        },
+      ],
+      matchScores: [
+        {
+          id: "s1",
+          candidateUserId: "cd_1",
+          vacancyId: "v1",
+          matchScore: 90,
+          breakdown: { matchScore: 90, cappedByCriticalUnmet: false },
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: vacancyConfirmedAt,
+        },
+      ],
+    }),
+  );
+  const fakeLlm: LlmProvider = {
+    name: "fake",
+    complete: async (messages) => {
+      completeCalls += 1;
+      const user = messages.find((m) => m.role === "user")?.content ?? "";
+      assert.match(user, /v2/);
+      assert.doesNotMatch(user, /"vacancyId": "v1"/);
+      return JSON.stringify({
+        results: [
+          {
+            vacancyId: "v2",
+            contextFit: 80,
+            assessments: [
+              {
+                requirement: "Go",
+                priority: "critical",
+                status: "met",
+                evidence: "Є Go у skills",
+              },
+              {
+                requirement: "K8s",
+                priority: "desired",
+                status: "unknown",
+                evidence: "Не згадується",
+              },
+            ],
+          },
+        ],
+      });
+    },
+  };
+
+  const offers = await ensureMatchScores(
+    fakePrisma as unknown as PrismaClient,
+    fakeLlm,
+    "cd_1",
+  );
+
+  assert.equal(completeCalls, 1);
+  assert.equal(offers.length, 2);
+  assert.ok(offers.some((item) => item.vacancyId === "v2"));
+});
+
+test("ensureMatchScores applies critical unmet cap via computeMatchScore", async () => {
+  const vacancyConfirmedAt = confirmedAt;
+  const fakePrisma = makeFakePrisma(
+    confirmedCandidateSeed({
+      vacancies: [
+        {
+          id: "v1",
+          title: "Backend",
+          status: "CONFIRMED",
+          companyProfile: {
+            role: "Backend",
+            // Two critical items so rawScore stays above 69 when one is unmet,
+            // and the critical-unmet cap clamps the stored score to 69.
+            requirements: { critical: ["Rust", "Systems"], desired: ["Docker"] },
+            culture: [],
+            expectations: [],
+            confirmedAt: vacancyConfirmedAt,
+          },
+        },
+      ],
+    }),
+  );
+  const fakeLlm: LlmProvider = {
+    name: "fake",
+    complete: async () =>
+      JSON.stringify({
+        results: [
+          {
+            vacancyId: "v1",
+            contextFit: 100,
+            assessments: [
+              {
+                requirement: "Rust",
+                priority: "critical",
+                status: "met",
+                evidence: "Є Rust",
+              },
+              {
+                requirement: "Systems",
+                priority: "critical",
+                status: "unmet",
+                evidence: "Немає Systems",
+              },
+              {
+                requirement: "Docker",
+                priority: "desired",
+                status: "met",
+                evidence: "Є Docker",
+              },
+            ],
+          },
+        ],
+      }),
+  };
+
+  const offers = await ensureMatchScores(
+    fakePrisma as unknown as PrismaClient,
+    fakeLlm,
+    "cd_1",
+  );
+
+  assert.equal(offers[0]?.matchScore, 69);
+  assert.equal(fakePrisma.__matchScores[0]?.breakdown?.cappedByCriticalUnmet, true);
+  assert.ok(fakePrisma.__matchScores[0]?.rankedForVacancyConfirmedAt);
 });
 
 test("getTopMatchOffers throws QUESTIONNAIRE_NOT_CONFIRMED when profile missing", async () => {

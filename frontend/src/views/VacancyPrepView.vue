@@ -51,6 +51,10 @@ function syncEditableProfile(next: CompanyProfile | null): void {
   }
   editableProfile.value = {
     ...next,
+    requirements: {
+      critical: next.requirements?.critical ?? [],
+      desired: next.requirements?.desired ?? [],
+    },
     workConditions: next.workConditions ?? [],
     compensation: next.compensation ?? null,
   };
@@ -236,7 +240,6 @@ async function onSaveProfileEdits(): Promise<void> {
 
 type ArrayProfileField = keyof Pick<
   CompanyProfile,
-  | "requirements"
   | "expectations"
   | "culture"
   | "companyDirection"
@@ -245,6 +248,15 @@ type ArrayProfileField = keyof Pick<
   | "onboardingApproach"
   | "workConditions"
 >;
+
+function onRequirementsInput(kind: "critical" | "desired", event: Event): void {
+  if (!editableProfile.value) return;
+  const lines = textToArray((event.target as HTMLTextAreaElement).value);
+  editableProfile.value.requirements = {
+    ...editableProfile.value.requirements,
+    [kind]: lines,
+  };
+}
 
 function setArrayField(field: ArrayProfileField, text: string): void {
   if (!editableProfile.value) return;
@@ -322,12 +334,21 @@ onMounted(loadPrepState);
             <input v-model="editableProfile.role" type="text" class="field-input" />
           </label>
           <label class="field">
-            <span class="field-label">Вимоги</span>
+            <span class="field-label">Критичні вимоги</span>
             <textarea
               class="field-input"
               rows="3"
-              :value="getArrayField('requirements')"
-              @input="onArrayFieldInput('requirements', $event)"
+              :value="(editableProfile.requirements.critical ?? []).join('\n')"
+              @input="onRequirementsInput('critical', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Бажані вимоги</span>
+            <textarea
+              class="field-input"
+              rows="3"
+              :value="(editableProfile.requirements.desired ?? []).join('\n')"
+              @input="onRequirementsInput('desired', $event)"
             />
           </label>
           <label class="field">
@@ -408,8 +429,10 @@ onMounted(loadPrepState);
         <dl v-else>
           <dt>Посада</dt>
           <dd>{{ profile.role }}</dd>
-          <dt>Вимоги</dt>
-          <dd><ul><li v-for="(item, i) in profile.requirements" :key="i">{{ item }}</li></ul></dd>
+          <dt>Критичні вимоги</dt>
+          <dd><ul><li v-for="(item, i) in profile.requirements.critical" :key="'c' + i">{{ item }}</li></ul></dd>
+          <dt>Бажані вимоги</dt>
+          <dd><ul><li v-for="(item, i) in profile.requirements.desired" :key="'d' + i">{{ item }}</li></ul></dd>
           <dt>Очікування</dt>
           <dd><ul><li v-for="(item, i) in profile.expectations" :key="i">{{ item }}</li></ul></dd>
           <dt>Зарплата</dt>

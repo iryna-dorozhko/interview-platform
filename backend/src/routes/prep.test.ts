@@ -30,7 +30,7 @@ type FakeProfile = {
   id: string;
   vacancyId: string;
   role: string;
-  requirements: string[];
+  requirements: string[] | { critical: string[]; desired: string[] };
   culture: string[];
   expectations: string[];
   companyDirection?: string[];
@@ -56,7 +56,7 @@ function makeConfirmedHrProfile(hrUserId = "hr_1"): FakeHrCompanyProfile {
 function makeMockVacancyExtraction(overrides: Record<string, unknown> = {}) {
   return {
     role: "Middle Backend Developer",
-    requirements: ["Node.js"],
+    requirements: { critical: [], desired: ["Node.js"] },
     expectations: ["не вказано"],
     workConditions: [
       "Формат: remote",
@@ -1289,6 +1289,129 @@ test("POST /prep/:vacancyId/finish snapshots universal fields from HrCompanyProf
   }
 });
 
+test("GET /prep/:vacancyId serializes legacy requirements as desired", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        vacancyId: "vacancy_1",
+        role: "QA Engineer",
+        requirements: ["3+ роки"],
+        culture: ["відкритість"],
+        expectations: ["не вказано"],
+        companyDirection: ["EdTech"],
+        policies: ["гнучкий графік"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.profile.requirements, {
+      critical: [],
+      desired: ["3+ роки"],
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("PATCH /prep/:vacancyId/profile rejects empty critical and desired", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    profiles: [
+      {
+        id: "profile_1",
+        vacancyId: "vacancy_1",
+        role: "QA Engineer",
+        requirements: { critical: ["Node.js"], desired: [] },
+        culture: ["відкритість"],
+        expectations: ["не вказано"],
+        companyDirection: ["EdTech"],
+        policies: ["гнучкий графік"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requirements: { critical: [], desired: [] } }),
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /prep/:vacancyId/confirm rejects empty requirements", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
+    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()],
+    profiles: [
+      {
+        id: "profile_1",
+        vacancyId: "vacancy_1",
+        role: "QA Engineer",
+        requirements: { critical: [], desired: [] },
+        culture: ["відкритість"],
+        expectations: ["не вказано"],
+        companyDirection: ["EdTech"],
+        policies: ["гнучкий графік"],
+        workFormat: ["Гібрид"],
+        onboardingApproach: ["Buddy 2 тижні"],
+        confirmedAt: null,
+      },
+    ],
+  });
+  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
 test("PATCH /prep/:vacancyId/profile updates all fields before confirm", async () => {
   const fakePrisma = makeFakePrisma({
     vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
@@ -1325,7 +1448,7 @@ test("PATCH /prep/:vacancyId/profile updates all fields before confirm", async (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         role: "Senior QA Engineer",
-        requirements: ["5+ років"],
+        requirements: { critical: ["5+ років"], desired: ["Playwright"] },
         expectations: ["автономність"],
         culture: ["прозорість"],
         companyDirection: ["FinTech"],
@@ -1338,7 +1461,10 @@ test("PATCH /prep/:vacancyId/profile updates all fields before confirm", async (
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.profile.role, "Senior QA Engineer");
-    assert.deepEqual(body.profile.requirements, ["5+ років"]);
+    assert.deepEqual(body.profile.requirements, {
+      critical: ["5+ років"],
+      desired: ["Playwright"],
+    });
     assert.deepEqual(body.profile.expectations, ["автономність"]);
     assert.deepEqual(body.profile.culture, ["прозорість"]);
     assert.deepEqual(body.profile.companyDirection, ["FinTech"]);

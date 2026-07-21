@@ -46,7 +46,9 @@ type FakeMatchScore = {
   candidateUserId: string;
   vacancyId: string;
   matchScore: number;
+  breakdown?: unknown;
   rankedForConfirmedAt: Date;
+  rankedForVacancyConfirmedAt: Date;
 };
 
 type FakeOfferDecision = {
@@ -61,6 +63,7 @@ type FakeApplication = {
   candidateUserId: string;
   vacancyId: string;
   matchScore: number;
+  matchBreakdown?: unknown;
   candidateSummary: string;
   status: string;
 };
@@ -181,6 +184,19 @@ function makeFakePrisma(seed: {
               ? vacancies.find((vacancy) => vacancy.id === item.vacancyId) ?? null
               : undefined,
           })),
+      findUnique: async ({
+        where,
+      }: {
+        where: { candidateUserId_vacancyId: { candidateUserId: string; vacancyId: string } };
+      }) => {
+        const key = where.candidateUserId_vacancyId;
+        return (
+          matchScores.find(
+            (item) =>
+              item.candidateUserId === key.candidateUserId && item.vacancyId === key.vacancyId,
+          ) ?? null
+        );
+      },
       createMany: async ({
         data,
       }: {
@@ -188,7 +204,9 @@ function makeFakePrisma(seed: {
           candidateUserId: string;
           vacancyId: string;
           matchScore: number;
+          breakdown?: unknown;
           rankedForConfirmedAt: Date;
+          rankedForVacancyConfirmedAt: Date;
         }>;
       }) => {
         for (const row of data) {
@@ -251,6 +269,7 @@ function makeFakePrisma(seed: {
           candidateUserId: string;
           vacancyId: string;
           matchScore: number;
+          matchBreakdown?: unknown;
           candidateSummary: string;
           status: string;
         };
@@ -355,7 +374,7 @@ function confirmedSeed(overrides?: {
         status: "CONFIRMED",
         companyProfile: {
           role: "Backend",
-          requirements: {},
+          requirements: { critical: ["TS"], desired: [] },
           culture: { values: ["ownership"] },
           expectations: {},
           confirmedAt,
@@ -368,7 +387,7 @@ function confirmedSeed(overrides?: {
         status: "CONFIRMED",
         companyProfile: {
           role: "Platform",
-          requirements: {},
+          requirements: { critical: ["Go"], desired: [] },
           culture: {},
           expectations: {},
           confirmedAt,
@@ -382,6 +401,7 @@ function confirmedSeed(overrides?: {
         vacancyId: "v1",
         matchScore: 90,
         rankedForConfirmedAt: confirmedAt,
+        rankedForVacancyConfirmedAt: confirmedAt,
       },
       {
         id: "s2",
@@ -389,6 +409,7 @@ function confirmedSeed(overrides?: {
         vacancyId: "v2",
         matchScore: 80,
         rankedForConfirmedAt: confirmedAt,
+        rankedForVacancyConfirmedAt: confirmedAt,
       },
     ],
     offerDecisions: overrides?.offerDecisions ?? [],
@@ -475,6 +496,73 @@ test("GET /matches/next returns offers array with contract keys only", async () 
   }
 });
 
+test("GET /candidate/matches offers omit breakdown", async () => {
+  const breakdown = {
+    assessments: [
+      {
+        requirement: "TS",
+        priority: "critical",
+        status: "met",
+        evidence: "Є в skills",
+      },
+    ],
+    contextFit: 80,
+    criticalFit: 100,
+    desiredFit: null,
+    requirementsFit: 100,
+    rawScore: 90,
+    cappedByCriticalUnmet: false,
+    matchScore: 90,
+  };
+  const fakePrisma = makeFakePrisma(
+    confirmedSeed({
+      matchScores: [
+        {
+          id: "s1",
+          candidateUserId: "candidate_1",
+          vacancyId: "v1",
+          matchScore: 90,
+          breakdown,
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
+        },
+        {
+          id: "s2",
+          candidateUserId: "candidate_1",
+          vacancyId: "v2",
+          matchScore: 80,
+          breakdown: { ...breakdown, matchScore: 80, rawScore: 80 },
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
+        },
+      ],
+    }),
+  );
+  const app = makeApp(fakePrisma);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/matches/next`, {
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      offers: Array<Record<string, unknown>>;
+    };
+    assert.equal(body.offers[0]?.breakdown, undefined);
+    assert.deepEqual(Object.keys(body.offers[0]!).sort(), [
+      "matchScore",
+      "salaryDisplay",
+      "title",
+      "vacancyId",
+      "workFormatDisplay",
+    ]);
+  } finally {
+    server.close();
+  }
+});
+
 test("GET /matches/next returns 409 when PENDING application exists", async () => {
   const fakePrisma = makeFakePrisma(
     confirmedSeed({
@@ -541,7 +629,7 @@ test("GET /matches/next returns at most 5 offers sorted by score", async () => {
     status: "CONFIRMED",
     companyProfile: {
       role: "Dev",
-      requirements: {},
+      requirements: { critical: [`Skill-${index + 1}`], desired: [] as string[] },
       culture: {},
       expectations: {},
       confirmedAt,
@@ -553,6 +641,7 @@ test("GET /matches/next returns at most 5 offers sorted by score", async () => {
     vacancyId: `v${index + 1}`,
     matchScore: 99 - index,
     rankedForConfirmedAt: confirmedAt,
+    rankedForVacancyConfirmedAt: confirmedAt,
   }));
 
   const fakePrisma = makeFakePrisma(
@@ -586,7 +675,7 @@ test("POST /matches/:id/reject backfills sixth offer when available", async () =
     status: "CONFIRMED",
     companyProfile: {
       role: "Dev",
-      requirements: {},
+      requirements: { critical: [`Skill-${index + 1}`], desired: [] as string[] },
       culture: {},
       expectations: {},
       confirmedAt,
@@ -598,6 +687,7 @@ test("POST /matches/:id/reject backfills sixth offer when available", async () =
     vacancyId: `v${index + 1}`,
     matchScore: 99 - index,
     rankedForConfirmedAt: confirmedAt,
+    rankedForVacancyConfirmedAt: confirmedAt,
   }));
 
   const fakePrisma = makeFakePrisma(
@@ -654,6 +744,70 @@ test("POST /matches/:id/accept creates application and notification", async () =
     assert.equal(payload.email, "candidate@test.com");
     assert.equal(payload.vacancyTitle, "Senior Backend");
     assert.equal(payload.matchScore, 90);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /candidate/matches/:vacancyId/accept stores matchBreakdown snapshot", async () => {
+  const breakdown = {
+    assessments: [
+      {
+        requirement: "TS",
+        priority: "critical",
+        status: "met",
+        evidence: "Є в skills",
+      },
+    ],
+    contextFit: 80,
+    criticalFit: 100,
+    desiredFit: null,
+    requirementsFit: 100,
+    rawScore: 90,
+    cappedByCriticalUnmet: false,
+    matchScore: 90,
+  };
+  const fakePrisma = makeFakePrisma(
+    confirmedSeed({
+      matchScores: [
+        {
+          id: "s1",
+          candidateUserId: "candidate_1",
+          vacancyId: "v1",
+          matchScore: 90,
+          breakdown,
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
+        },
+        {
+          id: "s2",
+          candidateUserId: "candidate_1",
+          vacancyId: "v2",
+          matchScore: 80,
+          rankedForConfirmedAt: confirmedAt,
+          rankedForVacancyConfirmedAt: confirmedAt,
+        },
+      ],
+    }),
+  );
+  const app = makeApp(fakePrisma);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate/matches/v1/accept`, {
+      method: "POST",
+      headers: authHeaders(candidateUser),
+    });
+    assert.equal(response.status, 200);
+    assert.ok(fakePrisma.__applications[0]?.matchBreakdown);
+    assert.equal(
+      (fakePrisma.__applications[0]?.matchBreakdown as { matchScore: number }).matchScore,
+      90,
+    );
+    const body = await response.json();
+    assert.equal(body.application.breakdown, undefined);
+    assert.equal(body.application.matchBreakdown, undefined);
   } finally {
     server.close();
   }

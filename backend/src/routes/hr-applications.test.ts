@@ -19,6 +19,7 @@ type FakeApplication = {
   candidateUserId: string;
   vacancyId: string;
   matchScore: number;
+  matchBreakdown?: unknown;
   candidateSummary: string;
   status: string;
   interviewId: string | null;
@@ -496,6 +497,56 @@ test("GET /hr/applications/:id returns 404 for other HR", async () => {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`);
     assert.equal(response.status, 404);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /hr/applications/:id includes matchBreakdown for owning HR", async () => {
+  const breakdown = {
+    assessments: [
+      {
+        requirement: "React",
+        priority: "critical",
+        status: "met",
+        evidence: "Є в skills",
+      },
+    ],
+    contextFit: 80,
+    criticalFit: 100,
+    desiredFit: null,
+    requirementsFit: 100,
+    rawScore: 96,
+    cappedByCriticalUnmet: false,
+    matchScore: 96,
+  };
+  const { prisma } = makeFakePrisma({
+    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 96,
+        matchBreakdown: breakdown,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.application.matchBreakdown, breakdown);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

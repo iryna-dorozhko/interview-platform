@@ -130,6 +130,7 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
         vacancyId: application.vacancyId,
         vacancyTitle: application.vacancy.title,
         matchScore: application.matchScore,
+        matchBreakdown: application.matchBreakdown,
         candidateSummary: application.candidateSummary,
         status: application.status,
         interviewId: application.interviewId,
