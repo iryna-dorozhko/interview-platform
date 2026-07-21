@@ -113,7 +113,7 @@ onMounted(loadDashboard);
 
       <div class="dashboard-actions">
         <button type="button" class="btn-primary" @click="showVacancyModal = true">
-          Створити нову анкету
+          Створити нову вакансію
         </button>
         <RouterLink class="btn-secondary-link" :to="{ name: 'hr-applications' }">
           Заявки кандидатів
