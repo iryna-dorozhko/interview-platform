@@ -17,9 +17,14 @@ export type VacancyCompensation = {
   displayText: string;
 };
 
+export type VacancyRequirements = {
+  critical: string[];
+  desired: string[];
+};
+
 export type CompanyProfile = {
   role: string;
-  requirements: string[];
+  requirements: VacancyRequirements;
   expectations: string[];
   culture: string[];
   companyDirection: string[];

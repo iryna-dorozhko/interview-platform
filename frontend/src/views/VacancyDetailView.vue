@@ -65,10 +65,16 @@ onMounted(loadVacancy);
         <dl>
           <dt>Посада</dt>
           <dd>{{ vacancy.profile.role }}</dd>
-          <dt>Вимоги</dt>
+          <dt>Критичні вимоги</dt>
           <dd>
             <ul>
-              <li v-for="(item, i) in vacancy.profile.requirements" :key="i">{{ item }}</li>
+              <li v-for="(item, i) in vacancy.profile.requirements.critical" :key="'c' + i">{{ item }}</li>
+            </ul>
+          </dd>
+          <dt>Бажані вимоги</dt>
+          <dd>
+            <ul>
+              <li v-for="(item, i) in vacancy.profile.requirements.desired" :key="'d' + i">{{ item }}</li>
             </ul>
           </dd>
           <dt>Культура</dt>
