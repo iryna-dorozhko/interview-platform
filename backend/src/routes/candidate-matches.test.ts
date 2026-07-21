@@ -46,7 +46,9 @@ type FakeMatchScore = {
   candidateUserId: string;
   vacancyId: string;
   matchScore: number;
+  breakdown?: unknown;
   rankedForConfirmedAt: Date;
+  rankedForVacancyConfirmedAt: Date;
 };
 
 type FakeOfferDecision = {
@@ -188,7 +190,9 @@ function makeFakePrisma(seed: {
           candidateUserId: string;
           vacancyId: string;
           matchScore: number;
+          breakdown?: unknown;
           rankedForConfirmedAt: Date;
+          rankedForVacancyConfirmedAt: Date;
         }>;
       }) => {
         for (const row of data) {
@@ -355,7 +359,7 @@ function confirmedSeed(overrides?: {
         status: "CONFIRMED",
         companyProfile: {
           role: "Backend",
-          requirements: {},
+          requirements: { critical: ["TS"], desired: [] },
           culture: { values: ["ownership"] },
           expectations: {},
           confirmedAt,
@@ -368,7 +372,7 @@ function confirmedSeed(overrides?: {
         status: "CONFIRMED",
         companyProfile: {
           role: "Platform",
-          requirements: {},
+          requirements: { critical: ["Go"], desired: [] },
           culture: {},
           expectations: {},
           confirmedAt,
@@ -382,6 +386,7 @@ function confirmedSeed(overrides?: {
         vacancyId: "v1",
         matchScore: 90,
         rankedForConfirmedAt: confirmedAt,
+        rankedForVacancyConfirmedAt: confirmedAt,
       },
       {
         id: "s2",
@@ -389,6 +394,7 @@ function confirmedSeed(overrides?: {
         vacancyId: "v2",
         matchScore: 80,
         rankedForConfirmedAt: confirmedAt,
+        rankedForVacancyConfirmedAt: confirmedAt,
       },
     ],
     offerDecisions: overrides?.offerDecisions ?? [],
@@ -541,7 +547,7 @@ test("GET /matches/next returns at most 5 offers sorted by score", async () => {
     status: "CONFIRMED",
     companyProfile: {
       role: "Dev",
-      requirements: {},
+      requirements: { critical: [`Skill-${index + 1}`], desired: [] as string[] },
       culture: {},
       expectations: {},
       confirmedAt,
@@ -553,6 +559,7 @@ test("GET /matches/next returns at most 5 offers sorted by score", async () => {
     vacancyId: `v${index + 1}`,
     matchScore: 99 - index,
     rankedForConfirmedAt: confirmedAt,
+    rankedForVacancyConfirmedAt: confirmedAt,
   }));
 
   const fakePrisma = makeFakePrisma(
@@ -586,7 +593,7 @@ test("POST /matches/:id/reject backfills sixth offer when available", async () =
     status: "CONFIRMED",
     companyProfile: {
       role: "Dev",
-      requirements: {},
+      requirements: { critical: [`Skill-${index + 1}`], desired: [] as string[] },
       culture: {},
       expectations: {},
       confirmedAt,
@@ -598,6 +605,7 @@ test("POST /matches/:id/reject backfills sixth offer when available", async () =
     vacancyId: `v${index + 1}`,
     matchScore: 99 - index,
     rankedForConfirmedAt: confirmedAt,
+    rankedForVacancyConfirmedAt: confirmedAt,
   }));
 
   const fakePrisma = makeFakePrisma(
