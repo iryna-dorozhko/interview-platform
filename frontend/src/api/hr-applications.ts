@@ -20,11 +20,31 @@ export type HrApplicationSummary = {
   createdAt: string;
 };
 
+export type RequirementAssessment = {
+  requirement: string;
+  priority: "critical" | "desired";
+  status: "met" | "unknown" | "unmet";
+  evidence: string;
+};
+
+export type MatchBreakdown = {
+  assessments: RequirementAssessment[];
+  contextFit: number;
+  criticalFit: number | null;
+  desiredFit: number | null;
+  requirementsFit: number | null;
+  rawScore: number;
+  cappedByCriticalUnmet: boolean;
+  matchScore: number;
+};
+
 export type HrApplicationDetail = HrApplicationSummary & {
   candidate: {
     fullName: string | null;
     email: string | null;
   };
+  /** Full snapshot, `null`, or legacy empty `{}` from older applications. */
+  matchBreakdown: MatchBreakdown | Record<string, never> | null;
 };
 
 export type CreateInterviewFromApplicationResult = {

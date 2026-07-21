@@ -8,6 +8,7 @@ import {
   fetchHrNotifications,
   markNotificationRead,
   type HrApplicationDetail,
+  type MatchBreakdown,
 } from "../api/hr-applications";
 
 type ListState = "loading" | "ready" | "error";
@@ -40,8 +41,35 @@ const canCreateInterview = computed(
   () => detail.value?.status === "PENDING" && !creating.value,
 );
 
+function isMatchBreakdown(value: unknown): value is MatchBreakdown {
+  return (
+    value != null &&
+    typeof value === "object" &&
+    Array.isArray((value as MatchBreakdown).assessments)
+  );
+}
+
+const matchBreakdown = computed(() => {
+  const value = detail.value?.matchBreakdown;
+  return isMatchBreakdown(value) ? value : null;
+});
+
+const criticalAssessments = computed(
+  () => matchBreakdown.value?.assessments.filter((a) => a.priority === "critical") ?? [],
+);
+
+const desiredAssessments = computed(
+  () => matchBreakdown.value?.assessments.filter((a) => a.priority === "desired") ?? [],
+);
+
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status;
+}
+
+function statusLabelUk(status: string): string {
+  if (status === "met") return "Відповідає";
+  if (status === "unknown") return "Не підтверджено";
+  return "Не відповідає";
 }
 
 function formatDate(iso: string): string {
@@ -247,6 +275,44 @@ onMounted(() => {
             <p class="summary-text">{{ detail.candidateSummary }}</p>
           </div>
 
+          <div v-if="matchBreakdown" class="breakdown-block">
+            <h4>Розбір відповідності</h4>
+            <p
+              v-if="matchBreakdown.cappedByCriticalUnmet"
+              class="cap-banner"
+              role="status"
+            >
+              Оцінку обмежено до 69%, бо є критична вимога зі статусом «Не відповідає».
+            </p>
+
+            <h5>Критичні вимоги</h5>
+            <ul v-if="criticalAssessments.length > 0" class="assessment-list">
+              <li
+                v-for="(item, i) in criticalAssessments"
+                :key="'c' + i"
+                :class="'status-' + item.status"
+              >
+                <strong>{{ statusLabelUk(item.status) }}</strong> — {{ item.requirement }}:
+                {{ item.evidence }}
+              </li>
+            </ul>
+            <p v-else class="muted">Немає критичних вимог.</p>
+
+            <h5>Бажані вимоги</h5>
+            <ul v-if="desiredAssessments.length > 0" class="assessment-list">
+              <li
+                v-for="(item, i) in desiredAssessments"
+                :key="'d' + i"
+                :class="'status-' + item.status"
+              >
+                <strong>{{ statusLabelUk(item.status) }}</strong> — {{ item.requirement }}:
+                {{ item.evidence }}
+              </li>
+            </ul>
+            <p v-else class="muted">Немає бажаних вимог.</p>
+          </div>
+          <p v-else class="muted breakdown-fallback">Деталізація недоступна</p>
+
           <form
             v-if="detail.status === 'PENDING'"
             class="create-form"
@@ -383,6 +449,52 @@ onMounted(() => {
   line-height: 1.45;
   color: #374151;
   white-space: pre-wrap;
+}
+.breakdown-block {
+  margin: 0 0 1rem;
+}
+.breakdown-block h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+.breakdown-block h5 {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.cap-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-radius: 0.375rem;
+}
+.assessment-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #374151;
+}
+.assessment-list li {
+  margin-bottom: 0.4rem;
+}
+.assessment-list li.status-met strong {
+  color: var(--accent);
+}
+.assessment-list li.status-unknown strong {
+  color: var(--warning);
+}
+.assessment-list li.status-unmet strong {
+  color: var(--danger);
+}
+.breakdown-fallback {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
 }
 .create-form {
   display: flex;
