@@ -1,5 +1,18 @@
 import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
+import type { CompanyProfile, PrismaClient } from "@prisma/client";
+import { normalizeVacancyRequirements } from "../utils/vacancy-requirements";
+
+function serializeVacancyProfile(profile: CompanyProfile) {
+  const requirements =
+    normalizeVacancyRequirements(profile.requirements) ?? { critical: [], desired: [] };
+  return {
+    role: profile.role,
+    requirements,
+    culture: profile.culture,
+    expectations: profile.expectations,
+    confirmedAt: profile.confirmedAt,
+  };
+}
 
 type CreateBody = { title?: unknown };
 type PatchBody = { title?: unknown };
@@ -70,13 +83,7 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
         status: vacancy.status,
         createdAt: vacancy.createdAt,
         profile: vacancy.companyProfile
-          ? {
-              role: vacancy.companyProfile.role,
-              requirements: vacancy.companyProfile.requirements,
-              culture: vacancy.companyProfile.culture,
-              expectations: vacancy.companyProfile.expectations,
-              confirmedAt: vacancy.companyProfile.confirmedAt,
-            }
+          ? serializeVacancyProfile(vacancy.companyProfile)
           : null,
       },
     });

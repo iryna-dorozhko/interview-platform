@@ -4,6 +4,15 @@ import express, { type NextFunction, type Request, type Response } from "express
 import type { AuthUser } from "../auth/middleware";
 import { createVacanciesRouter } from "./vacancies";
 
+type FakeCompanyProfile = {
+  vacancyId: string;
+  role: string;
+  requirements: unknown;
+  culture: string[];
+  expectations: string[];
+  confirmedAt: Date | null;
+};
+
 type FakeVacancy = {
   id: string;
   hrUserId: string;
@@ -11,6 +20,7 @@ type FakeVacancy = {
   status: string;
   createdAt: Date;
   _interviewCount?: number;
+  companyProfile?: FakeCompanyProfile | null;
 };
 
 function makeFakePrisma(vacancies: FakeVacancy[] = []) {
@@ -25,8 +35,20 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
         vacancies
           .filter((v) => v.hrUserId === where.hrUserId)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        vacancies.find((v) => v.id === where.id) ?? null,
+      findUnique: async ({
+        where,
+        include,
+      }: {
+        where: { id: string };
+        include?: { companyProfile?: boolean };
+      }) => {
+        const vacancy = vacancies.find((v) => v.id === where.id);
+        if (!vacancy) return null;
+        if (include?.companyProfile) {
+          return { ...vacancy, companyProfile: vacancy.companyProfile ?? null };
+        }
+        return vacancy;
+      },
       create: async ({ data }: { data: { hrUserId: string; title: string; status: string } }) => {
         counter += 1;
         const created: FakeVacancy = {
@@ -116,6 +138,41 @@ test("DELETE /vacancies/:id returns 409 when interviews exist", async () => {
     assert.equal(response.status, 409);
     const body = await response.json();
     assert.equal(body.interviewCount, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("GET /vacancies/:id normalizes legacy string[] requirements", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "DRAFT",
+      createdAt: new Date(),
+      companyProfile: {
+        vacancyId: "v1",
+        role: "Backend",
+        requirements: ["Node.js", "TypeScript"],
+        culture: [],
+        expectations: [],
+        confirmedAt: null,
+      },
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.vacancy.profile.requirements, {
+      critical: [],
+      desired: ["Node.js", "TypeScript"],
+    });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
