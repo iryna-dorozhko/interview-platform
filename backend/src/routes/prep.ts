@@ -9,6 +9,10 @@ import {
 import { LlmError, LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 import { parseVacancyCompensation, parseWorkConditionsArray } from "../utils/vacancy-work-conditions";
+import {
+  assertNonEmptyRequirements,
+  normalizeVacancyRequirements,
+} from "../utils/vacancy-requirements";
 
 type MessageBody = {
   message?: unknown;
@@ -28,9 +32,11 @@ type ProfilePatchBody = {
 };
 
 function serializeVacancyProfile(profile: CompanyProfile) {
+  const requirements =
+    normalizeVacancyRequirements(profile.requirements) ?? { critical: [], desired: [] };
   return {
     role: profile.role,
-    requirements: profile.requirements as string[],
+    requirements,
     expectations: profile.expectations as string[],
     culture: profile.culture as string[],
     companyDirection: (profile.companyDirection as string[] | null) ?? [],
@@ -98,7 +104,6 @@ function parseProfilePatch(
   }
 
   const arrayFields = [
-    "requirements",
     "expectations",
     "culture",
     "companyDirection",
@@ -117,6 +122,14 @@ function parseProfilePatch(
       return { ok: false, error: `Invalid ${field}` };
     }
     data[field] = parsed;
+  }
+
+  if (hasField("requirements")) {
+    const parsed = normalizeVacancyRequirements(body.requirements);
+    if (!parsed || !assertNonEmptyRequirements(parsed)) {
+      return { ok: false, error: "Invalid requirements" };
+    }
+    data.requirements = asInputJson(parsed);
   }
 
   if (hasField("workConditions")) {
@@ -284,7 +297,7 @@ export function createPrepRouter(
         where: { vacancyId },
         update: {
           role: extracted.role,
-          requirements: extracted.requirements,
+          requirements: asInputJson(extracted.requirements),
           expectations: extracted.expectations,
           workConditions: extracted.workConditions,
           compensation: asInputJson(extracted.compensation),
@@ -293,7 +306,7 @@ export function createPrepRouter(
         create: {
           vacancyId,
           role: extracted.role,
-          requirements: extracted.requirements,
+          requirements: asInputJson(extracted.requirements),
           expectations: extracted.expectations,
           workConditions: extracted.workConditions,
           compensation: asInputJson(extracted.compensation),
@@ -339,6 +352,12 @@ export function createPrepRouter(
 
     if (profile.confirmedAt) {
       res.status(409).json({ error: "Profile already confirmed" });
+      return;
+    }
+
+    const requirements = normalizeVacancyRequirements(profile.requirements);
+    if (!requirements || !assertNonEmptyRequirements(requirements)) {
+      res.status(400).json({ error: "Invalid requirements" });
       return;
     }
 
