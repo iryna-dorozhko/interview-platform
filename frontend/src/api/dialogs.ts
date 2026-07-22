@@ -8,6 +8,7 @@ export type DialogListItem = {
   peer: { id: string; email: string };
   lastMessage: { body: string; createdAt: string; kind: DialogMessageKind } | null;
   updatedAt: string;
+  unreadCount: number;
 };
 
 export type DialogMessage = {
@@ -66,7 +67,28 @@ export async function fetchDialogs(): Promise<DialogListItem[]> {
     throw await parseError(response, "Не вдалося завантажити діалоги");
   }
   const body = (await response.json()) as { dialogs: DialogListItem[] };
-  return body.dialogs;
+  return body.dialogs.map((dialog) => ({
+    ...dialog,
+    unreadCount: Number(dialog.unreadCount ?? 0),
+  }));
+}
+
+export async function fetchDialogUnreadCount(): Promise<number> {
+  const response = await fetchWithAuth("/api/dialogs/unread-count");
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося завантажити непрочитані");
+  }
+  const body = (await response.json()) as { unreadCount: number };
+  return body.unreadCount;
+}
+
+export async function markDialogRead(id: string): Promise<void> {
+  const response = await fetchWithAuth(`/api/dialogs/${id}/read`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося позначити діалог прочитаним");
+  }
 }
 
 export async function createDialog(candidateUserId: string): Promise<{ id: string }> {
