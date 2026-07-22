@@ -83,6 +83,12 @@ async function onSubmit(): Promise<void> {
   margin: 2rem auto;
   padding: 0 1rem;
 }
+h1 {
+  padding-top: 70px;
+  padding-bottom: 70px;
+  text-align: center;
+  font-family: var(--font);
+}
 .form {
   display: flex;
   flex-direction: column;

@@ -50,8 +50,8 @@ function isHomeActive(): boolean {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem 0.75rem;
+  gap: 0.35rem;
+  padding: 1.1rem 0.9rem;
   border-right: 1px solid var(--border);
   background: var(--surface-muted);
   flex: 0 0 var(--sidebar-width);
@@ -59,11 +59,12 @@ function isHomeActive(): boolean {
 }
 .nav-item {
   display: block;
-  padding: 0.55rem 0.65rem;
+  padding: 0.65rem 0.8rem;
   border-radius: 6px;
   text-decoration: none;
   color: #374151;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 .nav-item.active {
   background: var(--accent-soft);

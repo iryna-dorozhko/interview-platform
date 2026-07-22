@@ -25,10 +25,6 @@ const loadError = ref<string | null>(null);
 
 const showVacancyModal = ref(false);
 
-const awaitingCandidateCount = computed(
-  () => interviews.value.filter((i) => i.status === "AWAITING_CANDIDATE").length,
-);
-
 const recentActivity = computed<ActivityItem[]>(() => {
   const vacancyItems: ActivityItem[] = vacancies.value.map((v) => ({
     id: v.id,
@@ -95,15 +91,11 @@ onMounted(loadDashboard);
       <div class="overview-cards">
         <div class="card">
           <span class="card-value">{{ vacancies.length }}</span>
-          <span class="card-label">Анкет</span>
+          <span class="card-label">Вакансії</span>
         </div>
         <div class="card">
           <span class="card-value">{{ interviews.length }}</span>
           <span class="card-label">Співбесід</span>
-        </div>
-        <div class="card">
-          <span class="card-value">{{ awaitingCandidateCount }}</span>
-          <span class="card-label">Очікують кандидата</span>
         </div>
         <div class="card">
           <span class="card-value">{{ unreadNotifications }}</span>

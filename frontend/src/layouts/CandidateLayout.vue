@@ -53,14 +53,14 @@ function logout(): void {
 }
 .header h1 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.25rem;
   font-weight: 650;
   letter-spacing: -0.02em;
 }
 .subtitle {
-  margin: 0.25rem 0 0;
+  margin: 0.3rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.9375rem;
 }
 .user-bar {
   display: flex;

@@ -88,7 +88,7 @@ h1 {
   padding-bottom: 70px;
   text-align: center;
   font-family: var(--font);
-  background-color: var(--surface);
+  background-color: var(--bg);
 }
 .form {
   display: flex;
