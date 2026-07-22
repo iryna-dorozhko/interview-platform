@@ -142,7 +142,7 @@ type LastFailedTurn = {
 ## Тестування
 
 1. **Unit `withLlmRetry`:** retry на transient/empty/parse; no-retry на auth/validation/context; max attempts; backoff.
-2. **Prep routes:** 2 fail + 1 success → 200; 3 fail → 503 + safe `error`; повтор не дублює user message.
+2. **Prep routes:** 2 fail + 1 success → 200; 3 fail → 503 + safe `error`; manual retry після збереженого user message не створює другий user message.
 3. **Orchestrator:** fail → `agent-error` + `lastFailedTurn`; HR `room:agent-retry` → повтор turn; candidate emit ігнорується / без права; подвійний retry не запускає два паралельні turn.
 4. **Frontend (smoke/компонент за потреби):** банер + кнопка за роллю; thinking скидається на error.
 
