@@ -29,6 +29,9 @@ const sending = ref(false);
 const lastReadyForConfirmation = ref(false);
 const messagesEl = ref<HTMLElement | null>(null);
 
+type FailedAction = "greeting" | "message" | "finish";
+const lastFailedAction = ref<FailedAction | null>(null);
+
 async function scrollToBottom(): Promise<void> {
   await nextTick();
   const el = messagesEl.value;
@@ -46,8 +49,10 @@ async function triggerGreeting(): Promise<void> {
       createdAt: new Date().toISOString(),
     });
     lastReadyForConfirmation.value = response.readyForConfirmation;
+    lastFailedAction.value = null;
     await scrollToBottom();
   } catch (error) {
+    lastFailedAction.value = "greeting";
     errorMessage.value =
       error instanceof Error ? error.message : "Не вдалося отримати відповідь агента";
   } finally {
@@ -84,6 +89,7 @@ async function sendMessage(): Promise<void> {
   if (!text || sending.value || isClosed.value) return;
 
   errorMessage.value = null;
+  lastFailedAction.value = null;
   input.value = "";
   messages.value.push({
     id: `local_${Date.now()}`,
@@ -103,7 +109,39 @@ async function sendMessage(): Promise<void> {
       createdAt: new Date().toISOString(),
     });
     lastReadyForConfirmation.value = response.readyForConfirmation;
+    lastFailedAction.value = null;
     await scrollToBottom();
+  } catch (error) {
+    lastFailedAction.value = "message";
+    errorMessage.value =
+      error instanceof Error ? error.message : "Не вдалося отримати відповідь агента";
+  } finally {
+    sending.value = false;
+  }
+}
+
+async function retryLastFailed(): Promise<void> {
+  if (!lastFailedAction.value || sending.value) return;
+  const action = lastFailedAction.value;
+  errorMessage.value = null;
+  sending.value = true;
+  try {
+    if (action === "finish") {
+      await finishCandidatePrepChat(props.interviewId);
+      isClosed.value = true;
+      emit("finished");
+    } else {
+      const response = await sendCandidatePrepMessage(props.interviewId);
+      messages.value.push({
+        id: `local_${Date.now()}_reply`,
+        authorType: "AGENT_CANDIDATE",
+        content: response.message,
+        createdAt: new Date().toISOString(),
+      });
+      lastReadyForConfirmation.value = response.readyForConfirmation;
+      await scrollToBottom();
+    }
+    lastFailedAction.value = null;
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : "Не вдалося отримати відповідь агента";
@@ -147,8 +185,10 @@ async function onFinishChat(): Promise<void> {
   try {
     await finishCandidatePrepChat(props.interviewId);
     isClosed.value = true;
+    lastFailedAction.value = null;
     emit("finished");
   } catch (error) {
+    lastFailedAction.value = "finish";
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося завершити чат";
   } finally {
     sending.value = false;
@@ -203,7 +243,17 @@ onMounted(loadPrepState);
         <p v-if="sending" class="thinking">Думаю…</p>
       </div>
 
-      <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="error-banner" role="alert">
+        {{ errorMessage }}
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="sending || !lastFailedAction"
+          @click="retryLastFailed"
+        >
+          Спробувати ще раз
+        </button>
+      </p>
 
       <form v-if="!isClosed" class="composer" @submit.prevent="sendMessage">
         <textarea
@@ -295,6 +345,10 @@ onMounted(loadPrepState);
   color: var(--danger);
   border-radius: 0.375rem;
   font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 .composer {
   display: flex;
