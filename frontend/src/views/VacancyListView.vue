@@ -5,6 +5,8 @@ import CreateVacancyModal from "../components/CreateVacancyModal.vue";
 import {
   deleteVacancy,
   fetchMyVacancies,
+  hideVacancy,
+  unhideVacancy,
   type VacancySummary,
 } from "../api/vacancies";
 
@@ -18,6 +20,7 @@ const STATUS_LABELS: Record<string, string> = {
 const router = useRouter();
 
 const vacancies = ref<VacancySummary[]>([]);
+const visibility = ref<"active" | "hidden">("active");
 const listState = ref<ListState>("loading");
 const listError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
@@ -27,13 +30,18 @@ async function loadVacancies(): Promise<void> {
   listState.value = "loading";
   listError.value = null;
   try {
-    vacancies.value = await fetchMyVacancies();
+    vacancies.value = await fetchMyVacancies(visibility.value);
     listState.value = "ready";
   } catch (error) {
     listState.value = "error";
     listError.value =
       error instanceof Error ? error.message : "Не вдалося завантажити список анкет";
   }
+}
+
+function setVisibility(next: "active" | "hidden"): void {
+  visibility.value = next;
+  void loadVacancies();
 }
 
 function statusLabel(status: string): string {
@@ -55,6 +63,28 @@ function goToDetail(id: string): void {
 function onVacancyCreated(vacancyId: string): void {
   showVacancyModal.value = false;
   router.push({ name: "vacancy-prep", params: { id: vacancyId } });
+}
+
+async function onHide(vacancy: VacancySummary): Promise<void> {
+  actionError.value = null;
+  try {
+    await hideVacancy(vacancy.id);
+    vacancies.value = vacancies.value.filter((item) => item.id !== vacancy.id);
+  } catch (error) {
+    actionError.value =
+      error instanceof Error ? error.message : "Не вдалося сховати вакансію";
+  }
+}
+
+async function onUnhide(vacancy: VacancySummary): Promise<void> {
+  actionError.value = null;
+  try {
+    await unhideVacancy(vacancy.id);
+    vacancies.value = vacancies.value.filter((item) => item.id !== vacancy.id);
+  } catch (error) {
+    actionError.value =
+      error instanceof Error ? error.message : "Не вдалося показати вакансію";
+  }
 }
 
 async function onDelete(vacancy: VacancySummary): Promise<void> {
@@ -84,10 +114,34 @@ onMounted(loadVacancies);
       </button>
     </div>
 
+    <div class="visibility-tabs" role="tablist" aria-label="Видимість вакансій">
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="visibility === 'active'"
+        :class="{ active: visibility === 'active' }"
+        @click="setVisibility('active')"
+      >
+        Активні
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="visibility === 'hidden'"
+        :class="{ active: visibility === 'hidden' }"
+        @click="setVisibility('hidden')"
+      >
+        Приховані
+      </button>
+    </div>
+
     <p v-if="listState === 'loading'">Завантаження…</p>
     <p v-else-if="listState === 'error'" class="fail">{{ listError }}</p>
     <p v-else-if="vacancies.length === 0" class="muted">
-      У вас ще немає вакансій. Натисніть «Створити вакансію», щоб додати першу.
+      <template v-if="visibility === 'hidden'">Немає прихованих вакансій.</template>
+      <template v-else>
+        У вас ще немає вакансій. Натисніть «Створити вакансію», щоб додати першу.
+      </template>
     </p>
     <template v-else>
       <p v-if="actionError" class="fail" role="alert">{{ actionError }}</p>
@@ -130,6 +184,22 @@ onMounted(loadVacancies);
               >
                 Редагувати
               </button>
+              <button
+                v-if="visibility === 'active'"
+                type="button"
+                class="btn-secondary"
+                @click="onHide(vacancy)"
+              >
+                Приховати
+              </button>
+              <button
+                v-else
+                type="button"
+                class="btn-secondary"
+                @click="onUnhide(vacancy)"
+              >
+                Показати
+              </button>
               <button type="button" class="btn-danger" @click="onDelete(vacancy)">
                 Видалити
               </button>
@@ -158,6 +228,26 @@ onMounted(loadVacancies);
 .vacancy-list h1 {
   margin: 0;
   font-size: 1.25rem;
+}
+.visibility-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.visibility-tabs button {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+.visibility-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
 }
 .muted {
   color: #6b7280;

@@ -59,8 +59,10 @@ watch(
     confirmedVacancies.value = [];
 
     try {
-      const vacancies = await fetchMyVacancies();
-      confirmedVacancies.value = vacancies.filter((v) => v.status === "CONFIRMED");
+      const vacancies = await fetchMyVacancies("active");
+      confirmedVacancies.value = vacancies.filter(
+        (v) => v.status === "CONFIRMED" && v.hiddenAt == null,
+      );
       if (props.initialVacancyId) {
         const hasInitial = confirmedVacancies.value.some((v) => v.id === props.initialVacancyId);
         selectedVacancyId.value = hasInitial

@@ -19,21 +19,44 @@ type FakeVacancy = {
   title: string;
   status: string;
   createdAt: Date;
+  hiddenAt?: Date | null;
   _interviewCount?: number;
+  _interviewStatuses?: string[];
   companyProfile?: FakeCompanyProfile | null;
 };
 
 function makeFakePrisma(vacancies: FakeVacancy[] = []) {
   let counter = 0;
-  const interviews: { vacancyId: string }[] = vacancies.flatMap((v) =>
-    Array.from({ length: v._interviewCount ?? 0 }, () => ({ vacancyId: v.id }))
-  );
+  const interviews: { vacancyId: string; status: string }[] = vacancies.flatMap((v) => {
+    if (v._interviewStatuses?.length) {
+      return v._interviewStatuses.map((status) => ({ vacancyId: v.id, status }));
+    }
+    return Array.from({ length: v._interviewCount ?? 0 }, () => ({
+      vacancyId: v.id,
+      status: "ENDED",
+    }));
+  });
 
   return {
     vacancy: {
-      findMany: async ({ where }: { where: { hrUserId: string } }) =>
+      findMany: async ({
+        where,
+      }: {
+        where: {
+          hrUserId: string;
+          hiddenAt?: null | { not: null };
+        };
+      }) =>
         vacancies
-          .filter((v) => v.hrUserId === where.hrUserId)
+          .filter((v) => {
+            if (v.hrUserId !== where.hrUserId) return false;
+            const hiddenAt = v.hiddenAt ?? null;
+            if (where.hiddenAt === null) return hiddenAt === null;
+            if (where.hiddenAt && "not" in where.hiddenAt && where.hiddenAt.not === null) {
+              return hiddenAt !== null;
+            }
+            return true;
+          })
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
       findUnique: async ({
         where,
@@ -44,10 +67,11 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
       }) => {
         const vacancy = vacancies.find((v) => v.id === where.id);
         if (!vacancy) return null;
+        const withDefaults = { ...vacancy, hiddenAt: vacancy.hiddenAt ?? null };
         if (include?.companyProfile) {
-          return { ...vacancy, companyProfile: vacancy.companyProfile ?? null };
+          return { ...withDefaults, companyProfile: vacancy.companyProfile ?? null };
         }
-        return vacancy;
+        return withDefaults;
       },
       create: async ({ data }: { data: { hrUserId: string; title: string; status: string } }) => {
         counter += 1;
@@ -57,6 +81,7 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
           title: data.title,
           status: data.status,
           createdAt: new Date(),
+          hiddenAt: null,
         };
         vacancies.push(created);
         return created;
@@ -66,12 +91,12 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
         data,
       }: {
         where: { id: string };
-        data: Partial<Pick<FakeVacancy, "title" | "status">>;
+        data: Partial<Pick<FakeVacancy, "title" | "status" | "hiddenAt">>;
       }) => {
         const vacancy = vacancies.find((v) => v.id === where.id);
         if (!vacancy) throw new Error("not found");
         Object.assign(vacancy, data);
-        return vacancy;
+        return { ...vacancy, hiddenAt: vacancy.hiddenAt ?? null };
       },
       delete: async ({ where }: { where: { id: string } }) => {
         const index = vacancies.findIndex((v) => v.id === where.id);
@@ -82,6 +107,20 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
     interview: {
       count: async ({ where }: { where: { vacancyId: string } }) =>
         interviews.filter((i) => i.vacancyId === where.vacancyId).length,
+      findFirst: async ({
+        where,
+      }: {
+        where: { vacancyId: string; status?: { in: string[] } };
+      }) => {
+        const allowed = where.status?.in;
+        return (
+          interviews.find(
+            (item) =>
+              item.vacancyId === where.vacancyId &&
+              (allowed == null || allowed.includes(item.status)),
+          ) ?? null
+        );
+      },
     },
     companyProfile: {
       updateMany: async () => ({ count: 1 }),
@@ -104,13 +143,26 @@ function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, user: AuthUser) 
   return app;
 }
 
+async function withServer(
+  app: ReturnType<typeof makeApp>,
+  run: (port: number) => Promise<void>,
+): Promise<void> {
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    await run(port);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+}
+
 test("POST /vacancies creates DRAFT vacancy with title", async () => {
   const fakePrisma = makeFakePrisma([]);
   const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
 
-  try {
+  await withServer(app, async (port) => {
     const response = await fetch(`http://127.0.0.1:${port}/api/vacancies`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -120,27 +172,29 @@ test("POST /vacancies creates DRAFT vacancy with title", async () => {
     const body = await response.json();
     assert.equal(body.vacancy.title, "Frontend Developer");
     assert.equal(body.vacancy.status, "DRAFT");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
+    assert.equal(body.vacancy.hiddenAt, null);
+  });
 });
 
 test("DELETE /vacancies/:id returns 409 when interviews exist", async () => {
   const fakePrisma = makeFakePrisma([
-    { id: "v1", hrUserId: "hr_1", title: "Dev", status: "CONFIRMED", createdAt: new Date(), _interviewCount: 1 },
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      createdAt: new Date(),
+      _interviewCount: 1,
+    },
   ]);
   const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
 
-  try {
+  await withServer(app, async (port) => {
     const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1`, { method: "DELETE" });
     assert.equal(response.status, 409);
     const body = await response.json();
     assert.equal(body.interviewCount, 1);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
+  });
 });
 
 test("GET /vacancies/:id normalizes legacy string[] requirements", async () => {
@@ -162,10 +216,8 @@ test("GET /vacancies/:id normalizes legacy string[] requirements", async () => {
     },
   ]);
   const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
 
-  try {
+  await withServer(app, async (port) => {
     const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1`);
     assert.equal(response.status, 200);
     const body = await response.json();
@@ -173,9 +225,8 @@ test("GET /vacancies/:id normalizes legacy string[] requirements", async () => {
       critical: [],
       desired: ["Node.js", "TypeScript"],
     });
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
+    assert.equal(body.vacancy.hiddenAt, null);
+  });
 });
 
 test("PATCH /vacancies/:id on CONFIRMED updates title and keeps CONFIRMED", async () => {
@@ -183,10 +234,8 @@ test("PATCH /vacancies/:id on CONFIRMED updates title and keeps CONFIRMED", asyn
     { id: "v1", hrUserId: "hr_1", title: "Dev", status: "CONFIRMED", createdAt: new Date() },
   ]);
   const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
 
-  try {
+  await withServer(app, async (port) => {
     const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -196,7 +245,138 @@ test("PATCH /vacancies/:id on CONFIRMED updates title and keeps CONFIRMED", asyn
     const body = await response.json();
     assert.equal(body.vacancy.status, "CONFIRMED");
     assert.equal(body.vacancy.title, "Senior Dev");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
+  });
+});
+
+test("GET /vacancies/mine?visibility=hidden returns only hidden", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Visible",
+      status: "CONFIRMED",
+      createdAt: new Date("2026-01-02"),
+      hiddenAt: null,
+    },
+    {
+      id: "v2",
+      hrUserId: "hr_1",
+      title: "Hidden",
+      status: "CONFIRMED",
+      createdAt: new Date("2026-01-01"),
+      hiddenAt: new Date("2026-01-03"),
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+
+  await withServer(app, async (port) => {
+    const active = await fetch(`http://127.0.0.1:${port}/api/vacancies/mine`);
+    assert.equal(active.status, 200);
+    const activeBody = await active.json();
+    assert.equal(activeBody.vacancies.length, 1);
+    assert.equal(activeBody.vacancies[0].id, "v1");
+    assert.equal(activeBody.vacancies[0].hiddenAt, null);
+
+    const hidden = await fetch(`http://127.0.0.1:${port}/api/vacancies/mine?visibility=hidden`);
+    assert.equal(hidden.status, 200);
+    const hiddenBody = await hidden.json();
+    assert.equal(hiddenBody.vacancies.length, 1);
+    assert.equal(hiddenBody.vacancies[0].id, "v2");
+    assert.ok(typeof hiddenBody.vacancies[0].hiddenAt === "string");
+  });
+});
+
+test("POST /vacancies/:id/hide succeeds when only ENDED interviews", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      createdAt: new Date(),
+      hiddenAt: null,
+      _interviewStatuses: ["ENDED"],
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+
+  await withServer(app, async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1/hide`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.ok(body.vacancy.hiddenAt);
+  });
+});
+
+test("POST /vacancies/:id/hide returns 409 ACTIVE_INTERVIEWS_EXIST for LIVE", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      createdAt: new Date(),
+      hiddenAt: null,
+      _interviewStatuses: ["LIVE"],
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+
+  await withServer(app, async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1/hide`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "ACTIVE_INTERVIEWS_EXIST");
+  });
+});
+
+test("POST /vacancies/:id/hide returns 409 for AWAITING_CANDIDATE", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      createdAt: new Date(),
+      hiddenAt: null,
+      _interviewStatuses: ["AWAITING_CANDIDATE"],
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+
+  await withServer(app, async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1/hide`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "ACTIVE_INTERVIEWS_EXIST");
+  });
+});
+
+test("POST /vacancies/:id/unhide clears hiddenAt", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      createdAt: new Date(),
+      hiddenAt: new Date(),
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+
+  await withServer(app, async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1/unhide`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.vacancy.hiddenAt, null);
+  });
 });

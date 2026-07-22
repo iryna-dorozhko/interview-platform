@@ -25,7 +25,7 @@ function makeMockProvider(reply: string): LlmProvider {
   return { name: "test-provider", complete: async () => reply };
 }
 
-type FakeVacancy = { id: string; hrUserId: string; title: string; status: string };
+type FakeVacancy = { id: string; hrUserId: string; title: string; status: string; hiddenAt?: Date | null };
 type FakeUser = { id: string; email: string; role: string };
 type FakeInvitation = {
   id: string;
@@ -758,6 +758,32 @@ test("POST /interviews requires vacancyId and CONFIRMED vacancy", async () => {
     assert.equal(body.error, "Vacancy is not confirmed");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /interviews returns 409 VACANCY_HIDDEN when vacancy is hidden", async () => {
+  const fakePrisma = makeFakePrisma([], [
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      hiddenAt: new Date("2026-07-22T12:00:00.000Z"),
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await postInterview(port, "v1");
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "VACANCY_HIDDEN");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
   }
 });
 

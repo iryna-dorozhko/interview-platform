@@ -114,6 +114,7 @@ model Vacancy {
   hrUserId  String
   title     String
   status    VacancyStatus @default(DRAFT)
+  hiddenAt  DateTime?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 

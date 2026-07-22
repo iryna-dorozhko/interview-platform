@@ -8,6 +8,7 @@ import {
   enrichOfferWithDisplays,
   ensureMatchScores,
   getTopMatchOffers,
+  listMatchableVacancies,
   pickTopOffers,
   pickNextOffer,
   sortScoresDesc,
@@ -131,6 +132,7 @@ type FakeVacancy = {
   id: string;
   title: string;
   status: string;
+  hiddenAt?: Date | null;
   hrUserId?: string;
   companyProfile: {
     role: string;
@@ -207,6 +209,7 @@ function makeFakePrisma(seed: {
       }: {
         where?: {
           status?: string;
+          hiddenAt?: null;
           id?: { in: string[] };
           companyProfile?: { confirmedAt?: { not: null } };
         };
@@ -218,6 +221,7 @@ function makeFakePrisma(seed: {
         return vacancies
           .filter((item) => {
             if (where?.status != null && item.status !== where.status) return false;
+            if (where?.hiddenAt === null && (item.hiddenAt ?? null) !== null) return false;
             if (where?.id?.in != null && !where.id.in.includes(item.id)) return false;
             if (where?.companyProfile?.confirmedAt?.not === null) {
               if (item.companyProfile?.confirmedAt == null) return false;
@@ -420,6 +424,43 @@ function confirmedCandidateSeed(overrides?: {
     offerDecisions: overrides?.offerDecisions ?? [],
   };
 }
+
+test("listMatchableVacancies excludes hidden vacancies", async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [
+      {
+        id: "visible_id",
+        title: "Visible",
+        status: "CONFIRMED",
+        hiddenAt: null,
+        companyProfile: {
+          role: "Backend",
+          requirements: { critical: ["TS"], desired: [] },
+          culture: [],
+          expectations: [],
+          confirmedAt,
+        },
+      },
+      {
+        id: "hidden_id",
+        title: "Hidden",
+        status: "CONFIRMED",
+        hiddenAt: new Date("2026-07-22T10:00:00.000Z"),
+        companyProfile: {
+          role: "Backend",
+          requirements: { critical: ["TS"], desired: [] },
+          culture: [],
+          expectations: [],
+          confirmedAt,
+        },
+      },
+    ],
+  });
+
+  const result = await listMatchableVacancies(fakePrisma as unknown as PrismaClient);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].vacancyId, "visible_id");
+});
 
 test("ensureMatchScores returns empty without calling LLM when no confirmed vacancies", async () => {
   const fakePrisma = makeFakePrisma(confirmedCandidateSeed());

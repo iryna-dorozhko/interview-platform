@@ -157,6 +157,7 @@ export async function listMatchableVacancies(prisma: PrismaClient): Promise<Matc
   const vacancies = await prisma.vacancy.findMany({
     where: {
       status: "CONFIRMED",
+      hiddenAt: null,
       companyProfile: { confirmedAt: { not: null } },
     },
     include: { companyProfile: true },

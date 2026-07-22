@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import type { CompanyProfile, PrismaClient } from "@prisma/client";
+import { ACTIVE_CANDIDATE_INTERVIEW_STATUSES } from "../utils/interview-readiness";
 import { normalizeVacancyRequirements } from "../utils/vacancy-requirements";
 
 function serializeVacancyProfile(profile: CompanyProfile) {
@@ -14,6 +15,22 @@ function serializeVacancyProfile(profile: CompanyProfile) {
   };
 }
 
+function serializeVacancySummary(item: {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: Date;
+  hiddenAt: Date | null;
+}) {
+  return {
+    id: item.id,
+    title: item.title,
+    status: item.status,
+    createdAt: item.createdAt,
+    hiddenAt: item.hiddenAt ? item.hiddenAt.toISOString() : null,
+  };
+}
+
 type CreateBody = { title?: unknown };
 type PatchBody = { title?: unknown };
 
@@ -22,18 +39,17 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
 
   router.get("/vacancies/mine", async (req: Request, res: Response) => {
     const prisma = getPrisma();
+    const visibility = req.query.visibility === "hidden" ? "hidden" : "active";
     const vacancies = await prisma.vacancy.findMany({
-      where: { hrUserId: req.user?.id },
+      where: {
+        hrUserId: req.user?.id,
+        ...(visibility === "hidden" ? { hiddenAt: { not: null } } : { hiddenAt: null }),
+      },
       orderBy: { createdAt: "desc" },
     });
 
     res.status(200).json({
-      vacancies: vacancies.map((item) => ({
-        id: item.id,
-        title: item.title,
-        status: item.status,
-        createdAt: item.createdAt,
-      })),
+      vacancies: vacancies.map(serializeVacancySummary),
     });
   });
 
@@ -51,13 +67,66 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
     });
 
     res.status(201).json({
-      vacancy: {
-        id: vacancy.id,
-        title: vacancy.title,
-        status: vacancy.status,
-        createdAt: vacancy.createdAt,
-      },
+      vacancy: serializeVacancySummary(vacancy),
     });
+  });
+
+  router.post("/vacancies/:id/hide", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: req.params.id } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
+      return;
+    }
+    if (vacancy.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (vacancy.hiddenAt != null) {
+      res.status(200).json({ vacancy: serializeVacancySummary(vacancy) });
+      return;
+    }
+    const blocking = await prisma.interview.findFirst({
+      where: {
+        vacancyId: vacancy.id,
+        status: { in: [...ACTIVE_CANDIDATE_INTERVIEW_STATUSES] },
+      },
+      select: { id: true },
+    });
+    if (blocking) {
+      res.status(409).json({
+        error: "ACTIVE_INTERVIEWS_EXIST",
+        message: "Неможливо сховати: є активні співбесіди",
+      });
+      return;
+    }
+    const updated = await prisma.vacancy.update({
+      where: { id: vacancy.id },
+      data: { hiddenAt: new Date() },
+    });
+    res.status(200).json({ vacancy: serializeVacancySummary(updated) });
+  });
+
+  router.post("/vacancies/:id/unhide", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const vacancy = await prisma.vacancy.findUnique({ where: { id: req.params.id } });
+    if (!vacancy) {
+      res.status(404).json({ error: "Vacancy not found" });
+      return;
+    }
+    if (vacancy.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (vacancy.hiddenAt == null) {
+      res.status(200).json({ vacancy: serializeVacancySummary(vacancy) });
+      return;
+    }
+    const updated = await prisma.vacancy.update({
+      where: { id: vacancy.id },
+      data: { hiddenAt: null },
+    });
+    res.status(200).json({ vacancy: serializeVacancySummary(updated) });
   });
 
   router.get("/vacancies/:id", async (req: Request, res: Response) => {
@@ -78,10 +147,7 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
 
     res.status(200).json({
       vacancy: {
-        id: vacancy.id,
-        title: vacancy.title,
-        status: vacancy.status,
-        createdAt: vacancy.createdAt,
+        ...serializeVacancySummary(vacancy),
         profile: vacancy.companyProfile
           ? serializeVacancyProfile(vacancy.companyProfile)
           : null,
@@ -114,12 +180,7 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
     });
 
     res.status(200).json({
-      vacancy: {
-        id: updated.id,
-        title: updated.title,
-        status: updated.status,
-        createdAt: updated.createdAt,
-      },
+      vacancy: serializeVacancySummary(updated),
     });
   });
 
