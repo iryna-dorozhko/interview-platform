@@ -122,12 +122,12 @@ onMounted(loadReport);
     <template v-else-if="report">
       <h1>Звіт про співбесіду</h1>
 
-      <p class="chat-link-row">
+      <p class="chat-actions">
         <RouterLink
           :to="{ name: 'interview-room', params: { id: report.interviewId } }"
-          class="chat-link"
+          class="btn-secondary chat-action-btn"
         >
-          Переглянути спільний чат
+          Переглянути співбесіду
         </RouterLink>
       </p>
 
@@ -247,16 +247,17 @@ onMounted(loadReport);
 .back-link:hover {
   text-decoration: underline;
 }
-.chat-link-row {
+.chat-actions {
   margin: 0 0 1.25rem;
 }
-.chat-link {
-  color: var(--accent);
+.chat-action-btn {
+  display: inline-block;
   text-decoration: none;
-  font-size: 0.875rem;
+  box-sizing: border-box;
 }
-.chat-link:hover {
-  text-decoration: underline;
+.chat-action-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .error-banner {
   color: var(--danger);
