@@ -1334,7 +1334,7 @@ test("POST /prep/:vacancyId/message returns 500 when persisting agent reply fail
   }
 });
 
-test("POST /prep/:vacancyId/message returns 409 when company profile not confirmed", async () => {
+test("POST /prep/:vacancyId/message returns 409 when company profile is missing", async () => {
   const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
   const fakeProvider: LlmProvider = {
     name: "omlx",
@@ -1360,7 +1360,7 @@ test("POST /prep/:vacancyId/message returns 409 when company profile not confirm
 
     assert.equal(response.status, 409);
     const body = await response.json();
-    assert.equal(body.error, "Company profile is not confirmed");
+    assert.equal(body.error, "Company profile is missing");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
@@ -1734,7 +1734,7 @@ test("PATCH /prep/:vacancyId/profile returns 409 when LIVE interview exists", as
   }
 });
 
-test("GET /prep/:vacancyId returns missingCompanyProfile true when HR profile not confirmed", async () => {
+test("GET /prep/:vacancyId returns missingCompanyProfile false when HR profile exists without confirmedAt", async () => {
   const fakePrisma = makeFakePrisma({
     vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
     sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
@@ -1759,7 +1759,7 @@ test("GET /prep/:vacancyId returns missingCompanyProfile true when HR profile no
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.equal(body.missingCompanyProfile, true);
+    assert.equal(body.missingCompanyProfile, false);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

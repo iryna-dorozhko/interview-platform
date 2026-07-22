@@ -70,14 +70,6 @@ export async function finishCompanyPrepChat(): Promise<{ profile: HrCompanyProfi
   return response.json() as Promise<{ profile: HrCompanyProfile }>;
 }
 
-export async function confirmCompanyPrepProfile(): Promise<{ profile: HrCompanyProfile }> {
-  const response = await fetchWithAuth("/api/company-prep/confirm", { method: "POST" });
-  if (!response.ok) {
-    throw await parseError(response, "Не вдалося підтвердити профіль");
-  }
-  return response.json() as Promise<{ profile: HrCompanyProfile }>;
-}
-
 export async function updateCompanyPrepProfile(
   payload: Partial<Omit<HrCompanyProfile, "confirmedAt">>
 ): Promise<{ profile: HrCompanyProfile }> {

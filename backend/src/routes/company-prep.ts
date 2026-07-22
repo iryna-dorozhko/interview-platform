@@ -249,46 +249,6 @@ export function createCompanyPrepRouter(
     res.status(200).json({ profile: toProfileDto(profile) });
   });
 
-  router.post("/company-prep/confirm", async (req: Request, res: Response) => {
-    const hrUserId = req.user?.id;
-    if (!hrUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    const prisma = getPrisma();
-    const profile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
-    if (!profile) {
-      res.status(404).json({ error: "Profile not found" });
-      return;
-    }
-
-    if (profile.confirmedAt) {
-      res.status(409).json({ error: "Profile already confirmed" });
-      return;
-    }
-
-    if (!profile.companyName?.trim()) {
-      res.status(400).json({ error: "Company name is required" });
-      return;
-    }
-
-    let updatedProfile;
-    try {
-      updatedProfile = await prisma.hrCompanyProfile.update({
-        where: { hrUserId },
-        data: { confirmedAt: new Date() },
-      });
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep:confirm] failed to confirm profile:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
-    }
-
-    res.status(200).json({ profile: toProfileDto(updatedProfile) });
-  });
-
   router.patch("/company-prep/profile", async (req: Request, res: Response) => {
     const hrUserId = req.user?.id;
     if (!hrUserId) {
@@ -409,11 +369,6 @@ export function createCompanyPrepRouter(
     }
 
     const prisma = getPrisma();
-    const existingProfile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
-    if (existingProfile?.confirmedAt) {
-      res.status(409).json({ error: "Profile is confirmed and cannot be reset" });
-      return;
-    }
 
     try {
       const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } });

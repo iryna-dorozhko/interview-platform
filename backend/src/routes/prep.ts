@@ -72,7 +72,7 @@ function serializeVacancyProfile(profile: CompanyProfile) {
   };
 }
 
-export async function assertConfirmedHrCompanyProfile(
+export async function assertHrCompanyProfile(
   req: Request,
   res: Response,
   prisma: PrismaClient
@@ -84,8 +84,8 @@ export async function assertConfirmedHrCompanyProfile(
   }
 
   const hrProfile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
-  if (!hrProfile?.confirmedAt) {
-    res.status(409).json({ error: "Company profile is not confirmed" });
+  if (!hrProfile) {
+    res.status(409).json({ error: "Company profile is missing" });
     return null;
   }
 
@@ -196,7 +196,7 @@ export function createPrepRouter(
     const hrCompanyProfile = await prisma.hrCompanyProfile.findUnique({
       where: { hrUserId: req.user!.id },
     });
-    const missingCompanyProfile = !hrCompanyProfile?.confirmedAt;
+    const missingCompanyProfile = !hrCompanyProfile;
 
     const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId } });
     if (!session) {
@@ -248,7 +248,7 @@ export function createPrepRouter(
       return;
     }
 
-    const hrProfile = await assertConfirmedHrCompanyProfile(req, res, prisma);
+    const hrProfile = await assertHrCompanyProfile(req, res, prisma);
     if (!hrProfile) {
       return;
     }
@@ -352,7 +352,7 @@ export function createPrepRouter(
       return;
     }
 
-    const hrProfile = await assertConfirmedHrCompanyProfile(req, res, prisma);
+    const hrProfile = await assertHrCompanyProfile(req, res, prisma);
     if (!hrProfile) {
       return;
     }
@@ -474,7 +474,7 @@ export function createPrepRouter(
       return;
     }
 
-    const hrProfile = await assertConfirmedHrCompanyProfile(req, res, prisma);
+    const hrProfile = await assertHrCompanyProfile(req, res, prisma);
     if (!hrProfile) {
       return;
     }

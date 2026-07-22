@@ -315,121 +315,7 @@ test("POST /company-prep/finish upserts HrCompanyProfile and closes session", as
   }
 });
 
-test("POST /company-prep/confirm sets confirmedAt", async () => {
-  const fakePrisma = makeFakePrisma({
-    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
-    profiles: [
-      {
-        id: "profile_1",
-        hrUserId: "hr_1",
-        companyName: "Acme Corp",
-        culture: ["Відкритість"],
-        companyDirection: ["EdTech"],
-        policies: ["Remote-first"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/confirm`, { method: "POST" });
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.notEqual(body.profile.confirmedAt, null);
-    assert.equal(body.profile.companyName, "Acme Corp");
-    assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /company-prep/confirm returns 400 when companyName is missing", async () => {
-  const fakePrisma = makeFakePrisma({
-    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
-    profiles: [
-      {
-        id: "profile_1",
-        hrUserId: "hr_1",
-        companyName: null,
-        culture: ["Відкритість"],
-        companyDirection: ["EdTech"],
-        policies: ["Remote-first"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/confirm`, { method: "POST" });
-    assert.equal(response.status, 400);
-    const body = await response.json();
-    assert.equal(body.error, "Company name is required");
-    assert.equal(fakePrisma.__profiles[0].confirmedAt, null);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /company-prep/confirm returns 400 when companyName is blank", async () => {
-  const fakePrisma = makeFakePrisma({
-    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
-    profiles: [
-      {
-        id: "profile_1",
-        hrUserId: "hr_1",
-        companyName: "   ",
-        culture: ["Відкритість"],
-        companyDirection: ["EdTech"],
-        policies: ["Remote-first"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/confirm`, { method: "POST" });
-    assert.equal(response.status, 400);
-    const body = await response.json();
-    assert.equal(body.error, "Company name is required");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("DELETE /company-prep returns 409 when profile confirmed", async () => {
+test("DELETE /company-prep resets chat and profile even when confirmedAt is set", async () => {
   const fakePrisma = makeFakePrisma({
     sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
     profiles: [
@@ -458,17 +344,17 @@ test("DELETE /company-prep returns 409 when profile confirmed", async () => {
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/company-prep`, { method: "DELETE" });
-    assert.equal(response.status, 409);
+    assert.equal(response.status, 200);
     const body = await response.json();
-    assert.equal(body.error, "Profile is confirmed and cannot be reset");
-    assert.equal(fakePrisma.__sessions.length, 1);
-    assert.equal(fakePrisma.__profiles.length, 1);
+    assert.deepEqual(body, { ok: true });
+    assert.equal(fakePrisma.__sessions.length, 0);
+    assert.equal(fakePrisma.__profiles.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
 
-test("PATCH /company-prep/profile updates fields before confirm", async () => {
+test("PATCH /company-prep/profile updates fields", async () => {
   const fakePrisma = makeFakePrisma({
     sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: true }],
     profiles: [
