@@ -32,6 +32,11 @@ const chat = usePrepChat<CandidateProfile>({
     humanAuthorType: "HUMAN_CANDIDATE",
     agentAuthorType: "AGENT_CANDIDATE",
   },
+  onAfterLoad: (state) => {
+    if (state.isClosed) {
+      emit("finished");
+    }
+  },
   onFinished: () => emit("finished"),
   onDeleted: () => emit("deleted"),
 });
@@ -55,6 +60,14 @@ const {
   isUserMessage,
 } = chat;
 
+function setMessagesEl(el: HTMLElement | null): void {
+  messagesEl.value = el;
+}
+
+function setInput(value: string): void {
+  input.value = value;
+}
+
 onMounted(() => {
   void load();
 });
@@ -73,8 +86,8 @@ onMounted(() => {
     :is-user-message="isUserMessage"
     :delete-disabled="!!profile?.confirmedAt"
     :delete-title="profile?.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
-    :set-messages-el="(el) => { messagesEl = el; }"
-    @update:input="(v) => { input = v; }"
+    :set-messages-el="setMessagesEl"
+    @update:input="setInput"
     @send="send"
     @retry="retry"
     @finish="finish"
