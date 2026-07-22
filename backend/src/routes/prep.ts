@@ -436,8 +436,10 @@ export function createPrepRouter(
     }
 
     if (profile.confirmedAt) {
-      res.status(409).json({ error: "Profile already confirmed" });
-      return;
+      if (await vacancyHasBlockingInterviews(prisma, vacancyId)) {
+        res.status(409).json({ error: "Vacancy has active interviews" });
+        return;
+      }
     }
 
     const parsed = parseProfilePatch((req.body ?? {}) as ProfilePatchBody);
@@ -446,11 +448,15 @@ export function createPrepRouter(
       return;
     }
 
+    const wasConfirmed = profile.confirmedAt != null;
     let updatedProfile;
     try {
       updatedProfile = await prisma.companyProfile.update({
         where: { vacancyId },
-        data: parsed.data,
+        data: {
+          ...parsed.data,
+          ...(wasConfirmed ? { confirmedAt: new Date() } : {}),
+        },
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
