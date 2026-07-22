@@ -102,7 +102,7 @@ test("parseFinalReport parses valid JSON", () => {
 test("parseFinalReport strips markdown code fences", () => {
   const raw = `\`\`\`json\n${sampleReportJson()}\n\`\`\``;
   const result = parseFinalReport(raw, sampleRequirements);
-  assert.equal(result.recommendation, "MAYBE");
+  assert.equal(result.recommendation, "HIRE");
 });
 
 test("parseFinalReport throws on invalid recommendation", () => {
@@ -130,7 +130,118 @@ test("parseFinalReport computes matchScore via computeMatchScore", () => {
     80,
   );
   assert.equal(result.matchScore, expected.matchScore);
+  assert.equal(result.recommendation, "HIRE");
+});
+
+test("parseFinalReport forces HIRE when all critical are met even if LLM returned MAYBE", () => {
+  const result = parseFinalReport(
+    sampleReportJson({ recommendation: "MAYBE" }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "HIRE");
+});
+
+test("parseFinalReport downgrades HIRE to MAYBE when any critical is unmet", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "HIRE",
+      assessments: [
+        {
+          requirement: "Node.js",
+          priority: "critical",
+          status: "unmet",
+          evidence: "Немає",
+        },
+        {
+          requirement: "Docker",
+          priority: "desired",
+          status: "met",
+          evidence: "Є",
+        },
+      ],
+      risks: ["Немає Node.js"],
+    }),
+    sampleRequirements,
+  );
   assert.equal(result.recommendation, "MAYBE");
+});
+
+test("parseFinalReport downgrades HIRE to MAYBE when any critical is unknown", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "HIRE",
+      assessments: [
+        {
+          requirement: "Node.js",
+          priority: "critical",
+          status: "unknown",
+          evidence: "Не зʼясовано",
+        },
+        {
+          requirement: "Docker",
+          priority: "desired",
+          status: "met",
+          evidence: "Є",
+        },
+      ],
+      risks: ["Node.js unknown"],
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "MAYBE");
+});
+
+test("parseFinalReport keeps REJECT when critical unmet and LLM returned REJECT", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "REJECT",
+      assessments: [
+        {
+          requirement: "Node.js",
+          priority: "critical",
+          status: "unmet",
+          evidence: "Немає",
+        },
+        {
+          requirement: "Docker",
+          priority: "desired",
+          status: "met",
+          evidence: "Є",
+        },
+      ],
+      risks: ["Немає Node.js"],
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "REJECT");
+});
+
+test("parseFinalReport forces HIRE when desired unmet but all critical met", () => {
+  const result = parseFinalReport(
+    sampleReportJson({ recommendation: "REJECT" }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "HIRE");
+});
+
+test("parseFinalReport forces HIRE when critical list is empty", () => {
+  const raw = JSON.stringify({
+    reportMarkdown: "## Підсумок\n\nOK",
+    recommendation: "MAYBE",
+    contextFit: 73,
+    assessments: [
+      {
+        requirement: "Docker",
+        priority: "desired",
+        status: "unmet",
+        evidence: "Немає",
+      },
+    ],
+    strengths: ["a"],
+    risks: ["b"],
+  });
+  const result = parseFinalReport(raw, { critical: [], desired: ["Docker"] });
+  assert.equal(result.recommendation, "HIRE");
 });
 
 test("parseFinalReport caps matchScore at 69 when critical is unmet", () => {
@@ -227,6 +338,7 @@ test("parseFinalReport with empty requirements uses contextFit as matchScore", (
   });
   const result = parseFinalReport(raw, { critical: [], desired: [] });
   assert.equal(result.matchScore, 73);
+  assert.equal(result.recommendation, "HIRE");
 });
 
 test("parseFinalReport rejects contextFit out of range", () => {
@@ -261,6 +373,14 @@ test("FINAL_REPORT_SYSTEM_PROMPT_UK requires assessments and contextFit without 
   assert.match(
     FINAL_REPORT_SYSTEM_PROMPT_UK,
     /не повертай поле matchScore|Не повертай поле matchScore/i,
+  );
+  assert.match(
+    FINAL_REPORT_SYSTEM_PROMPT_UK,
+    /всі critical мають status met.*МАЄ бути HIRE|МАЄ бути HIRE/i,
+  );
+  assert.match(
+    FINAL_REPORT_SYSTEM_PROMPT_UK,
+    /unmet або unknown — recommendation НЕ може бути HIRE/i,
   );
   assert.doesNotMatch(
     FINAL_REPORT_SYSTEM_PROMPT_UK,

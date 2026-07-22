@@ -7,7 +7,7 @@ export const FINAL_REPORT_SYSTEM_PROMPT_UK = `Ти HR-аналітик. Отри
 Правила:
 - reportMarkdown — markdown українською з розділами: ## Підсумок, ## Відповідність вимогам, ## Сильні сторони, ## Ризики, ## Рекомендація
 - У ## Відповідність вимогам обовʼязково підзаголовки ### Критичні та ### Бажані (навіть якщо один зі списків порожній — напиши «немає»)
-- recommendation — лише HIRE, MAYBE або REJECT; якщо будь-яка critical вимога має status unmet — recommendation НЕ може бути HIRE
+- recommendation — лише HIRE, MAYBE або REJECT; якщо всі critical мають status met (або critical немає) — recommendation МАЄ бути HIRE; якщо будь-яка critical має status unmet або unknown — recommendation НЕ може бути HIRE
 - contextFit — ціле число 0–100 (відповідність культурі/очікуванням/контексту, не дубль вимог)
 - assessments — рівно всі пункти critical+desired з вхідного списку, без доданих і без пропусків; priority має збігатися зі входом; status: met|unknown|unmet; evidence — коротке обґрунтування українською
 - якщо вимог немає — assessments має бути []

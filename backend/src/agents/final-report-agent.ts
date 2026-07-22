@@ -120,6 +120,17 @@ function toStringArray(value: unknown, field: string): string[] {
   return value.map((item) => String(item));
 }
 
+function normalizeRecommendation(
+  assessments: RequirementAssessment[],
+  recommendation: ExtractedFinalReport["recommendation"],
+): ExtractedFinalReport["recommendation"] {
+  const critical = assessments.filter((a) => a.priority === "critical");
+  const allCriticalMet = critical.every((a) => a.status === "met");
+  if (allCriticalMet) return "HIRE";
+  if (recommendation === "HIRE") return "MAYBE";
+  return recommendation;
+}
+
 const CONFIDENCE_LABELS: Record<string, string> = {
   CONFIRMED: "confirmed",
   INFERRED: "inferred",
@@ -185,10 +196,14 @@ export function parseFinalReport(
 
   const validatedAssessments = validateAssessments(assessments, requirements);
   const breakdown = computeMatchScore(validatedAssessments, contextFit);
+  const normalizedRecommendation = normalizeRecommendation(
+    validatedAssessments,
+    recommendation as ExtractedFinalReport["recommendation"],
+  );
 
   return {
     reportMarkdown: reportMarkdown.trim(),
-    recommendation: recommendation as ExtractedFinalReport["recommendation"],
+    recommendation: normalizedRecommendation,
     matchScore: breakdown.matchScore,
     strengths: toStringArray(strengths, "strengths"),
     risks: toStringArray(risks, "risks"),
