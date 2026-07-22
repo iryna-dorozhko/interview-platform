@@ -92,6 +92,3 @@ ALTER TABLE "DialogMessage" ADD CONSTRAINT "DialogMessage_senderUserId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "DialogMessage" ADD CONSTRAINT "DialogMessage_decisionId_fkey" FOREIGN KEY ("decisionId") REFERENCES "InterviewDecision"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- RenameIndex
-ALTER INDEX "VacancyMatchScore_candidateUserId_vacancyId_rankedForConfirmedA" RENAME TO "VacancyMatchScore_candidateUserId_vacancyId_rankedForConfir_key";
