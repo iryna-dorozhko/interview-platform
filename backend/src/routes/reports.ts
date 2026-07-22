@@ -1,7 +1,22 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import { generateDecisionLetter } from "../agents/decision-letter-agent";
+import type { LlmProvider } from "../llm/types";
 
-export function createReportsRouter(getPrisma: () => PrismaClient): Router {
+const DECISION_TYPES = new Set(["ACCEPT", "REJECT", "ADDITIONAL_MEETING"]);
+
+type DecisionType = "ACCEPT" | "REJECT" | "ADDITIONAL_MEETING";
+
+function parseDecisionType(raw: unknown): DecisionType | null {
+  return typeof raw === "string" && DECISION_TYPES.has(raw)
+    ? (raw as DecisionType)
+    : null;
+}
+
+export function createReportsRouter(
+  getPrisma: () => PrismaClient,
+  getLlmProvider: () => LlmProvider,
+): Router {
   const router = Router();
 
   router.get("/reports", async (req: Request, res: Response) => {
@@ -111,6 +126,12 @@ export function createReportsRouter(getPrisma: () => PrismaClient): Router {
       return;
     }
 
+    const latestDecision = await prisma.interviewDecision.findFirst({
+      where: { interviewId: report.interviewId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, type: true, createdAt: true },
+    });
+
     res.status(200).json({
       report: {
         id: report.id,
@@ -121,7 +142,164 @@ export function createReportsRouter(getPrisma: () => PrismaClient): Router {
         strengths: report.strengths as string[],
         risks: report.risks as string[],
         createdAt: report.createdAt,
+        latestDecision,
       },
+    });
+  });
+
+  async function loadReportForDecision(prisma: PrismaClient, reportId: string) {
+    return prisma.finalReport.findUnique({
+      where: { id: reportId },
+      include: {
+        interview: {
+          select: {
+            hrUserId: true,
+            candidateUserId: true,
+            vacancy: {
+              select: {
+                title: true,
+                companyProfile: true,
+              },
+            },
+            candidateProfile: true,
+          },
+        },
+      },
+    });
+  }
+
+  router.post("/reports/:id/decisions/draft", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const report = await loadReportForDecision(prisma, req.params.id);
+
+    if (!report) {
+      res.status(404).json({ error: "Report not found" });
+      return;
+    }
+    if (report.interview.hrUserId !== req.user?.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (!report.interview.candidateUserId) {
+      res.status(400).json({ error: "Candidate user required" });
+      return;
+    }
+
+    const type = parseDecisionType(req.body?.type);
+    if (!type) {
+      res.status(400).json({ error: "Invalid decision type" });
+      return;
+    }
+
+    try {
+      const body = await generateDecisionLetter(getLlmProvider(), {
+        type,
+        vacancyTitle: report.interview.vacancy.title,
+        reportMarkdown: report.reportMarkdown,
+        recommendation: report.recommendation,
+        matchScore: report.matchScore,
+        strengths: report.strengths as string[],
+        risks: report.risks as string[],
+        companyProfileJson: JSON.stringify(report.interview.vacancy.companyProfile ?? {}),
+        candidateProfileJson: JSON.stringify(report.interview.candidateProfile ?? {}),
+      });
+      res.status(200).json({ type, body });
+    } catch {
+      res.status(502).json({ error: "Failed to generate letter" });
+    }
+  });
+
+  router.post("/reports/:id/decisions", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const hrUserId = req.user!.id;
+    const report = await loadReportForDecision(prisma, req.params.id);
+
+    if (!report) {
+      res.status(404).json({ error: "Report not found" });
+      return;
+    }
+    if (report.interview.hrUserId !== hrUserId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (!report.interview.candidateUserId) {
+      res.status(400).json({ error: "Candidate user required" });
+      return;
+    }
+
+    const type = parseDecisionType(req.body?.type);
+    if (!type) {
+      res.status(400).json({ error: "Invalid decision type" });
+      return;
+    }
+
+    const letterBodyRaw = req.body?.letterBody;
+    if (typeof letterBodyRaw !== "string" || letterBodyRaw.trim().length === 0) {
+      res.status(400).json({ error: "letterBody required" });
+      return;
+    }
+    const letterBody = letterBodyRaw.trim();
+    const candidateUserId = report.interview.candidateUserId;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const decision = await tx.interviewDecision.create({
+        data: {
+          interviewId: report.interviewId,
+          finalReportId: report.id,
+          decidedByUserId: hrUserId,
+          type,
+          letterBody,
+        },
+      });
+
+      const existing = await tx.dialog.findUnique({
+        where: {
+          hrUserId_candidateUserId: {
+            hrUserId,
+            candidateUserId,
+          },
+        },
+      });
+
+      const dialog =
+        existing ??
+        (await tx.dialog.create({
+          data: {
+            hrUserId,
+            candidateUserId,
+          },
+        }));
+
+      const message = await tx.dialogMessage.create({
+        data: {
+          dialogId: dialog.id,
+          senderUserId: hrUserId,
+          body: letterBody,
+          kind: "DECISION_LETTER",
+          decisionId: decision.id,
+        },
+      });
+
+      await tx.interviewDecision.update({
+        where: { id: decision.id },
+        data: { dialogMessageId: message.id },
+      });
+
+      await tx.dialog.update({
+        where: { id: dialog.id },
+        data: { updatedAt: new Date() },
+      });
+
+      return { decision, dialogId: dialog.id };
+    });
+
+    res.status(201).json({
+      decision: {
+        id: result.decision.id,
+        type: result.decision.type,
+        createdAt: result.decision.createdAt,
+      },
+      dialogId: result.dialogId,
     });
   });
 

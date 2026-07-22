@@ -56,7 +56,7 @@ app.use("/api", requireAuth, requireHr, createCompanyPrepRouter(() => prisma, ge
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createHrApplicationsRouter(() => prisma));
-app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma));
+app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma, getLlmProvider));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
