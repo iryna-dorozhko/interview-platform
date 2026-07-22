@@ -108,18 +108,10 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
       return;
     }
 
-    const resetConfirmed = vacancy.status === "CONFIRMED";
     const updated = await prisma.vacancy.update({
       where: { id: vacancy.id },
-      data: { title, ...(resetConfirmed ? { status: "DRAFT" } : {}) },
+      data: { title },
     });
-
-    if (resetConfirmed) {
-      await prisma.companyProfile.updateMany({
-        where: { vacancyId: vacancy.id },
-        data: { confirmedAt: null },
-      });
-    }
 
     res.status(200).json({
       vacancy: {

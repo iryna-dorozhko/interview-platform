@@ -178,7 +178,7 @@ test("GET /vacancies/:id normalizes legacy string[] requirements", async () => {
   }
 });
 
-test("PATCH /vacancies/:id on CONFIRMED resets status to DRAFT", async () => {
+test("PATCH /vacancies/:id on CONFIRMED updates title and keeps CONFIRMED", async () => {
   const fakePrisma = makeFakePrisma([
     { id: "v1", hrUserId: "hr_1", title: "Dev", status: "CONFIRMED", createdAt: new Date() },
   ]);
@@ -194,7 +194,7 @@ test("PATCH /vacancies/:id on CONFIRMED resets status to DRAFT", async () => {
     });
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.equal(body.vacancy.status, "DRAFT");
+    assert.equal(body.vacancy.status, "CONFIRMED");
     assert.equal(body.vacancy.title, "Senior Dev");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));

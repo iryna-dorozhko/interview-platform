@@ -5,7 +5,6 @@ import CreateVacancyModal from "../components/CreateVacancyModal.vue";
 import {
   deleteVacancy,
   fetchMyVacancies,
-  updateVacancyTitle,
   type VacancySummary,
 } from "../api/vacancies";
 
@@ -56,30 +55,6 @@ function goToDetail(id: string): void {
 function onVacancyCreated(vacancyId: string): void {
   showVacancyModal.value = false;
   router.push({ name: "vacancy-prep", params: { id: vacancyId } });
-}
-
-async function onEditTitle(vacancy: VacancySummary): Promise<void> {
-  actionError.value = null;
-  const nextTitle = window.prompt("Нова назва анкети:", vacancy.title);
-  if (nextTitle === null) return;
-
-  const trimmed = nextTitle.trim();
-  if (trimmed.length < 2) {
-    actionError.value = "Назва має містити щонайменше 2 символи";
-    return;
-  }
-  if (trimmed === vacancy.title) return;
-
-  try {
-    const updated = await updateVacancyTitle(vacancy.id, trimmed);
-    const index = vacancies.value.findIndex((item) => item.id === vacancy.id);
-    if (index !== -1) {
-      vacancies.value[index] = updated;
-    }
-  } catch (error) {
-    actionError.value =
-      error instanceof Error ? error.message : "Не вдалося оновити назву";
-  }
 }
 
 async function onDelete(vacancy: VacancySummary): Promise<void> {
@@ -147,8 +122,13 @@ onMounted(loadVacancies);
               >
                 Переглянути
               </button>
-              <button type="button" class="btn-secondary" @click="onEditTitle(vacancy)">
-                Редагувати назву
+              <button
+                v-if="vacancy.status === 'CONFIRMED'"
+                type="button"
+                class="btn-secondary"
+                @click="goToPrep(vacancy.id)"
+              >
+                Редагувати
               </button>
               <button type="button" class="btn-danger" @click="onDelete(vacancy)">
                 Видалити
