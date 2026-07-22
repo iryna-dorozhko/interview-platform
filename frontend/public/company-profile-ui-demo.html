@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Демо: Профіль компанії — варіанти UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --surface-muted: #f9fafb;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --accent-soft: #ecfdf5;
+      --accent-border: #a7f3d0;
+      --radius: 8px;
+      --font: "IBM Plex Sans", system-ui, sans-serif;
+      --sidebar-width: 13.5rem;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .demo-banner {
+      background: #111827;
+      color: #f9fafb;
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.5rem;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .demo-banner strong { font-weight: 600; }
+    .demo-banner p {
+      margin: 0;
+      font-size: 0.8125rem;
+      color: #d1d5db;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .tab {
+      font-family: inherit;
+      font-size: 0.8125rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: transparent;
+      color: #e5e7eb;
+      cursor: pointer;
+    }
+    .tab:hover { border-color: #9ca3af; }
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      min-height: calc(100vh - 3.25rem);
+    }
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 1.1rem 0.9rem;
+      border-right: 1px solid var(--border);
+      background: var(--surface-muted);
+    }
+    .nav-item {
+      display: block;
+      padding: 0.65rem 0.8rem;
+      border-radius: 6px;
+      color: #374151;
+      font-size: 0.95rem;
+      line-height: 1.35;
+    }
+    .nav-item.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .content {
+      padding: 1.5rem 2rem;
+      max-width: 52rem;
+    }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .page-header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    .page-hint {
+      margin: 0 0 1.25rem;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .btn {
+      font-family: inherit;
+      font-size: 0.875rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #fff;
+      color: #374151;
+      border-color: #d1d5db;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--accent);
+      border: none;
+      padding: 0.25rem 0.4rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+    .btn-ghost:hover { text-decoration: underline; }
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 1.25rem;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .variant-note {
+      margin: 0 0 1rem;
+      padding: 0.65rem 0.85rem;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      color: #9a3412;
+      line-height: 1.4;
+    }
+
+    /* ——— A: current ——— */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+    }
+    .field-label {
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.875rem;
+    }
+    .field-input {
+      font-family: inherit;
+      font-size: 0.95rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 0.375rem;
+      resize: vertical;
+      background: #fff;
+      color: var(--text);
+    }
+
+    /* ——— B: sections ——— */
+    .company-hero {
+      margin-bottom: 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .company-hero .eyebrow {
+      margin: 0 0 0.25rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .company-hero .name {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .company-hero .name-input {
+      font-family: inherit;
+      font-size: 1.5rem;
+      font-weight: 600;
+      border: none;
+      border-bottom: 2px solid var(--accent-border);
+      background: transparent;
+      width: 100%;
+      padding: 0.15rem 0;
+      color: var(--text);
+    }
+    .company-hero .name-input:focus {
+      outline: none;
+      border-bottom-color: var(--accent);
+    }
+
+    .section {
+      padding: 0.9rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .section:last-of-type { border-bottom: none; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.45rem;
+    }
+    .section-head h3 {
+      margin: 0;
+      font-size: 0.9375rem;
+      font-weight: 600;
+    }
+    .section-desc {
+      margin: 0 0 0.65rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .bullet-list {
+      margin: 0;
+      padding-left: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .bullet-list li {
+      font-size: 0.9375rem;
+      line-height: 1.45;
+      color: #1f2937;
+    }
+    .section textarea {
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.45;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      resize: vertical;
+    }
+
+    /* ——— C: chips ——— */
+    .chip-block {
+      margin-bottom: 1.1rem;
+    }
+    .chip-block h3 {
+      margin: 0 0 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #374151;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.55rem 0.35rem 0.7rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.875rem;
+      color: #1f2937;
+      line-height: 1.3;
+    }
+    .chip button {
+      font-family: inherit;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 0.15rem;
+    }
+    .chip button:hover { color: var(--text); }
+    .chip-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px dashed #9ca3af;
+      background: transparent;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-family: inherit;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .chip-add:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .chip-input-row {
+      display: none;
+      margin-top: 0.5rem;
+      gap: 0.4rem;
+    }
+    .chip-input-row.open { display: flex; }
+    .chip-input-row input {
+      flex: 1;
+      font-family: inherit;
+      font-size: 0.875rem;
+      padding: 0.4rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+    }
+
+    /* ——— D: two-column ——— */
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+    }
+    .profile-card-top {
+      padding: 1.35rem 1.5rem 1.15rem;
+      background:
+        linear-gradient(135deg, var(--accent-soft) 0%, #fff 55%),
+        var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .profile-card-top .label {
+      margin: 0 0 0.2rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .profile-card-top h2 {
+      margin: 0 0 0.65rem;
+      font-size: 1.375rem;
+      font-weight: 600;
+    }
+    .profile-card-top .direction {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: #374151;
+      line-height: 1.45;
+    }
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    @media (max-width: 720px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .profile-grid { grid-template-columns: 1fr; }
+    }
+    .profile-cell {
+      padding: 1.1rem 1.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .profile-cell:nth-child(odd) {
+      border-right: 1px solid var(--border);
+    }
+    @media (max-width: 720px) {
+      .profile-cell:nth-child(odd) { border-right: none; }
+    }
+    .profile-cell h3 {
+      margin: 0 0 0.55rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .profile-cell ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .profile-cell li {
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: #1f2937;
+    }
+    .profile-card .footer-actions {
+      padding: 1rem 1.35rem;
+      background: var(--surface-muted);
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">
+    <div>
+      <strong>Демо UI — Профіль компанії</strong>
+      <p>Порівняй варіанти. Це лише макет, зміни не зберігаються.</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="a" role="tab">A · Зараз</button>
+      <button type="button" class="tab" data-tab="b" role="tab">B · Секції</button>
+      <button type="button" class="tab" data-tab="c" role="tab">C · Чіпи</button>
+      <button type="button" class="tab" data-tab="d" role="tab">D · Картка</button>
+    </div>
+  </div>
+
+  <div class="shell">
+    <nav class="sidebar" aria-hidden="true">
+      <div class="nav-item">Головна</div>
+      <div class="nav-item active">Профіль компанії</div>
+      <div class="nav-item">Вакансії</div>
+      <div class="nav-item">Співбесіди</div>
+      <div class="nav-item">Заявки</div>
+      <div class="nav-item">Звіти</div>
+    </nav>
+
+    <main class="content">
+      <header class="page-header">
+        <h1>Профіль компанії</h1>
+        <button type="button" class="btn btn-secondary">← До списку анкет</button>
+      </header>
+      <p class="page-hint">
+        Заповніть один раз відповіді про культуру, напрям і політики компанії — вони автоматично
+        підтягуватимуться до кожної вакансії.
+      </p>
+
+      <!-- A: current -->
+      <section id="panel-a" class="panel active" aria-label="Варіант A">
+        <p class="variant-note">A — поточний вигляд: підписи + textarea зі списками через Enter.</p>
+        <h2 style="font-size:1rem;margin:0 0 0.75rem">Зібраний профіль компанії</h2>
+        <label class="field">
+          <span class="field-label">Назва компанії</span>
+          <input class="field-input" type="text" value="SoftServe" />
+        </label>
+        <label class="field">
+          <span class="field-label">Культура</span>
+          <textarea class="field-input" rows="3">Відкритість і зворотний зв’язок
+Ownership за результат
+Повага до балансу роботи й життя</textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Напрям компанії</span>
+          <textarea class="field-input" rows="3">EdTech і корпоративне навчання
+AI-продукти для HR</textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Політики</span>
+          <textarea class="field-input" rows="3">Remote-first у межах України
+Асинхронні апдейти замість зайвих мітингів</textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Формат роботи</span>
+          <textarea class="field-input" rows="3">Гібрид 2–3 дні в офісі
+Гнучкий старт дня</textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Онбординг</span>
+          <textarea class="field-input" rows="3">Buddy на перші 2 тижні
+План 30 / 60 / 90 днів</textarea>
+        </label>
+        <div class="actions">
+          <button type="button" class="btn btn-secondary">← Назад до чату</button>
+          <button type="button" class="btn btn-secondary">Видалити чат</button>
+          <button type="button" class="btn btn-primary">Зберегти зміни</button>
+        </div>
+      </section>
+
+      <!-- B: sections -->
+      <section id="panel-b" class="panel" aria-label="Варіант B">
+        <p class="variant-note">B — читабельні секції: за замовчуванням як профіль, «Редагувати» відкриває поле. Натисни «Редагувати» на будь-якій секції.</p>
+
+        <div class="company-hero">
+          <p class="eyebrow">Компанія</p>
+          <input class="name-input" type="text" value="SoftServe" aria-label="Назва компанії" />
+        </div>
+
+        <article class="section" data-section>
+          <div class="section-head">
+            <h3>Культура</h3>
+            <button type="button" class="btn-ghost" data-edit>Редагувати</button>
+          </div>
+          <p class="section-desc">Як прийнято взаємодіяти в команді</p>
+          <ul class="bullet-list" data-view>
+            <li>Відкритість і зворотний зв’язок</li>
+            <li>Ownership за результат</li>
+            <li>Повага до балансу роботи й життя</li>
+          </ul>
+          <textarea rows="4" data-edit-field hidden>Відкритість і зворотний зв’язок
+Ownership за результат
+Повага до балансу роботи й життя</textarea>
+        </article>
+
+        <article class="section" data-section>
+          <div class="section-head">
+            <h3>Напрям компанії</h3>
+            <button type="button" class="btn-ghost" data-edit>Редагувати</button>
+          </div>
+          <p class="section-desc">Ринок і фокус продуктів</p>
+          <ul class="bullet-list" data-view>
+            <li>EdTech і корпоративне навчання</li>
+            <li>AI-продукти для HR</li>
+          </ul>
+          <textarea rows="3" data-edit-field hidden>EdTech і корпоративне навчання
+AI-продукти для HR</textarea>
+        </article>
+
+        <article class="section" data-section>
+          <div class="section-head">
+            <h3>Політики</h3>
+            <button type="button" class="btn-ghost" data-edit>Редагувати</button>
+          </div>
+          <p class="section-desc">Правила, які важливо знати кандидату</p>
+          <ul class="bullet-list" data-view>
+            <li>Remote-first у межах України</li>
+            <li>Асинхронні апдейти замість зайвих мітингів</li>
+          </ul>
+          <textarea rows="3" data-edit-field hidden>Remote-first у межах України
+Асинхронні апдейти замість зайвих мітингів</textarea>
+        </article>
+
+        <article class="section" data-section>
+          <div class="section-head">
+            <h3>Формат роботи</h3>
+            <button type="button" class="btn-ghost" data-edit>Редагувати</button>
+          </div>
+          <ul class="bullet-list" data-view>
+            <li>Гібрид 2–3 дні в офісі</li>
+            <li>Гнучкий старт дня</li>
+          </ul>
+          <textarea rows="3" data-edit-field hidden>Гібрид 2–3 дні в офісі
+Гнучкий старт дня</textarea>
+        </article>
+
+        <article class="section" data-section>
+          <div class="section-head">
+            <h3>Онбординг</h3>
+            <button type="button" class="btn-ghost" data-edit>Редагувати</button>
+          </div>
+          <ul class="bullet-list" data-view>
+            <li>Buddy на перші 2 тижні</li>
+            <li>План 30 / 60 / 90 днів</li>
+          </ul>
+          <textarea rows="3" data-edit-field hidden>Buddy на перші 2 тижні
+План 30 / 60 / 90 днів</textarea>
+        </article>
+
+        <div class="actions">
+          <button type="button" class="btn btn-secondary">← Назад до чату</button>
+          <button type="button" class="btn btn-secondary">Видалити чат</button>
+          <button type="button" class="btn btn-primary">Зберегти зміни</button>
+        </div>
+      </section>
+
+      <!-- C: chips -->
+      <section id="panel-c" class="panel" aria-label="Варіант C">
+        <p class="variant-note">C — чіпи замість textarea. Натисни «+ додати» або ✕ на чіпі.</p>
+
+        <label class="field" style="max-width:20rem">
+          <span class="field-label">Назва компанії</span>
+          <input class="field-input" type="text" value="SoftServe" />
+        </label>
+
+        <div class="chip-block" data-chips>
+          <h3>Культура</h3>
+          <div class="chips">
+            <span class="chip">Відкритість і зворотний зв’язок <button type="button" aria-label="Видалити">×</button></span>
+            <span class="chip">Ownership за результат <button type="button" aria-label="Видалити">×</button></span>
+            <span class="chip">Повага до балансу роботи й життя <button type="button" aria-label="Видалити">×</button></span>
+            <button type="button" class="chip-add" data-add>+ додати</button>
+          </div>
+          <div class="chip-input-row">
+            <input type="text" placeholder="Новий пункт…" />
+            <button type="button" class="btn btn-primary" data-confirm>Додати</button>
+          </div>
+        </div>
+
+        <div class="chip-block" data-chips>
+          <h3>Напрям компанії</h3>
+          <div class="chips">
+            <span class="chip">EdTech і корпоративне навчання <button type="button" aria-label="Видалити">×</button></span>
+            <span class="chip">AI-продукти для HR <button type="button" aria-label="Видалити">×</button></span>
+            <button type="button" class="chip-add" data-add>+ додати</button>
+          </div>
+          <div class="chip-input-row">
+            <input type="text" placeholder="Новий пункт…" />
+            <button type="button" class="btn btn-primary" data-confirm>Додати</button>
+          </div>
+        </div>
+
+        <div class="chip-block" data-chips>
+          <h3>Політики</h3>
+          <div class="chips">
+            <span class="chip">Remote-first у межах України <button type="button" aria-label="Видалити">×</button></span>
+            <span class="chip">Асинхронні апдейти замість зайвих мітингів <button type="button" aria-label="Видалити">×</button></span>
+            <button type="button" class="chip-add" data-add>+ додати</button>
+          </div>
+          <div class="chip-input-row">
+            <input type="text" placeholder="Новий пункт…" />
+            <button type="button" class="btn btn-primary" data-confirm>Додати</button>
+          </div>
+        </div>
+
+        <div class="chip-block" data-chips>
+          <h3>Формат роботи</h3>
+          <div class="chips">
+            <span class="chip">Гібрид 2–3 дні в офісі <button type="button" aria-label="Видалити">×</button></span>
+            <span class="chip">Гнучкий старт дня <button type="button" aria-label="Видалити">×</button></span>
+            <button type="button" class="chip-add" data-add>+ додати</button>
+          </div>
+          <div class="chip-input-row">
+            <input type="text" placeholder="Новий пункт…" />
+            <button type="button" class="btn btn-primary" data-confirm>Додати</button>
+          </div>
+        </div>
+
+        <div class="chip-block" data-chips>
+          <h3>Онбординг</h3>
+          <div class="chips">
+            <span class="chip">Buddy на перші 2 тижні <button type="button" aria-label="Видалити">×</button></span>
+            <span class="chip">План 30 / 60 / 90 днів <button type="button" aria-label="Видалити">×</button></span>
+            <button type="button" class="chip-add" data-add>+ додати</button>
+          </div>
+          <div class="chip-input-row">
+            <input type="text" placeholder="Новий пункт…" />
+            <button type="button" class="btn btn-primary" data-confirm>Додати</button>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-secondary">← Назад до чату</button>
+          <button type="button" class="btn btn-secondary">Видалити чат</button>
+          <button type="button" class="btn btn-primary">Зберегти зміни</button>
+        </div>
+      </section>
+
+      <!-- D: card -->
+      <section id="panel-d" class="panel" aria-label="Варіант D">
+        <p class="variant-note">D — профіль як summary-картка в два стовпці. Більше «портрет компанії», менше «форма».</p>
+
+        <div class="profile-card">
+          <div class="profile-card-top">
+            <p class="label">Компанія</p>
+            <h2>SoftServe</h2>
+            <p class="direction">EdTech і корпоративне навчання · AI-продукти для HR</p>
+          </div>
+          <div class="profile-grid">
+            <div class="profile-cell">
+              <h3>Культура</h3>
+              <ul>
+                <li>Відкритість і зворотний зв’язок</li>
+                <li>Ownership за результат</li>
+                <li>Повага до балансу роботи й життя</li>
+              </ul>
+            </div>
+            <div class="profile-cell">
+              <h3>Політики</h3>
+              <ul>
+                <li>Remote-first у межах України</li>
+                <li>Асинхронні апдейти замість зайвих мітингів</li>
+              </ul>
+            </div>
+            <div class="profile-cell">
+              <h3>Формат роботи</h3>
+              <ul>
+                <li>Гібрид 2–3 дні в офісі</li>
+                <li>Гнучкий старт дня</li>
+              </ul>
+            </div>
+            <div class="profile-cell">
+              <h3>Онбординг</h3>
+              <ul>
+                <li>Buddy на перші 2 тижні</li>
+                <li>План 30 / 60 / 90 днів</li>
+              </ul>
+            </div>
+          </div>
+          <div class="footer-actions">
+            <button type="button" class="btn btn-secondary">← Назад до чату</button>
+            <button type="button" class="btn btn-secondary">Видалити чат</button>
+            <button type="button" class="btn btn-primary">Редагувати профіль</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll(".tab");
+    const panels = {
+      a: document.getElementById("panel-a"),
+      b: document.getElementById("panel-b"),
+      c: document.getElementById("panel-c"),
+      d: document.getElementById("panel-d"),
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const id = tab.dataset.tab;
+        tabs.forEach((t) => t.classList.toggle("active", t === tab));
+        Object.entries(panels).forEach(([key, panel]) => {
+          panel.classList.toggle("active", key === id);
+        });
+      });
+    });
+
+    // B: inline edit toggle
+    document.querySelectorAll("[data-section]").forEach((section) => {
+      const btn = section.querySelector("[data-edit]");
+      const view = section.querySelector("[data-view]");
+      const field = section.querySelector("[data-edit-field]");
+      let editing = false;
+      btn.addEventListener("click", () => {
+        editing = !editing;
+        view.hidden = editing;
+        field.hidden = !editing;
+        btn.textContent = editing ? "Готово" : "Редагувати";
+        if (editing) field.focus();
+      });
+    });
+
+    // C: chips
+    document.querySelectorAll("[data-chips]").forEach((block) => {
+      const chips = block.querySelector(".chips");
+      const addBtn = block.querySelector("[data-add]");
+      const row = block.querySelector(".chip-input-row");
+      const input = row.querySelector("input");
+      const confirm = row.querySelector("[data-confirm]");
+
+      chips.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[aria-label='Видалити']");
+        if (btn) btn.closest(".chip").remove();
+      });
+
+      addBtn.addEventListener("click", () => {
+        row.classList.add("open");
+        input.focus();
+      });
+
+      function addChip() {
+        const text = input.value.trim();
+        if (!text) return;
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.innerHTML = `${text} <button type="button" aria-label="Видалити">×</button>`;
+        chips.insertBefore(chip, addBtn);
+        input.value = "";
+        row.classList.remove("open");
+      }
+
+      confirm.addEventListener("click", addChip);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addChip();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
