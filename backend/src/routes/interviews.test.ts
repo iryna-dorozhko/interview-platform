@@ -4,6 +4,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import type { Server } from "socket.io";
 import type { AuthUser } from "../auth/middleware";
 import type { LlmProvider } from "../llm/types";
+import { computeMatchScore } from "../services/match-score";
 import { createInterviewsRouter } from "./interviews";
 
 type EmittedEvent = { room: string; event: string; payload: unknown };
@@ -328,7 +329,8 @@ test("POST /interviews/:id/end returns 201 and creates FinalReport when LIVE", a
   const validReport = JSON.stringify({
     reportMarkdown: "## Підсумок\n\nOK",
     recommendation: "HIRE",
-    matchScore: 78,
+    contextFit: 78,
+    assessments: [],
     strengths: ["Досвід"],
     risks: ["Невідомо"],
   });
@@ -390,7 +392,7 @@ test("POST /interviews/:id/end returns 201 and creates FinalReport when LIVE", a
   fakePrisma.finalReport = {
     create: async ({ data }) => {
       createdReport = data;
-      return { id: "rep_1", recommendation: "HIRE", matchScore: 78 };
+      return { id: "rep_1", recommendation: "HIRE", matchScore: data.matchScore as number };
     },
   };
   fakePrisma.$transaction = async (fn) => fn(fakePrisma);
@@ -420,6 +422,126 @@ test("POST /interviews/:id/end returns 201 and creates FinalReport when LIVE", a
     assert.equal(emitted[0].event, "room:status");
     assert.deepEqual(emitted[0].payload, { status: "ENDED" });
     assert.equal(emitted[0].room, "interview:int_live");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /interviews/:id/end computes matchScore from assessments with critical unmet cap", async () => {
+  const assessments = [
+    {
+      requirement: "Rust",
+      priority: "critical" as const,
+      status: "unmet" as const,
+      evidence: "Немає",
+    },
+    {
+      requirement: "Docker",
+      priority: "desired" as const,
+      status: "met" as const,
+      evidence: "Є",
+    },
+  ];
+  const llmReport = JSON.stringify({
+    reportMarkdown:
+      "## Підсумок\n\nOK\n## Відповідність вимогам\n### Критичні\n- Rust unmet\n### Бажані\n- Docker met",
+    recommendation: "REJECT",
+    contextFit: 100,
+    assessments,
+    strengths: ["Docker"],
+    risks: ["Немає Rust"],
+  });
+
+  const interviews = [
+    {
+      id: "int_live_cap",
+      hrUserId: "hr_1",
+      vacancyId: "v1",
+      displayName: "Backend",
+      joinCode: "CAP123",
+      status: "LIVE",
+      createdAt: new Date(),
+    },
+  ];
+
+  let createdReport: Record<string, unknown> | null = null;
+  const expectedMatchScore = computeMatchScore(assessments, 100).matchScore;
+
+  const fakePrisma = makeFakePrisma(interviews, [confirmedVacancy]) as ReturnType<
+    typeof makeFakePrisma
+  > & {
+    interview: ReturnType<typeof makeFakePrisma>["interview"] & {
+      update: (args: { where: { id: string }; data: { status: string } }) => Promise<unknown>;
+      findUnique: (args: { where: { id: string }; include?: unknown }) => Promise<unknown>;
+    };
+    finalReport: {
+      create: (args: { data: Record<string, unknown> }) => Promise<{
+        id: string;
+        recommendation: string;
+        matchScore: number;
+      }>;
+    };
+    $transaction: (fn: (tx: typeof fakePrisma) => Promise<unknown>) => Promise<unknown>;
+  };
+
+  fakePrisma.interview.findUnique = async ({ where }) => {
+    const interview = interviews.find((item) => item.id === where.id);
+    if (!interview) return null;
+    return {
+      ...interview,
+      finalReport: null,
+      liveSession: {
+        id: "ls_cap",
+        messages: [{ authorType: "HUMAN_HR", content: "Привіт", createdAt: new Date() }],
+      },
+      vacancy: {
+        ...confirmedVacancy,
+        companyProfile: {
+          role: "Backend",
+          requirements: { critical: ["Rust"], desired: ["Docker"] },
+          culture: [],
+          expectations: [],
+        },
+      },
+      candidateProfile: { skills: [], experience: [], goals: [], summary: "Dev" },
+    };
+  };
+  fakePrisma.interview.update = async ({ data }) => {
+    interviews[0].status = data.status;
+    return interviews[0];
+  };
+  fakePrisma.finalReport = {
+    create: async ({ data }) => {
+      createdReport = data;
+      return {
+        id: "rep_cap",
+        recommendation: data.recommendation as string,
+        matchScore: data.matchScore as number,
+      };
+    },
+  };
+  fakePrisma.$transaction = async (fn) => fn(fakePrisma);
+
+  const app = makeAppWithEnd(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" }, {
+    provider: makeMockProvider(llmReport),
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/int_live_cap/end`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 201);
+    const body = (await response.json()) as {
+      report: { id: string; recommendation: string; matchScore: number };
+    };
+    assert.equal(body.report.recommendation, "REJECT");
+    assert.equal(createdReport?.matchScore, expectedMatchScore);
+    assert.equal(body.report.matchScore, expectedMatchScore);
+    assert.ok((createdReport?.matchScore as number) <= 69);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
