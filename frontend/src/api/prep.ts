@@ -41,6 +41,7 @@ export type PrepState = {
   isClosed: boolean;
   profile: CompanyProfile | null;
   missingCompanyProfile: boolean;
+  canEditProfile: boolean;
 };
 
 export type SendMessageResponse = {
@@ -117,7 +118,17 @@ export async function updatePrepProfile(
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося оновити профіль");
+    let body: ErrorBody = {};
+    try {
+      body = (await response.json()) as ErrorBody;
+    } catch {
+      // ignore
+    }
+    if (response.status === 409 && body.error === "Vacancy has active interviews") {
+      throw new Error("Неможливо змінити анкету: є активна співбесіда (READY/LIVE).");
+    }
+    const detail = body.detail ?? body.error;
+    throw new Error(detail ? `Не вдалося оновити профіль: ${detail}` : "Не вдалося оновити профіль");
   }
   return response.json() as Promise<{ profile: CompanyProfile }>;
 }
