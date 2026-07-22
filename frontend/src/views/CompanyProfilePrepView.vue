@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
-  confirmCompanyPrepProfile,
   deleteCompanyPrepChat,
   fetchCompanyPrepState,
   finishCompanyPrepChat,
@@ -18,9 +17,52 @@ const router = useRouter();
 const editableProfile = ref<HrCompanyProfile | null>(null);
 const viewingHistory = ref(false);
 const saving = ref(false);
-const confirming = ref(false);
 
 type ArrayField = "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach";
+
+type ProfileSection = {
+  field: ArrayField;
+  title: string;
+  description?: string;
+};
+
+const profileSections: ProfileSection[] = [
+  {
+    field: "culture",
+    title: "Культура",
+    description: "Як прийнято взаємодіяти в команді",
+  },
+  {
+    field: "companyDirection",
+    title: "Напрям компанії",
+    description: "Ринок і фокус продуктів",
+  },
+  {
+    field: "policies",
+    title: "Політики",
+    description: "Правила, які важливо знати кандидату",
+  },
+  { field: "workFormat", title: "Формат роботи" },
+  { field: "onboardingApproach", title: "Онбординг" },
+];
+
+const editingSections = reactive<Record<ArrayField, boolean>>({
+  culture: false,
+  companyDirection: false,
+  policies: false,
+  workFormat: false,
+  onboardingApproach: false,
+});
+
+function resetEditingSections(): void {
+  for (const section of profileSections) {
+    editingSections[section.field] = false;
+  }
+}
+
+function toggleSectionEdit(field: ArrayField): void {
+  editingSections[field] = !editingSections[field];
+}
 
 const chat = usePrepChat<HrCompanyProfile>({
   adapters: {
@@ -75,6 +117,7 @@ const {
 function syncEditableProfile(next: HrCompanyProfile | null): void {
   profile.value = next;
   editableProfile.value = next ? { ...next } : null;
+  resetEditingSections();
 }
 
 function setMessagesEl(el: HTMLElement | null): void {
@@ -133,23 +176,6 @@ async function onSaveProfileEdits(): Promise<void> {
   }
 }
 
-async function onConfirmProfile(): Promise<void> {
-  if (!window.confirm("Підтвердити профіль компанії? Редагування залишиться доступним.")) {
-    return;
-  }
-
-  errorMessage.value = null;
-  confirming.value = true;
-  try {
-    const response = await confirmCompanyPrepProfile();
-    syncEditableProfile(response.profile);
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
-  } finally {
-    confirming.value = false;
-  }
-}
-
 function backToChat(): void {
   viewingHistory.value = true;
 }
@@ -184,115 +210,71 @@ onMounted(() => {
 
     <template v-else>
       <section v-if="isClosed && profile && !viewingHistory" class="profile-view">
-        <h2>Зібраний профіль компанії</h2>
-
-        <form
-          v-if="editableProfile"
-          class="profile-form"
-          @submit.prevent="onSaveProfileEdits"
-        >
-          <label class="field">
-            <span class="field-label">Назва компанії</span>
+        <template v-if="editableProfile">
+          <div class="company-hero">
+            <p class="eyebrow">Компанія</p>
             <input
-              class="field-input"
+              class="name-input"
               type="text"
               :value="editableProfile.companyName ?? ''"
+              aria-label="Назва компанії"
               @input="onCompanyNameInput"
             />
-          </label>
-          <label class="field">
-            <span class="field-label">Культура</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('culture')"
-              @input="onArrayFieldInput('culture', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Напрям компанії</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('companyDirection')"
-              @input="onArrayFieldInput('companyDirection', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Політики</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('policies')"
-              @input="onArrayFieldInput('policies', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Формат роботи</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('workFormat')"
-              @input="onArrayFieldInput('workFormat', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Онбординг</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('onboardingApproach')"
-              @input="onArrayFieldInput('onboardingApproach', $event)"
-            />
-          </label>
-        </form>
+          </div>
 
-        <dl v-else>
-          <dt>Назва компанії</dt>
-          <dd>{{ profile.companyName?.trim() || "Компанія" }}</dd>
-          <dt>Культура</dt>
-          <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
-          <dt>Напрям компанії</dt>
-          <dd><ul><li v-for="(item, i) in profile.companyDirection" :key="i">{{ item }}</li></ul></dd>
-          <dt>Політики</dt>
-          <dd><ul><li v-for="(item, i) in profile.policies" :key="i">{{ item }}</li></ul></dd>
-          <dt>Формат роботи</dt>
-          <dd><ul><li v-for="(item, i) in profile.workFormat" :key="i">{{ item }}</li></ul></dd>
-          <dt>Онбординг</dt>
-          <dd><ul><li v-for="(item, i) in profile.onboardingApproach" :key="i">{{ item }}</li></ul></dd>
-        </dl>
+          <article v-for="section in profileSections" :key="section.field" class="section">
+            <div class="section-head">
+              <h3>{{ section.title }}</h3>
+              <button type="button" class="btn-ghost" @click="toggleSectionEdit(section.field)">
+                {{ editingSections[section.field] ? "Готово" : "Редагувати" }}
+              </button>
+            </div>
+            <p v-if="section.description" class="section-desc">{{ section.description }}</p>
+            <ul v-if="!editingSections[section.field]" class="bullet-list">
+              <li v-for="(item, i) in editableProfile[section.field]" :key="i">{{ item }}</li>
+              <li v-if="editableProfile[section.field].length === 0" class="empty">Порожньо</li>
+            </ul>
+            <textarea
+              v-else
+              class="section-input"
+              rows="4"
+              :value="getArrayField(section.field)"
+              @input="onArrayFieldInput(section.field, $event)"
+            />
+          </article>
+        </template>
+
+        <template v-else>
+          <div class="company-hero">
+            <p class="eyebrow">Компанія</p>
+            <p class="name">{{ profile.companyName?.trim() || "Компанія" }}</p>
+          </div>
+          <article v-for="section in profileSections" :key="section.field" class="section">
+            <div class="section-head">
+              <h3>{{ section.title }}</h3>
+            </div>
+            <p v-if="section.description" class="section-desc">{{ section.description }}</p>
+            <ul class="bullet-list">
+              <li v-for="(item, i) in profile[section.field]" :key="i">{{ item }}</li>
+            </ul>
+          </article>
+        </template>
 
         <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
 
         <div class="actions">
           <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
-          <button
-            type="button"
-            class="btn-secondary"
-            :disabled="!!profile.confirmedAt"
-            :title="profile.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
-            @click="deleteChat"
-          >
+          <button type="button" class="btn-secondary" @click="deleteChat">
             Видалити чат
           </button>
           <button
             type="button"
-            class="btn-secondary"
+            class="btn-primary"
             :disabled="saving || !editableProfile"
             @click="onSaveProfileEdits"
           >
             {{ saving ? "Збереження…" : "Зберегти зміни" }}
           </button>
-          <button
-            v-if="!profile.confirmedAt"
-            type="button"
-            class="btn-primary"
-            :disabled="confirming || saving"
-            @click="onConfirmProfile"
-          >
-            Підтвердити профіль
-          </button>
-          <p v-else class="confirmed-banner">✓ Профіль компанії підтверджено</p>
         </div>
       </section>
 
@@ -341,6 +323,8 @@ onMounted(() => {
 .page {
   width: 100%;
   min-width: 0;
+  margin-left: 2cm;
+  font-size: 1.0625rem;
 }
 .header {
   display: flex;
@@ -349,13 +333,16 @@ onMounted(() => {
   margin-bottom: 1.5rem;
   gap: 0.5rem;
 }
+.header .btn-secondary {
+  margin-right: 4cm;
+}
 .header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.25em;
 }
 .page-hint {
   margin: -0.75rem 0 1.25rem;
-  font-size: 0.8125rem;
+  font-size: 0.8125em;
   color: var(--muted, #6b7280);
   line-height: 1.45;
 }
@@ -365,7 +352,7 @@ onMounted(() => {
   background: #fde8e8;
   color: var(--danger);
   border-radius: 0.375rem;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -374,7 +361,7 @@ onMounted(() => {
 .btn-primary,
 .btn-secondary {
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
   border: 1px solid transparent;
@@ -398,60 +385,121 @@ onMounted(() => {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.profile-view dl {
-  display: grid;
-  grid-template-columns: 8rem 1fr;
-  gap: 0.5rem 1rem;
-  margin: 1rem 0;
+.btn-ghost {
+  font-family: inherit;
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8125em;
+  font-weight: 500;
+  cursor: pointer;
 }
-.profile-form {
+.btn-ghost:hover {
+  text-decoration: underline;
+}
+.profile-view {
+  max-width: 28rem;
+}
+.company-hero {
+  margin-bottom: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.name {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.name-input {
+  font-family: inherit;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  border: none;
+  border-bottom: 2px solid var(--accent-border);
+  background: transparent;
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.15rem 0;
+  color: var(--text);
+}
+.name-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.section {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.section:last-of-type {
+  border-bottom: none;
+}
+.section-head {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 0.75rem;
-  margin: 1rem 0;
+  margin-bottom: 0.45rem;
 }
-.field {
+.section-head h3 {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+}
+.section-desc {
+  margin: 0 0 0.65rem;
+  font-size: 0.8125em;
+  color: var(--muted);
+}
+.bullet-list {
+  margin: 0;
+  padding-left: 1.15rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-.field-label {
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
+.bullet-list li {
+  font-size: 1em;
+  line-height: 1.45;
+  color: #1f2937;
 }
-.field-input {
+.bullet-list .empty {
+  list-style: none;
+  margin-left: -1.15rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.section-input {
+  width: 100%;
   font-family: inherit;
-  font-size: 0.95rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 0.375rem;
+  font-size: 1em;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
   resize: vertical;
+  color: var(--text);
 }
-.profile-view dt {
-  font-weight: 600;
-  color: #374151;
-}
-.profile-view dd {
-  margin: 0;
-}
-.profile-view ul {
-  margin: 0;
-  padding-left: 1.25rem;
+.section-input:focus {
+  outline: 2px solid var(--accent-focus);
+  outline-offset: 1px;
 }
 .actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
-}
-.confirmed-banner {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  background: #dcfce7;
-  color: #166534;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  margin-top: 1.25rem;
 }
 </style>

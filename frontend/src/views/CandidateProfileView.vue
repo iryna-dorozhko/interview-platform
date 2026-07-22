@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { fetchCandidateQuestionnaire, startCandidateQuestionnaire, type CandidateInterview } from "../api/candidate-interview";
 import {
@@ -15,6 +15,32 @@ import CandidatePrepChat from "../components/CandidatePrepChat.vue";
 const router = useRouter();
 
 type LoadState = "loading" | "ready" | "error";
+
+type CandidateSectionId = "phone" | "experience" | "skillsStrong" | "skillsGrowth" | "goals" | "summary";
+
+type CandidateSection = {
+  id: CandidateSectionId;
+  title: string;
+  kind: "list" | "text";
+};
+
+const candidateSections: CandidateSection[] = [
+  { id: "phone", title: "Телефон", kind: "text" },
+  { id: "experience", title: "Досвід", kind: "list" },
+  { id: "skillsStrong", title: "Сильні навички", kind: "list" },
+  { id: "skillsGrowth", title: "Зони росту", kind: "list" },
+  { id: "goals", title: "Цілі", kind: "list" },
+  { id: "summary", title: "Резюме", kind: "text" },
+];
+
+const editingSections = reactive<Record<CandidateSectionId, boolean>>({
+  phone: false,
+  experience: false,
+  skillsStrong: false,
+  skillsGrowth: false,
+  goals: false,
+  summary: false,
+});
 
 const interview = ref<CandidateInterview | null>(null);
 const prepState = ref<CandidatePrepState | null>(null);
@@ -33,6 +59,16 @@ const isClosed = computed(() => prepState.value?.isClosed ?? false);
 const hasMessages = computed(() => messageCount.value > 0);
 const isConfirmed = computed(() => !!profile.value?.confirmedAt);
 
+function resetEditingSections(): void {
+  for (const section of candidateSections) {
+    editingSections[section.id] = false;
+  }
+}
+
+function toggleSectionEdit(id: CandidateSectionId): void {
+  editingSections[id] = !editingSections[id];
+}
+
 function syncEditableFromState(): void {
   const next = prepState.value?.profile ?? null;
   editableProfile.value =
@@ -44,6 +80,7 @@ function syncEditableFromState(): void {
           goals: [...next.goals],
         }
       : null;
+  resetEditingSections();
 }
 
 function textToArray(text: string): string[] {
@@ -53,34 +90,52 @@ function textToArray(text: string): string[] {
     .filter((item) => item.length > 0);
 }
 
-function onPhoneInput(event: Event): void {
-  if (!editableProfile.value) return;
-  const target = event.target as HTMLInputElement;
-  editableProfile.value.phone = target.value || null;
+function displayProfile(): CandidateProfile | null {
+  return editableProfile.value ?? profile.value;
 }
 
-function onExperienceInput(event: Event): void {
-  if (!editableProfile.value) return;
-  const target = event.target as HTMLTextAreaElement;
-  editableProfile.value.experience = textToArray(target.value);
+function getSectionList(id: CandidateSectionId): string[] {
+  const source = displayProfile();
+  if (!source) return [];
+  if (id === "experience") return source.experience;
+  if (id === "skillsStrong") return source.skills.strong;
+  if (id === "skillsGrowth") return source.skills.growth;
+  if (id === "goals") return source.goals;
+  return [];
 }
 
-function onSkillsStrongInput(event: Event): void {
-  if (!editableProfile.value) return;
-  const target = event.target as HTMLTextAreaElement;
-  editableProfile.value.skills.strong = textToArray(target.value);
+function getSectionText(id: CandidateSectionId): string {
+  const source = displayProfile();
+  if (!source) return "";
+  if (id === "phone") return source.phone ?? "";
+  if (id === "summary") return source.summary;
+  return getSectionList(id).join("\n");
 }
 
-function onSkillsGrowthInput(event: Event): void {
+function onSectionListInput(id: CandidateSectionId, event: Event): void {
   if (!editableProfile.value) return;
-  const target = event.target as HTMLTextAreaElement;
-  editableProfile.value.skills.growth = textToArray(target.value);
+  const lines = textToArray((event.target as HTMLTextAreaElement).value);
+  if (id === "experience") editableProfile.value.experience = lines;
+  if (id === "skillsStrong") editableProfile.value.skills.strong = lines;
+  if (id === "skillsGrowth") editableProfile.value.skills.growth = lines;
+  if (id === "goals") editableProfile.value.goals = lines;
 }
 
-function onGoalsInput(event: Event): void {
+function onSectionTextInput(id: CandidateSectionId, event: Event): void {
   if (!editableProfile.value) return;
-  const target = event.target as HTMLTextAreaElement;
-  editableProfile.value.goals = textToArray(target.value);
+  const value = (event.target as HTMLTextAreaElement | HTMLInputElement).value;
+  if (id === "phone") editableProfile.value.phone = value || null;
+  if (id === "summary") editableProfile.value.summary = value;
+}
+
+function onFullNameInput(event: Event): void {
+  if (!editableProfile.value) return;
+  editableProfile.value.fullName = (event.target as HTMLInputElement).value;
+}
+
+function onEmailInput(event: Event): void {
+  if (!editableProfile.value) return;
+  editableProfile.value.email = (event.target as HTMLInputElement).value;
 }
 
 function formatConfirmedAt(iso: string | null | undefined): string {
@@ -259,68 +314,59 @@ onMounted(loadProfile);
 
       <template v-else-if="profile && !isConfirmed && editableProfile">
         <section class="profile-view">
-          <h2>Профіль кандидата</h2>
-          <form class="profile-form" @submit.prevent="onSaveProfileEdits">
-            <h3 class="subsection-title">Контактні дані</h3>
-            <label class="field">
-              <span class="field-label">Ім'я</span>
-              <input v-model="editableProfile.fullName" type="text" class="field-input" />
-            </label>
-            <label class="field">
-              <span class="field-label">Email</span>
-              <input v-model="editableProfile.email" type="email" class="field-input" />
-            </label>
-            <label class="field">
-              <span class="field-label">Телефон</span>
+          <div class="company-hero">
+            <p class="eyebrow">Кандидат</p>
+            <input
+              class="name-input"
+              type="text"
+              :value="editableProfile.fullName"
+              aria-label="Ім'я"
+              @input="onFullNameInput"
+            />
+            <label class="contact-field">
+              <span class="section-desc">Email</span>
               <input
-                :value="editableProfile.phone ?? ''"
-                type="text"
-                class="field-input"
-                @input="onPhoneInput"
+                class="contact-input"
+                type="email"
+                :value="editableProfile.email"
+                @input="onEmailInput"
               />
             </label>
-            <h3 class="subsection-title">Анкета</h3>
-            <label class="field">
-              <span class="field-label">Досвід</span>
+          </div>
+
+          <article v-for="section in candidateSections" :key="section.id" class="section">
+            <div class="section-head">
+              <h3>{{ section.title }}</h3>
+              <button type="button" class="btn-ghost" @click="toggleSectionEdit(section.id)">
+                {{ editingSections[section.id] ? "Готово" : "Редагувати" }}
+              </button>
+            </div>
+            <template v-if="section.kind === 'text'">
+              <p v-if="!editingSections[section.id]" class="text-value">
+                {{ getSectionText(section.id) || "не вказано" }}
+              </p>
               <textarea
-                class="field-input"
+                v-else
+                class="section-input"
                 rows="3"
-                :value="editableProfile.experience.join('\n')"
-                @input="onExperienceInput"
+                :value="getSectionText(section.id)"
+                @input="onSectionTextInput(section.id, $event)"
               />
-            </label>
-            <label class="field">
-              <span class="field-label">Сильні навички</span>
+            </template>
+            <template v-else>
+              <ul v-if="!editingSections[section.id]" class="bullet-list">
+                <li v-for="(item, i) in getSectionList(section.id)" :key="i">{{ item }}</li>
+                <li v-if="getSectionList(section.id).length === 0" class="empty">Порожньо</li>
+              </ul>
               <textarea
-                class="field-input"
-                rows="3"
-                :value="editableProfile.skills.strong.join('\n')"
-                @input="onSkillsStrongInput"
+                v-else
+                class="section-input"
+                rows="4"
+                :value="getSectionText(section.id)"
+                @input="onSectionListInput(section.id, $event)"
               />
-            </label>
-            <label class="field">
-              <span class="field-label">Зони росту</span>
-              <textarea
-                class="field-input"
-                rows="3"
-                :value="editableProfile.skills.growth.join('\n')"
-                @input="onSkillsGrowthInput"
-              />
-            </label>
-            <label class="field">
-              <span class="field-label">Цілі</span>
-              <textarea
-                class="field-input"
-                rows="3"
-                :value="editableProfile.goals.join('\n')"
-                @input="onGoalsInput"
-              />
-            </label>
-            <label class="field">
-              <span class="field-label">Резюме</span>
-              <textarea v-model="editableProfile.summary" class="field-input" rows="3" />
-            </label>
-          </form>
+            </template>
+          </article>
         </section>
         <div class="actions">
           <button
@@ -345,44 +391,27 @@ onMounted(loadProfile);
 
       <template v-else-if="profile && isConfirmed">
         <section class="profile-view">
-          <h2>Профіль кандидата</h2>
-          <h3 class="subsection-title">Контактні дані</h3>
-          <dl>
-            <dt>Ім'я</dt>
-            <dd>{{ profile.fullName }}</dd>
-            <dt>Email</dt>
-            <dd>{{ profile.email }}</dd>
-            <dt>Телефон</dt>
-            <dd>{{ profile.phone ?? "—" }}</dd>
-          </dl>
-          <dl>
-            <dt>Досвід</dt>
-            <dd>
-              <ul>
-                <li v-for="(item, i) in profile.experience" :key="i">{{ item }}</li>
-              </ul>
-            </dd>
-            <dt>Сильні навички</dt>
-            <dd>
-              <ul>
-                <li v-for="(item, i) in profile.skills.strong" :key="i">{{ item }}</li>
-              </ul>
-            </dd>
-            <dt>Зони росту</dt>
-            <dd>
-              <ul>
-                <li v-for="(item, i) in profile.skills.growth" :key="i">{{ item }}</li>
-              </ul>
-            </dd>
-            <dt>Цілі</dt>
-            <dd>
-              <ul>
-                <li v-for="(item, i) in profile.goals" :key="i">{{ item }}</li>
-              </ul>
-            </dd>
-            <dt>Резюме</dt>
-            <dd>{{ profile.summary }}</dd>
-          </dl>
+          <div class="company-hero">
+            <p class="eyebrow">Кандидат</p>
+            <p class="name">{{ profile.fullName }}</p>
+            <p class="contact-line">{{ profile.email }}</p>
+            <p v-if="profile.phone" class="contact-line">{{ profile.phone }}</p>
+          </div>
+          <article
+            v-for="section in candidateSections.filter((s) => s.id !== 'phone')"
+            :key="section.id"
+            class="section"
+          >
+            <div class="section-head">
+              <h3>{{ section.title }}</h3>
+            </div>
+            <template v-if="section.kind === 'text'">
+              <p class="text-value">{{ getSectionText(section.id) || "не вказано" }}</p>
+            </template>
+            <ul v-else class="bullet-list">
+              <li v-for="(item, i) in getSectionList(section.id)" :key="i">{{ item }}</li>
+            </ul>
+          </article>
           <p class="confirmed-banner">
             ✓ Підтверджено {{ formatConfirmedAt(profile.confirmedAt) }}
           </p>
@@ -430,52 +459,145 @@ onMounted(loadProfile);
   margin: 0 0 0.75rem;
   color: #555;
 }
-.subsection-title {
-  margin: 1.25rem 0 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #374151;
+.btn-ghost {
+  font-family: inherit;
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
 }
-.profile-form {
+.btn-ghost:hover {
+  text-decoration: underline;
+}
+.profile-view {
+  max-width: 28rem;
+}
+.company-hero {
+  margin-bottom: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.name-input {
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  border: none;
+  border-bottom: 2px solid var(--accent-border);
+  background: transparent;
+  width: 100%;
+  padding: 0.15rem 0;
+  color: var(--text);
+}
+.name-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.contact-field {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin: 1rem 0;
+  gap: 0.25rem;
+  margin-top: 0.85rem;
 }
-.field {
+.contact-input {
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.4rem 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+.contact-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.contact-line {
+  margin: 0.35rem 0 0;
+  font-size: 0.9375rem;
+  color: #374151;
+}
+.section {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.section:last-of-type {
+  border-bottom: none;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+.section-head h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.section-desc {
+  margin: 0 0 0.65rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.bullet-list {
+  margin: 0;
+  padding-left: 1.15rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-.field-label {
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
+.bullet-list li {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: #1f2937;
 }
-.field-input {
+.bullet-list .empty {
+  list-style: none;
+  margin-left: -1.15rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.text-value {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: #1f2937;
+  white-space: pre-wrap;
+}
+.section-input {
+  width: 100%;
   font-family: inherit;
-  font-size: 0.95rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 0.375rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
   resize: vertical;
+  color: var(--text);
 }
-.profile-view dl {
-  display: grid;
-  grid-template-columns: 8rem 1fr;
-  gap: 0.5rem 1rem;
-  margin: 1rem 0;
-}
-.profile-view dt {
-  font-weight: 600;
-  color: #374151;
-}
-.profile-view dd {
-  margin: 0;
-}
-.profile-view ul {
-  margin: 0;
-  padding-left: 1.25rem;
+.section-input:focus {
+  outline: 2px solid var(--accent-focus);
+  outline-offset: 1px;
 }
 .confirmed-banner {
   margin: 1rem 0 0;
@@ -490,7 +612,7 @@ onMounted(loadProfile);
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-top: 1rem;
+  margin-top: 1.25rem;
 }
 .btn-primary,
 .btn-secondary {
@@ -505,9 +627,17 @@ onMounted(loadProfile);
   background: var(--accent);
   color: #fff;
 }
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .btn-secondary {
   background: #fff;
   color: #374151;
   border-color: #d1d5db;
+}
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

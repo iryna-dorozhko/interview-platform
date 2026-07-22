@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { fetchVacancy } from "../api/vacancies";
 import {
@@ -29,6 +29,88 @@ const editingConfirmed = ref(false);
 const saving = ref(false);
 const confirming = ref(false);
 
+type ArrayProfileField = keyof Pick<
+  CompanyProfile,
+  | "expectations"
+  | "culture"
+  | "companyDirection"
+  | "policies"
+  | "workFormat"
+  | "onboardingApproach"
+  | "workConditions"
+>;
+
+type VacancySectionId =
+  | "critical"
+  | "desired"
+  | ArrayProfileField
+  | "compensation";
+
+type VacancySection = {
+  id: VacancySectionId;
+  title: string;
+  description?: string;
+  kind: "list" | "text";
+};
+
+const vacancySections: VacancySection[] = [
+  {
+    id: "critical",
+    title: "Критичні вимоги",
+    description: "Без чого кандидат не підійде",
+    kind: "list",
+  },
+  {
+    id: "desired",
+    title: "Бажані вимоги",
+    description: "Буде плюсом, але не обов’язково",
+    kind: "list",
+  },
+  { id: "expectations", title: "Очікування", kind: "list" },
+  { id: "compensation", title: "Зарплата", kind: "text" },
+  {
+    id: "workConditions",
+    title: "Умови роботи",
+    description: "Один пункт на рядок, можна з префіксами",
+    kind: "list",
+  },
+  { id: "culture", title: "Культура", kind: "list" },
+  { id: "companyDirection", title: "Напрям компанії", kind: "list" },
+  { id: "policies", title: "Політики", kind: "list" },
+  { id: "workFormat", title: "Формат роботи", kind: "list" },
+  { id: "onboardingApproach", title: "Онбординг", kind: "list" },
+];
+
+const editingSections = reactive<Record<VacancySectionId, boolean>>({
+  critical: false,
+  desired: false,
+  expectations: false,
+  compensation: false,
+  workConditions: false,
+  culture: false,
+  companyDirection: false,
+  policies: false,
+  workFormat: false,
+  onboardingApproach: false,
+});
+
+const isProfileEditable = computed(
+  () =>
+    !!editableProfile.value &&
+    !!profile.value &&
+    (!profile.value.confirmedAt || editingConfirmed.value),
+);
+
+function resetEditingSections(): void {
+  for (const section of vacancySections) {
+    editingSections[section.id] = false;
+  }
+}
+
+function toggleSectionEdit(id: VacancySectionId): void {
+  editingSections[id] = !editingSections[id];
+}
+
 function textToArray(text: string): string[] {
   return text
     .split("\n")
@@ -39,6 +121,7 @@ function textToArray(text: string): string[] {
 function syncEditableProfile(next: CompanyProfile | null): void {
   if (!next) {
     editableProfile.value = null;
+    resetEditingSections();
     return;
   }
   editableProfile.value = {
@@ -50,6 +133,7 @@ function syncEditableProfile(next: CompanyProfile | null): void {
     workConditions: next.workConditions ?? [],
     compensation: next.compensation ?? null,
   };
+  resetEditingSections();
 }
 
 const chat = usePrepChat<CompanyProfile>({
@@ -83,6 +167,7 @@ const chat = usePrepChat<CompanyProfile>({
   },
   onDeleted: () => {
     editableProfile.value = null;
+    resetEditingSections();
     viewingHistory.value = false;
     vacancyStatus.value = null;
   },
@@ -115,13 +200,71 @@ function setInput(value: string): void {
   input.value = value;
 }
 
-function getCompensationDisplayText(): string {
-  return editableProfile.value?.compensation?.displayText ?? "";
-}
-
 function setCompensationDisplayText(text: string): void {
   if (!editableProfile.value) return;
   editableProfile.value.compensation = { displayText: text.trim() };
+}
+
+function displayProfile(): CompanyProfile | null {
+  return isProfileEditable.value ? editableProfile.value : profile.value;
+}
+
+function getSectionList(id: VacancySectionId): string[] {
+  const source = displayProfile();
+  if (!source) return [];
+  if (id === "critical") return source.requirements.critical ?? [];
+  if (id === "desired") return source.requirements.desired ?? [];
+  if (id === "compensation") return [];
+  return source[id];
+}
+
+function getSectionText(id: VacancySectionId): string {
+  const source = displayProfile();
+  if (!source) return "";
+  if (id === "compensation") return source.compensation?.displayText ?? "";
+  if (id === "critical") return (source.requirements.critical ?? []).join("\n");
+  if (id === "desired") return (source.requirements.desired ?? []).join("\n");
+  return source[id].join("\n");
+}
+
+function onRequirementsInput(kind: "critical" | "desired", event: Event): void {
+  if (!editableProfile.value) return;
+  const lines = textToArray((event.target as HTMLTextAreaElement).value);
+  editableProfile.value.requirements = {
+    ...editableProfile.value.requirements,
+    [kind]: lines,
+  };
+}
+
+function setArrayField(field: ArrayProfileField, text: string): void {
+  if (!editableProfile.value) return;
+  editableProfile.value[field] = textToArray(text);
+}
+
+function onSectionListInput(id: VacancySectionId, event: Event): void {
+  if (!editableProfile.value) return;
+  const text = (event.target as HTMLTextAreaElement).value;
+  if (id === "critical") {
+    onRequirementsInput("critical", event);
+    return;
+  }
+  if (id === "desired") {
+    onRequirementsInput("desired", event);
+    return;
+  }
+  if (id === "compensation") return;
+  setArrayField(id, text);
+}
+
+function onSectionTextInput(id: VacancySectionId, event: Event): void {
+  if (id === "compensation") {
+    setCompensationDisplayText((event.target as HTMLInputElement | HTMLTextAreaElement).value);
+  }
+}
+
+function onRoleInput(event: Event): void {
+  if (!editableProfile.value) return;
+  editableProfile.value.role = (event.target as HTMLInputElement).value;
 }
 
 watch(profile, (next) => {
@@ -129,6 +272,7 @@ watch(profile, (next) => {
     syncEditableProfile(next);
   } else if (!next) {
     editableProfile.value = null;
+    resetEditingSections();
   }
 });
 
@@ -142,6 +286,7 @@ function startEditingConfirmed(): void {
 function cancelEditingConfirmed(): void {
   editingConfirmed.value = false;
   editableProfile.value = null;
+  resetEditingSections();
   errorMessage.value = null;
 }
 
@@ -166,6 +311,7 @@ async function onSaveProfileEdits(): Promise<void> {
     if (updated.confirmedAt) {
       editingConfirmed.value = false;
       editableProfile.value = null;
+      resetEditingSections();
     } else {
       syncEditableProfile(updated);
     }
@@ -174,39 +320,6 @@ async function onSaveProfileEdits(): Promise<void> {
   } finally {
     saving.value = false;
   }
-}
-
-type ArrayProfileField = keyof Pick<
-  CompanyProfile,
-  | "expectations"
-  | "culture"
-  | "companyDirection"
-  | "policies"
-  | "workFormat"
-  | "onboardingApproach"
-  | "workConditions"
->;
-
-function onRequirementsInput(kind: "critical" | "desired", event: Event): void {
-  if (!editableProfile.value) return;
-  const lines = textToArray((event.target as HTMLTextAreaElement).value);
-  editableProfile.value.requirements = {
-    ...editableProfile.value.requirements,
-    [kind]: lines,
-  };
-}
-
-function setArrayField(field: ArrayProfileField, text: string): void {
-  if (!editableProfile.value) return;
-  editableProfile.value[field] = textToArray(text);
-}
-
-function getArrayField(field: ArrayProfileField): string {
-  return editableProfile.value?.[field].join("\n") ?? "";
-}
-
-function onArrayFieldInput(field: ArrayProfileField, event: Event): void {
-  setArrayField(field, (event.target as HTMLTextAreaElement).value);
 }
 
 async function onConfirmProfile(): Promise<void> {
@@ -225,6 +338,7 @@ async function onConfirmProfile(): Promise<void> {
     profile.value = response.profile;
     editingConfirmed.value = false;
     editableProfile.value = null;
+    resetEditingSections();
     vacancyStatus.value = response.vacancyStatus;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося підтвердити профіль";
@@ -262,139 +376,64 @@ onMounted(() => {
 
     <template v-else>
       <section v-if="missingCompanyProfile" class="gate-banner">
-        <p>Спочатку заповніть і підтвердіть профіль компанії.</p>
+        <p>Спочатку заповніть профіль компанії.</p>
         <RouterLink to="/company-profile" class="btn-primary">Перейти до профілю компанії</RouterLink>
       </section>
 
       <section v-else-if="isClosed && profile && !viewingHistory" class="profile-view">
-        <h2>Зібраний профіль вакансії</h2>
+        <div class="company-hero">
+          <p class="eyebrow">Посада</p>
+          <input
+            v-if="isProfileEditable && editableProfile"
+            class="name-input"
+            type="text"
+            :value="editableProfile.role"
+            aria-label="Посада"
+            @input="onRoleInput"
+          />
+          <p v-else class="name">{{ profile.role }}</p>
+        </div>
 
-        <form
-          v-if="editableProfile && (!profile.confirmedAt || editingConfirmed)"
-          class="profile-form"
-          @submit.prevent="onSaveProfileEdits"
-        >
-          <label class="field">
-            <span class="field-label">Посада</span>
-            <input v-model="editableProfile.role" type="text" class="field-input" />
-          </label>
-          <label class="field">
-            <span class="field-label">Критичні вимоги</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="(editableProfile.requirements.critical ?? []).join('\n')"
-              @input="onRequirementsInput('critical', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Бажані вимоги</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="(editableProfile.requirements.desired ?? []).join('\n')"
-              @input="onRequirementsInput('desired', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Очікування</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('expectations')"
-              @input="onArrayFieldInput('expectations', $event)"
-            />
-          </label>
-          <h3 class="section-heading">Умови роботи</h3>
-          <label class="field">
-            <span class="field-label">Зарплата</span>
-            <input
-              type="text"
-              class="field-input"
-              :value="getCompensationDisplayText()"
-              @input="setCompensationDisplayText(($event.target as HTMLInputElement).value)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Умови (один пункт на рядок, з префіксами)</span>
-            <textarea
-              class="field-input"
-              rows="6"
-              :value="getArrayField('workConditions')"
-              @input="onArrayFieldInput('workConditions', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Культура</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('culture')"
-              @input="onArrayFieldInput('culture', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Напрям компанії</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('companyDirection')"
-              @input="onArrayFieldInput('companyDirection', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Політики</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('policies')"
-              @input="onArrayFieldInput('policies', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Формат роботи</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('workFormat')"
-              @input="onArrayFieldInput('workFormat', $event)"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">Онбординг</span>
-            <textarea
-              class="field-input"
-              rows="3"
-              :value="getArrayField('onboardingApproach')"
-              @input="onArrayFieldInput('onboardingApproach', $event)"
-            />
-          </label>
-        </form>
+        <article v-for="section in vacancySections" :key="section.id" class="section">
+          <div class="section-head">
+            <h3>{{ section.title }}</h3>
+            <button
+              v-if="isProfileEditable"
+              type="button"
+              class="btn-ghost"
+              @click="toggleSectionEdit(section.id)"
+            >
+              {{ editingSections[section.id] ? "Готово" : "Редагувати" }}
+            </button>
+          </div>
+          <p v-if="section.description" class="section-desc">{{ section.description }}</p>
 
-        <dl v-else>
-          <dt>Посада</dt>
-          <dd>{{ profile.role }}</dd>
-          <dt>Критичні вимоги</dt>
-          <dd><ul><li v-for="(item, i) in profile.requirements.critical" :key="'c' + i">{{ item }}</li></ul></dd>
-          <dt>Бажані вимоги</dt>
-          <dd><ul><li v-for="(item, i) in profile.requirements.desired" :key="'d' + i">{{ item }}</li></ul></dd>
-          <dt>Очікування</dt>
-          <dd><ul><li v-for="(item, i) in profile.expectations" :key="i">{{ item }}</li></ul></dd>
-          <dt>Зарплата</dt>
-          <dd>{{ profile.compensation?.displayText ?? "не вказано" }}</dd>
-          <dt>Умови роботи</dt>
-          <dd><ul><li v-for="(item, i) in profile.workConditions" :key="i">{{ item }}</li></ul></dd>
-          <dt>Культура</dt>
-          <dd><ul><li v-for="(item, i) in profile.culture" :key="i">{{ item }}</li></ul></dd>
-          <dt>Напрям компанії</dt>
-          <dd><ul><li v-for="(item, i) in profile.companyDirection" :key="i">{{ item }}</li></ul></dd>
-          <dt>Політики</dt>
-          <dd><ul><li v-for="(item, i) in profile.policies" :key="i">{{ item }}</li></ul></dd>
-          <dt>Формат роботи</dt>
-          <dd><ul><li v-for="(item, i) in profile.workFormat" :key="i">{{ item }}</li></ul></dd>
-          <dt>Онбординг</dt>
-          <dd><ul><li v-for="(item, i) in profile.onboardingApproach" :key="i">{{ item }}</li></ul></dd>
-        </dl>
+          <template v-if="section.kind === 'text'">
+            <p v-if="!editingSections[section.id] || !isProfileEditable" class="text-value">
+              {{ getSectionText(section.id) || "не вказано" }}
+            </p>
+            <textarea
+              v-else
+              class="section-input"
+              rows="2"
+              :value="getSectionText(section.id)"
+              @input="onSectionTextInput(section.id, $event)"
+            />
+          </template>
+          <template v-else>
+            <ul v-if="!editingSections[section.id] || !isProfileEditable" class="bullet-list">
+              <li v-for="(item, i) in getSectionList(section.id)" :key="i">{{ item }}</li>
+              <li v-if="getSectionList(section.id).length === 0" class="empty">Порожньо</li>
+            </ul>
+            <textarea
+              v-else
+              class="section-input"
+              rows="4"
+              :value="getSectionText(section.id)"
+              @input="onSectionListInput(section.id, $event)"
+            />
+          </template>
+        </article>
 
         <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
 
@@ -517,6 +556,7 @@ onMounted(() => {
 .page {
   width: 100%;
   min-width: 0;
+  font-size: 1.0625rem;
 }
 .header {
   display: flex;
@@ -527,7 +567,7 @@ onMounted(() => {
 }
 .header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.25em;
 }
 .gate-banner {
   padding: 1rem;
@@ -552,7 +592,7 @@ onMounted(() => {
   background: #fde8e8;
   color: var(--danger);
   border-radius: 0.375rem;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -561,7 +601,7 @@ onMounted(() => {
 .btn-primary,
 .btn-secondary {
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
   border: 1px solid transparent;
@@ -585,58 +625,127 @@ onMounted(() => {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin: 1rem 0;
-}
-.section-heading {
-  margin: 0.5rem 0 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #374151;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.field-label {
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
-}
-.field-input {
+.btn-ghost {
   font-family: inherit;
-  font-size: 1rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 0.375rem;
-  resize: vertical;
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8125em;
+  font-weight: 500;
+  cursor: pointer;
 }
-.profile-view dl {
-  display: grid;
-  grid-template-columns: 8rem 1fr;
-  gap: 0.5rem 1rem;
-  margin: 1rem 0;
+.btn-ghost:hover {
+  text-decoration: underline;
 }
-.profile-view dt {
+.profile-view {
+  max-width: 28rem;
+}
+.company-hero {
+  margin-bottom: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
   font-weight: 600;
-  color: #374151;
 }
-.profile-view dd {
+.name {
   margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-.profile-view ul {
+.name-input {
+  font-family: inherit;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  border: none;
+  border-bottom: 2px solid var(--accent-border);
+  background: transparent;
+  width: 100%;
+  padding: 0.15rem 0;
+  color: var(--text);
+}
+.name-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.section {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.section:last-of-type {
+  border-bottom: none;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+.section-head h3 {
   margin: 0;
-  padding-left: 1.25rem;
+  font-size: 1em;
+  font-weight: 600;
+}
+.section-desc {
+  margin: 0 0 0.65rem;
+  font-size: 0.8125em;
+  color: var(--muted);
+}
+.bullet-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.bullet-list li {
+  font-size: 1em;
+  line-height: 1.45;
+  color: #1f2937;
+}
+.bullet-list .empty {
+  list-style: none;
+  margin-left: -1.15rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.text-value {
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.45;
+  color: #1f2937;
+}
+.section-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1em;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  resize: vertical;
+  color: var(--text);
+}
+.section-input:focus {
+  outline: 2px solid var(--accent-focus);
+  outline-offset: 1px;
 }
 .actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+  margin-top: 1.25rem;
 }
 .confirmed-banner {
   margin: 0;
@@ -644,12 +753,12 @@ onMounted(() => {
   background: #dcfce7;
   color: #166534;
   border-radius: 0.375rem;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   font-weight: 600;
 }
 .hint {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.875em;
   color: var(--color-text-muted, #64748b);
 }
 </style>
