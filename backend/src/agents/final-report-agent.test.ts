@@ -5,6 +5,7 @@ import {
   formatLiveTranscript,
   parseFinalReport,
 } from "./final-report-agent";
+import { FINAL_REPORT_SYSTEM_PROMPT_UK } from "./prompts/final-report.uk";
 
 test("formatLiveTranscript maps author types to Ukrainian labels", () => {
   const text = formatLiveTranscript([
@@ -79,4 +80,20 @@ test("parseFinalReport throws when matchScore out of range", () => {
     risks: ["b"],
   });
   assert.throws(() => parseFinalReport(raw), FinalReportExtractionError);
+});
+
+test("FINAL_REPORT_SYSTEM_PROMPT_UK requires assessments and contextFit without matchScore", () => {
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /contextFit/);
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /assessments/);
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /critical/);
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /desired/);
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /Критичні|критичн/i);
+  assert.match(
+    FINAL_REPORT_SYSTEM_PROMPT_UK,
+    /не повертай поле matchScore|Не повертай поле matchScore/i,
+  );
+  assert.doesNotMatch(
+    FINAL_REPORT_SYSTEM_PROMPT_UK,
+    /\{"reportMarkdown":".*","recommendation":"HIRE\|MAYBE\|REJECT","matchScore":0-100/,
+  );
 });
