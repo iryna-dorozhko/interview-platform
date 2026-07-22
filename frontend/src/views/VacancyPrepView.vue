@@ -161,7 +161,8 @@ const chat = usePrepChat<CompanyProfile>({
     humanAuthorType: "HUMAN_HR",
     agentAuthorType: "AGENT_COMPANY",
   },
-  shouldAutoGreet: () => !missingCompanyProfile.value,
+  shouldAutoGreet: (state) =>
+    !missingCompanyProfile.value && !state.isClosed && state.messages.length === 0,
   onFinished: () => {
     viewingHistory.value = false;
   },
@@ -437,6 +438,19 @@ onMounted(() => {
 
         <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
 
+        <p
+          v-if="profile.confirmedAt && !editingConfirmed && vacancyStatus === 'CONFIRMED'"
+          class="confirmed-banner"
+        >
+          ✓ Анкета підтверджена
+        </p>
+        <p
+          v-else-if="profile.confirmedAt && !editingConfirmed"
+          class="confirmed-banner"
+        >
+          ✓ Підтверджено {{ profile.confirmedAt ? new Date(profile.confirmedAt).toLocaleString("uk-UA") : "" }}
+        </p>
+
         <div class="actions">
           <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
           <button
@@ -484,31 +498,24 @@ onMounted(() => {
               {{ saving ? "Збереження…" : "Зберегти зміни" }}
             </button>
           </template>
-          <template v-else>
-            <p v-if="vacancyStatus === 'CONFIRMED'" class="confirmed-banner">
-              ✓ Анкета підтверджена
-            </p>
-            <p v-else class="confirmed-banner">
-              ✓ Підтверджено {{ profile.confirmedAt ? new Date(profile.confirmedAt).toLocaleString("uk-UA") : "" }}
-            </p>
-            <button
-              type="button"
-              class="btn-secondary"
-              :disabled="!canEditProfile"
-              :title="
-                canEditProfile
-                  ? ''
-                  : 'Неможливо змінити анкету: є активна співбесіда (READY/LIVE).'
-              "
-              @click="startEditingConfirmed"
-            >
-              Змінити
-            </button>
-            <p v-if="!canEditProfile" class="hint">
-              Неможливо змінити анкету: є активна співбесіда (READY/LIVE).
-            </p>
-          </template>
+          <button
+            v-else
+            type="button"
+            class="btn-secondary"
+            :disabled="!canEditProfile"
+            :title="
+              canEditProfile
+                ? ''
+                : 'Неможливо змінити анкету: є активна співбесіда (READY/LIVE).'
+            "
+            @click="startEditingConfirmed"
+          >
+            Змінити
+          </button>
         </div>
+        <p v-if="profile.confirmedAt && !editingConfirmed && !canEditProfile" class="hint">
+          Неможливо змінити анкету: є активна співбесіда (READY/LIVE).
+        </p>
       </section>
 
       <PrepChatPanel
@@ -748,7 +755,7 @@ onMounted(() => {
   margin-top: 1.25rem;
 }
 .confirmed-banner {
-  margin: 0;
+  margin: 1.25rem 0 0;
   padding: 0.5rem 0.75rem;
   background: #dcfce7;
   color: #166534;
@@ -756,8 +763,11 @@ onMounted(() => {
   font-size: 0.875em;
   font-weight: 600;
 }
+.confirmed-banner + .actions {
+  margin-top: 0.75rem;
+}
 .hint {
-  margin: 0;
+  margin: 0.5rem 0 0;
   font-size: 0.875em;
   color: var(--color-text-muted, #64748b);
 }
