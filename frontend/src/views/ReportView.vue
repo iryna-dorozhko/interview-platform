@@ -122,6 +122,15 @@ onMounted(loadReport);
     <template v-else-if="report">
       <h1>Звіт про співбесіду</h1>
 
+      <p class="chat-link-row">
+        <RouterLink
+          :to="{ name: 'interview-room', params: { id: report.interviewId } }"
+          class="chat-link"
+        >
+          Переглянути спільний чат
+        </RouterLink>
+      </p>
+
       <div class="summary-row">
         <div class="score-card">
           <span class="score-value">{{ report.matchScore }}%</span>
@@ -236,6 +245,17 @@ onMounted(loadReport);
   font-size: 0.875rem;
 }
 .back-link:hover {
+  text-decoration: underline;
+}
+.chat-link-row {
+  margin: 0 0 1.25rem;
+}
+.chat-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+.chat-link:hover {
   text-decoration: underline;
 }
 .error-banner {
