@@ -179,6 +179,54 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
     });
   });
 
+  router.get("/dialogs/unread-count", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const where =
+      req.user!.role === "HR"
+        ? { hrUserId: req.user!.id }
+        : { candidateUserId: req.user!.id };
+
+    const dialogs = await prisma.dialog.findMany({
+      where,
+      select: {
+        id: true,
+        hrUserId: true,
+        hrLastReadAt: true,
+        candidateLastReadAt: true,
+      },
+    });
+
+    let unreadCount = 0;
+    for (const dialog of dialogs) {
+      unreadCount += await countUnreadMessages(
+        prisma,
+        dialog.id,
+        req.user!.id,
+        lastReadAtForUser(dialog, req.user!.id),
+      );
+    }
+
+    res.status(200).json({ unreadCount });
+  });
+
+  router.post("/dialogs/:id/read", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const dialog = await prisma.dialog.findUnique({ where: { id: req.params.id } });
+    if (!dialog || !isParticipant(dialog, req.user!.id)) {
+      res.status(404).json({ error: "Dialog not found" });
+      return;
+    }
+
+    const now = new Date();
+    const data =
+      dialog.hrUserId === req.user!.id
+        ? { hrLastReadAt: now }
+        : { candidateLastReadAt: now };
+
+    await prisma.dialog.update({ where: { id: dialog.id }, data });
+    res.status(200).json({ ok: true });
+  });
+
   router.get("/dialogs/:id", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const dialog = await prisma.dialog.findUnique({

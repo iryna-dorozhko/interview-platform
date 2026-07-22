@@ -75,6 +75,7 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
         where,
         orderBy,
         include,
+        select,
       }: {
         where?: { hrUserId?: string; candidateUserId?: string };
         orderBy?: { updatedAt: "desc" | "asc" };
@@ -87,6 +88,12 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
             select: { body: true; createdAt: true; kind: true };
           };
         };
+        select?: {
+          id?: true;
+          hrUserId?: true;
+          hrLastReadAt?: true;
+          candidateLastReadAt?: true;
+        };
       }) => {
         let rows = dialogs.filter((d) => {
           if (where?.hrUserId != null && d.hrUserId !== where.hrUserId) return false;
@@ -97,6 +104,16 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
         });
         if (orderBy?.updatedAt === "desc") {
           rows = [...rows].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+        }
+        if (select) {
+          return rows.map((d) => ({
+            ...(select.id ? { id: d.id } : {}),
+            ...(select.hrUserId ? { hrUserId: d.hrUserId } : {}),
+            ...(select.hrLastReadAt ? { hrLastReadAt: d.hrLastReadAt } : {}),
+            ...(select.candidateLastReadAt
+              ? { candidateLastReadAt: d.candidateLastReadAt }
+              : {}),
+          }));
         }
         return rows.map((d) => {
           const hrUser = users.find((u) => u.id === d.hrUserId);
@@ -713,6 +730,180 @@ test("POST /dialogs/:id/messages rejects empty body", async () => {
       body: JSON.stringify({ body: "   " }),
     });
     assert.equal(response.status, 400);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /dialogs/unread-count sums unread across dialogs", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [
+      baseDialog,
+      {
+        id: "dlg_3",
+        hrUserId: "hr_1",
+        candidateUserId: "cand_2",
+        createdAt: new Date("2026-07-14T10:00:00.000Z"),
+        updatedAt: new Date("2026-07-14T12:00:00.000Z"),
+        hrLastReadAt: null,
+        candidateLastReadAt: null,
+      },
+    ],
+    messages: [
+      {
+        id: "m1",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "a",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:00:00.000Z"),
+      },
+      {
+        id: "m2",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "b",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:10:00.000Z"),
+      },
+      {
+        id: "m3",
+        dialogId: "dlg_3",
+        senderUserId: "cand_2",
+        body: "c",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:20:00.000Z"),
+      },
+    ],
+  });
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/dialogs/unread-count`);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { unreadCount: number };
+    assert.equal(body.unreadCount, 3);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /dialogs/:id/read clears unread for participant", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [baseDialog],
+    messages: [
+      {
+        id: "m1",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "a",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:00:00.000Z"),
+      },
+      {
+        id: "m2",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "b",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:10:00.000Z"),
+      },
+    ],
+  });
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const readRes = await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1/read`, {
+      method: "POST",
+    });
+    assert.equal(readRes.status, 200);
+    const readBody = (await readRes.json()) as { ok: boolean };
+    assert.equal(readBody.ok, true);
+
+    const listRes = await fetch(`http://127.0.0.1:${port}/api/dialogs`);
+    const listBody = (await listRes.json()) as {
+      dialogs: Array<{ unreadCount: number }>;
+    };
+    assert.equal(listBody.dialogs[0]?.unreadCount, 0);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /dialogs/:id/read returns 404 for non-participant", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [baseDialog],
+  });
+  const app = makeApp(prisma, otherHr);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1/read`, {
+      method: "POST",
+    });
+    assert.equal(response.status, 404);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /dialogs/unread-count for candidate uses candidateLastReadAt", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [
+      {
+        ...baseDialog,
+        candidateLastReadAt: new Date("2026-07-14T11:40:00.000Z"),
+      },
+    ],
+    messages: [
+      {
+        id: "letter",
+        dialogId: "dlg_1",
+        senderUserId: "hr_1",
+        body: "decision",
+        kind: "DECISION_LETTER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:30:00.000Z"),
+      },
+      {
+        id: "newer",
+        dialogId: "dlg_1",
+        senderUserId: "hr_1",
+        body: "follow-up",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:50:00.000Z"),
+      },
+    ],
+  });
+  const app = makeApp(prisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const before = await fetch(`http://127.0.0.1:${port}/api/dialogs/unread-count`);
+    const beforeBody = (await before.json()) as { unreadCount: number };
+    assert.equal(beforeBody.unreadCount, 1);
+
+    await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1/read`, { method: "POST" });
+
+    const after = await fetch(`http://127.0.0.1:${port}/api/dialogs/unread-count`);
+    const afterBody = (await after.json()) as { unreadCount: number };
+    assert.equal(afterBody.unreadCount, 0);
   } finally {
     server.close();
   }
