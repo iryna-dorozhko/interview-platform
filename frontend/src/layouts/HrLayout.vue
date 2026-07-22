@@ -1,10 +1,16 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from "vue";
 import { RouterView, useRouter } from "vue-router";
 import HrSidebar from "../components/HrSidebar.vue";
+import { useDialogUnread } from "../composables/useDialogUnread";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
 const router = useRouter();
+const { startPolling, stopPolling } = useDialogUnread();
+
+onMounted(() => startPolling());
+onUnmounted(() => stopPolling());
 
 function logout(): void {
   auth.logout();

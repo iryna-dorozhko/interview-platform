@@ -8,7 +8,7 @@
     "build": "vue-tsc -b && vite build",
     "lint": "vue-tsc --noEmit -p tsconfig.app.json",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/composables/usePrepChat.test.ts"
+    "test": "node --import tsx --test src/composables/usePrepChat.test.ts src/composables/useDialogUnread.test.ts"
   },
   "dependencies": {
     "dompurify": "^3.4.12",
