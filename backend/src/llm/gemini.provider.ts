@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { LlmEmptyResponseError, LlmUnavailableError } from "./errors";
+import { LlmEmptyResponseError } from "./errors";
 import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "./types";
 
 type GeminiConfig = {
@@ -9,13 +9,8 @@ type GeminiConfig = {
 
 const HISTORY_START_PLACEHOLDER = "(start)";
 const HISTORY_CONTINUE_PLACEHOLDER = "(continue)";
-const MAX_RATE_LIMIT_ATTEMPTS = 3;
 const DEFAULT_RATE_LIMIT_DELAY_MS = 10_000;
 const MAX_RATE_LIMIT_DELAY_MS = 60_000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function isGeminiRateLimitError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
@@ -103,35 +98,15 @@ export function createGeminiProvider(config: GeminiConfig): LlmProvider {
 
       const history = buildGeminiHistory(historyMessages);
 
-      let lastError: unknown;
-      for (let attempt = 0; attempt < MAX_RATE_LIMIT_ATTEMPTS; attempt++) {
-        try {
-          const chat = model.startChat({ history });
-          const result = await chat.sendMessage(promptContent);
-          const text = result.response.text().trim();
+      const chat = model.startChat({ history });
+      const result = await chat.sendMessage(promptContent);
+      const text = result.response.text().trim();
 
-          if (!text) {
-            throw new LlmEmptyResponseError();
-          }
-
-          return text;
-        } catch (error) {
-          lastError = error;
-          const canRetry =
-            isGeminiRateLimitError(error) && attempt < MAX_RATE_LIMIT_ATTEMPTS - 1;
-          if (!canRetry) break;
-          const retryDelayMs = parseGeminiRetryDelayMs(error);
-          await sleep(retryDelayMs);
-        }
+      if (!text) {
+        throw new LlmEmptyResponseError();
       }
 
-      if (isGeminiRateLimitError(lastError)) {
-        throw new LlmUnavailableError(
-          "Gemini API: перевищено ліміт запитів. Змініть LLM_PROVIDER у .env або зачекайте.",
-        );
-      }
-
-      throw lastError;
+      return text;
     },
   };
 }
