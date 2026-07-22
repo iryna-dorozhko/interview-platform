@@ -4,6 +4,8 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { requireAuth, requireCandidate, type AuthUser } from "../auth/middleware";
 import { signToken } from "../auth/jwt";
 import { createCandidatePrepRouter } from "./candidate-prep";
+import { LlmUnavailableError } from "../llm/errors";
+import { SAFE_LLM_ERROR_UK } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 
 const ORIGINAL_SECRET = process.env.JWT_SECRET;
@@ -349,6 +351,117 @@ test("POST /candidate-prep/:interviewId/message saves candidate message and read
     assert.equal(fakePrisma.__messages[0].authorType, "HUMAN_CANDIDATE");
     assert.equal(fakePrisma.__messages[1].authorType, "AGENT_CANDIDATE");
     assert.equal(fakePrisma.__messages[1].content, "Дякую, цього достатньо.");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/message retries transient LLM failures then succeeds", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+  });
+  let completeCalls = 0;
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      completeCalls += 1;
+      if (completeCalls <= 2) {
+        throw new LlmUnavailableError("temporary outage");
+      }
+      return "Вітаю після retry.\nREADY:false";
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.message, "Вітаю після retry.");
+    assert.equal(completeCalls, 3);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/message returns safe UK error after LLM retries exhausted", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+  });
+  let completeCalls = 0;
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      completeCalls += 1;
+      throw new LlmUnavailableError("omlx server not reachable");
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error, SAFE_LLM_ERROR_UK);
+    assert.equal(body.detail, undefined);
+    assert.equal(completeCalls, 3);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /candidate-prep/:interviewId/finish returns safe UK error after LLM retries exhausted", async () => {
+  const fakePrisma = makeFakePrisma({
+    interviews: [{ id: "interview_1", vacancyId: "vacancy_1", hrUserId: "hr_1" }],
+    sessions: [{ id: "session_1", interviewId: "interview_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push({
+    id: "m1",
+    sessionId: "session_1",
+    authorType: "HUMAN_CANDIDATE",
+    content: "досвід",
+    createdAt: new Date(1),
+  });
+  let completeCalls = 0;
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      completeCalls += 1;
+      throw new LlmUnavailableError("omlx server not reachable");
+    },
+  };
+
+  const app = mountApp(fakePrisma, fakeProvider, { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/candidate-prep/interview_1/finish`, {
+      method: "POST",
+    });
+
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error, SAFE_LLM_ERROR_UK);
+    assert.equal(body.detail, undefined);
+    assert.equal(completeCalls, 3);
+    assert.equal(fakePrisma.__sessions[0].isClosed, false);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

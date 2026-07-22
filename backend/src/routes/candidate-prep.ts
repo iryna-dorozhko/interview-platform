@@ -9,9 +9,16 @@ import {
   type ContactPreview,
 } from "../agents/candidate-agent";
 import { parseAgentReply } from "../agents/agent-reply";
-import { LlmError, LlmUnavailableError } from "../llm/errors";
+import { LlmError } from "../llm/errors";
+import { toSafeLlmErrorMessage, withLlmRetry } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 import { maybeTransitionToReady } from "../utils/interview-readiness";
+
+function llmHttpStatus(error: unknown): number {
+  if (error instanceof LlmError && error.code === "empty_response") return 502;
+  if (error instanceof Error && error.name.endsWith("ExtractionError")) return 502;
+  return 503;
+}
 
 type MessageBody = {
   message?: unknown;
@@ -276,29 +283,20 @@ export function createCandidatePrepRouter(
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[candidate-prep] provider init failed:", detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
     let rawReply: string;
     try {
-      rawReply = await provider.complete(llmMessages);
+      rawReply = await withLlmRetry(
+        () => provider.complete(llmMessages),
+        { label: "candidate-prep:message" },
+      );
     } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        console.error(`[candidate-prep:${provider.name}] unavailable:`, error.message);
-        res.status(503).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
-      if (error instanceof LlmError && error.code === "empty_response") {
-        console.error(`[candidate-prep:${provider.name}] empty response`);
-        res.status(502).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
       const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[candidate-prep:${provider.name}] unexpected error:`, detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
+      console.error(`[candidate-prep:${provider.name}] llm failed:`, detail);
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
@@ -368,63 +366,39 @@ export function createCandidatePrepRouter(
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[candidate-prep:finish] provider init failed:", detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
-      return;
-    }
-
-    let rawReply: string;
-    try {
-      rawReply = await provider.complete(llmMessages);
-    } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        console.error(`[candidate-prep:finish:${provider.name}] unavailable:`, error.message);
-        res.status(503).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
-      if (error instanceof LlmError && error.code === "empty_response") {
-        console.error(`[candidate-prep:finish:${provider.name}] empty response`);
-        res.status(502).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[candidate-prep:finish:${provider.name}] unexpected error:`, detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
     const fallbackEmail = req.user?.email?.trim().toLowerCase() ?? "";
 
-    let parseInput = rawReply;
-    const trimmedRaw = rawReply.trim();
-    const withoutFences = trimmedRaw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? trimmedRaw;
-    try {
-      const rawData = JSON.parse(withoutFences);
-      if (typeof rawData === "object" && rawData !== null) {
-        const rawEmail = String((rawData as Record<string, unknown>).email ?? "")
-          .trim()
-          .toLowerCase();
-        if (!rawEmail && fallbackEmail) {
-          (rawData as Record<string, unknown>).email = fallbackEmail;
-          parseInput = JSON.stringify(rawData);
-        }
-      }
-    } catch {
-      // keep original rawReply; parseCandidateProfileExtraction handles invalid JSON
-    }
-
     let extracted;
     try {
-      extracted = parseCandidateProfileExtraction(parseInput);
+      extracted = await withLlmRetry(async () => {
+        const rawReply = await provider.complete(llmMessages);
+        let parseInput = rawReply;
+        const trimmedRaw = rawReply.trim();
+        const withoutFences = trimmedRaw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? trimmedRaw;
+        try {
+          const rawData = JSON.parse(withoutFences);
+          if (typeof rawData === "object" && rawData !== null) {
+            const rawEmail = String((rawData as Record<string, unknown>).email ?? "")
+              .trim()
+              .toLowerCase();
+            if (!rawEmail && fallbackEmail) {
+              (rawData as Record<string, unknown>).email = fallbackEmail;
+              parseInput = JSON.stringify(rawData);
+            }
+          }
+        } catch {
+          // keep original rawReply; parseCandidateProfileExtraction handles invalid JSON
+        }
+        return parseCandidateProfileExtraction(parseInput);
+      }, { label: "candidate-prep:finish" });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep:finish] failed to parse profile extraction:", detail);
-      if (detail.includes("email") && !fallbackEmail) {
-        res.status(502).json({ error: "LLM unavailable", detail: "missing email for candidate profile" });
-        return;
-      }
-      res.status(502).json({ error: "LLM unavailable", detail });
+      console.error(`[candidate-prep:finish:${provider.name}] llm failed:`, detail);
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
@@ -432,7 +406,8 @@ export function createCandidatePrepRouter(
     const persistedEmail = normalizedExtractedEmail || fallbackEmail;
 
     if (!persistedEmail) {
-      res.status(502).json({ error: "LLM unavailable", detail: "missing email for candidate profile" });
+      console.error("[candidate-prep:finish] missing email for candidate profile");
+      res.status(502).json({ error: toSafeLlmErrorMessage(new Error("missing email for candidate profile")) });
       return;
     }
 

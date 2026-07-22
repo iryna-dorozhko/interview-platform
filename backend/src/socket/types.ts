@@ -24,6 +24,10 @@ export type RoomMessagePayload = {
   content?: unknown;
 };
 
+export type RoomAgentRetryPayload = {
+  interviewId?: unknown;
+};
+
 export type RoomMessagesEvent = {
   messages: LiveMessageDto[];
 };

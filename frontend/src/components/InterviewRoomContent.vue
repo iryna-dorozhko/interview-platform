@@ -23,6 +23,7 @@ const {
   interviewStatus,
   agentError,
   arbiterProcessLog,
+  retryAgent,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 
 const ending = ref(false);
@@ -94,7 +95,18 @@ async function onEndInterview(): Promise<void> {
   </RouterLink>
   <p v-if="endError" class="error-banner">{{ endError }}</p>
   <p v-if="phaseBanner" class="phase-banner">{{ phaseBanner }}</p>
-  <p v-if="agentError" class="agent-error-banner" role="alert">{{ agentError }}</p>
+  <p v-if="agentError" class="agent-error-banner" role="alert">
+    {{ agentError }}
+    <button
+      v-if="currentRole === 'HR'"
+      type="button"
+      class="btn-secondary"
+      :disabled="agentThinking?.active"
+      @click="retryAgent"
+    >
+      Спробувати ще раз
+    </button>
+  </p>
   <div class="room-body" :class="{ 'room-body--with-sidebar': currentRole === 'HR' }">
     <LiveChatPanel
       :messages="messages"
@@ -185,5 +197,24 @@ async function onEndInterview(): Promise<void> {
   color: var(--danger);
   border-radius: 6px;
   font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.btn-secondary {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

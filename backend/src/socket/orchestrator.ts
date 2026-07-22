@@ -14,6 +14,7 @@ import {
   type ParsedCandidateLiveReply,
 } from "../agents/candidate-live-agent";
 import type { LiveAgentTurnContext } from "../agents/live-agent-turn-context";
+import { SAFE_LLM_ERROR_UK, toSafeLlmErrorMessage } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 import type {
   LiveMessageDto,
@@ -24,11 +25,32 @@ import type {
 export const AGENT_DEBOUNCE_MS = 1000;
 export const MAX_CONDUCTOR_STEPS = 6;
 
+type LastFailedTurn = {
+  agentType: "AGENT_ARBITER" | "AGENT_COMPANY" | "AGENT_CANDIDATE";
+  pendingQuestion: boolean;
+  command?: ParsedArbiterCommand;
+  stepsUsed: number;
+  companyPostedThisTurn: boolean;
+  candidatePostedThisTurn: boolean;
+};
+
+type ConductorStartAt = "arbiter" | "company" | "candidate";
+
+type ConductorInitial = {
+  stepsUsed: number;
+  companyPostedThisTurn: boolean;
+  candidatePostedThisTurn: boolean;
+  startAt: ConductorStartAt;
+  command?: ParsedArbiterCommand;
+};
+
 type RoomState = {
   debounceTimer: ReturnType<typeof setTimeout> | null;
   generation: number;
   candidateRecoveryTimer: ReturnType<typeof setTimeout> | null;
   pendingQuestion: boolean;
+  lastFailedTurn: LastFailedTurn | null;
+  busy: boolean;
 };
 
 export type RunArbiterTurnFn = (
@@ -61,6 +83,7 @@ export type RoomOrchestratorOptions = {
 export interface RoomOrchestrator {
   onHumanMessage(io: Server, interviewId: string, sessionId: string): void;
   onLiveStart(io: Server, interviewId: string, sessionId: string): void;
+  onAgentRetry(io: Server, interviewId: string, sessionId: string): void;
   close(): void;
 }
 
@@ -107,12 +130,9 @@ function emitAgentError(
   agentType: LiveAuthorType,
   error: unknown,
 ): void {
-  const raw = error instanceof Error ? error.message : String(error);
   io.to(roomName(interviewId)).emit("room:agent-error", {
     agentType: agentType as RoomAgentThinkingEvent["agentType"],
-    error: raw.includes("перевищено ліміт")
-      ? raw
-      : "AI-агент тимчасово недоступний. Спробуйте надіслати повідомлення ще раз.",
+    error: toSafeLlmErrorMessage(error),
   });
 }
 
@@ -129,6 +149,30 @@ function applyPendingBeforeRoute(state: RoomState, action: ParsedArbiterCommand[
   if (action === "ANSWER" || action === "CLARIFY") {
     state.pendingQuestion = true;
   }
+}
+
+function toTurnContext(command: ParsedArbiterCommand): LiveAgentTurnContext {
+  return {
+    action:
+      command.action === "START"
+        ? "NEXT_QUESTION"
+        : command.action === "CLARIFY"
+          ? "CLARIFY"
+          : command.action === "CANDIDATE_QUESTIONS"
+            ? "CANDIDATE_QUESTIONS"
+            : command.action === "ANSWER"
+              ? "ANSWER"
+              : command.action === "COMPANY_ANSWER"
+                ? "ANSWER_CANDIDATE"
+                : "NEXT_QUESTION",
+    briefUk: command.briefUk,
+  };
+}
+
+function startAtFromAgentType(agentType: LastFailedTurn["agentType"]): ConductorStartAt {
+  if (agentType === "AGENT_COMPANY") return "company";
+  if (agentType === "AGENT_CANDIDATE") return "candidate";
+  return "arbiter";
 }
 
 export function createRoomOrchestrator(
@@ -149,6 +193,8 @@ export function createRoomOrchestrator(
         generation: 0,
         candidateRecoveryTimer: null,
         pendingQuestion: false,
+        lastFailedTurn: null,
+        busy: false,
       };
       rooms.set(interviewId, state);
     }
@@ -225,21 +271,31 @@ export function createRoomOrchestrator(
     return saved;
   }
 
-  async function executeTurn(
+  async function runConductorLoop(
     io: Server,
     interviewId: string,
     sessionId: string,
     capturedGeneration: number,
+    initial: ConductorInitial = {
+      stepsUsed: 0,
+      companyPostedThisTurn: false,
+      candidatePostedThisTurn: false,
+      startAt: "arbiter",
+    },
   ): Promise<void> {
     if (closed) return;
     const state = getState(interviewId);
     const prisma = getPrisma();
 
-    let companyPostedThisTurn = false;
-    let candidatePostedThisTurn = false;
+    let companyPostedThisTurn = initial.companyPostedThisTurn;
+    let candidatePostedThisTurn = initial.candidatePostedThisTurn;
     let candidateStepFailed = false;
-    let stepsUsed = 0;
+    let stepsUsed = initial.stepsUsed;
+    let startAt: ConductorStartAt = initial.startAt;
+    let resumeCommand = initial.command;
+    let turnFailed = false;
 
+    state.busy = true;
     try {
       while (stepsUsed < maxConductorSteps) {
         if (state.generation !== capturedGeneration || closed) {
@@ -247,72 +303,79 @@ export function createRoomOrchestrator(
           return;
         }
 
-        emitThinking(io, interviewId, {
-          active: true,
-          agentType: "AGENT_ARBITER",
-        });
-
         let command: ParsedArbiterCommand;
-        try {
-          command = await runArbiter(interviewId, sessionId, state.pendingQuestion);
-          stepsUsed += 1;
-        } catch (error) {
-          emitAgentError(io, interviewId, "AGENT_ARBITER", error);
-          console.error(
-            "[orchestrator] AGENT_ARBITER turn failed:",
-            error instanceof Error ? error.message : error,
-          );
-          break;
+        const thisStartAt = startAt;
+        startAt = "arbiter";
+
+        if (thisStartAt === "arbiter") {
+          emitThinking(io, interviewId, {
+            active: true,
+            agentType: "AGENT_ARBITER",
+          });
+
+          try {
+            command = await runArbiter(interviewId, sessionId, state.pendingQuestion);
+            stepsUsed += 1;
+          } catch (error) {
+            turnFailed = true;
+            console.error(
+              "[orchestrator] AGENT_ARBITER turn failed:",
+              error instanceof Error ? error.message : error,
+            );
+            if (state.generation === capturedGeneration) {
+              emitAgentError(io, interviewId, "AGENT_ARBITER", error);
+              state.lastFailedTurn = {
+                agentType: "AGENT_ARBITER",
+                pendingQuestion: state.pendingQuestion,
+                stepsUsed,
+                companyPostedThisTurn,
+                candidatePostedThisTurn,
+              };
+            }
+            break;
+          }
+
+          if (state.generation !== capturedGeneration) {
+            emitThinking(io, interviewId, { active: false });
+            return;
+          }
+
+          emitArbiterProcess(io, interviewId, command);
+
+          if (command.publicMessage) {
+            await saveAndEmit(
+              io,
+              prisma,
+              sessionId,
+              interviewId,
+              "AGENT_ARBITER",
+              command.publicMessage,
+            );
+          }
+
+          if (state.generation !== capturedGeneration) {
+            emitThinking(io, interviewId, { active: false });
+            return;
+          }
+
+          applyPendingBeforeRoute(state, command.action);
+
+          if (command.action === "WAIT" || command.action === "SUGGEST_END") {
+            break;
+          }
+
+          if (stepsUsed >= maxConductorSteps) {
+            break;
+          }
+        } else {
+          if (!resumeCommand) {
+            break;
+          }
+          command = resumeCommand;
+          resumeCommand = undefined;
         }
 
-        if (state.generation !== capturedGeneration) {
-          emitThinking(io, interviewId, { active: false });
-          return;
-        }
-
-        emitArbiterProcess(io, interviewId, command);
-
-        if (command.publicMessage) {
-          await saveAndEmit(
-            io,
-            prisma,
-            sessionId,
-            interviewId,
-            "AGENT_ARBITER",
-            command.publicMessage,
-          );
-        }
-
-        if (state.generation !== capturedGeneration) {
-          emitThinking(io, interviewId, { active: false });
-          return;
-        }
-
-        applyPendingBeforeRoute(state, command.action);
-
-        if (command.action === "WAIT" || command.action === "SUGGEST_END") {
-          break;
-        }
-
-        if (stepsUsed >= maxConductorSteps) {
-          break;
-        }
-
-        const turnContext: LiveAgentTurnContext = {
-          action:
-            command.action === "START"
-              ? "NEXT_QUESTION"
-              : command.action === "CLARIFY"
-                ? "CLARIFY"
-                : command.action === "CANDIDATE_QUESTIONS"
-                  ? "CANDIDATE_QUESTIONS"
-                  : command.action === "ANSWER"
-                    ? "ANSWER"
-                    : command.action === "COMPANY_ANSWER"
-                      ? "ANSWER_CANDIDATE"
-                      : "NEXT_QUESTION",
-          briefUk: command.briefUk,
-        };
+        const turnContext = toTurnContext(command);
 
         const runCompanyActions =
           command.action === "START" ||
@@ -322,7 +385,7 @@ export function createRoomOrchestrator(
         const runCandidateActions =
           command.action === "ANSWER" || command.action === "CANDIDATE_QUESTIONS";
 
-        if (runCompanyActions) {
+        if (runCompanyActions && thisStartAt !== "candidate") {
           emitThinking(io, interviewId, {
             active: true,
             agentType: "AGENT_COMPANY",
@@ -349,11 +412,22 @@ export function createRoomOrchestrator(
               }
             }
           } catch (error) {
-            emitAgentError(io, interviewId, "AGENT_COMPANY", error);
+            turnFailed = true;
             console.error(
               "[orchestrator] AGENT_COMPANY turn failed:",
               error instanceof Error ? error.message : error,
             );
+            if (state.generation === capturedGeneration) {
+              emitAgentError(io, interviewId, "AGENT_COMPANY", error);
+              state.lastFailedTurn = {
+                agentType: "AGENT_COMPANY",
+                pendingQuestion: state.pendingQuestion,
+                command,
+                stepsUsed,
+                companyPostedThisTurn,
+                candidatePostedThisTurn,
+              };
+            }
             break;
           }
           continue;
@@ -398,12 +472,23 @@ export function createRoomOrchestrator(
               break;
             }
           } catch (error) {
-            candidateStepFailed = true;
-            emitAgentError(io, interviewId, "AGENT_CANDIDATE", error);
+            turnFailed = true;
             console.error(
               "[orchestrator] AGENT_CANDIDATE turn failed:",
               error instanceof Error ? error.message : error,
             );
+            if (state.generation === capturedGeneration) {
+              candidateStepFailed = true;
+              emitAgentError(io, interviewId, "AGENT_CANDIDATE", error);
+              state.lastFailedTurn = {
+                agentType: "AGENT_CANDIDATE",
+                pendingQuestion: state.pendingQuestion,
+                command,
+                stepsUsed,
+                companyPostedThisTurn,
+                candidatePostedThisTurn,
+              };
+            }
             break;
           }
           continue;
@@ -411,25 +496,60 @@ export function createRoomOrchestrator(
 
         break;
       }
+
+      if (!turnFailed && state.generation === capturedGeneration) {
+        state.lastFailedTurn = null;
+      }
     } finally {
       if (state.generation === capturedGeneration) {
+        state.busy = false;
         emitThinking(io, interviewId, { active: false });
-      }
 
-      if (
-        companyPostedThisTurn &&
-        !candidatePostedThisTurn &&
-        candidateStepFailed &&
-        state.generation === capturedGeneration &&
-        !state.candidateRecoveryTimer &&
-        !closed
-      ) {
-        state.candidateRecoveryTimer = setTimeout(() => {
-          state.candidateRecoveryTimer = null;
-          scheduleTurn(io, interviewId, sessionId);
-        }, 60_000);
+        if (
+          companyPostedThisTurn &&
+          !candidatePostedThisTurn &&
+          candidateStepFailed &&
+          !state.candidateRecoveryTimer &&
+          !closed
+        ) {
+          state.candidateRecoveryTimer = setTimeout(() => {
+            state.candidateRecoveryTimer = null;
+            scheduleTurn(io, interviewId, sessionId);
+          }, 60_000);
+        }
       }
     }
+  }
+
+  async function executeTurn(
+    io: Server,
+    interviewId: string,
+    sessionId: string,
+    capturedGeneration: number,
+  ): Promise<void> {
+    await runConductorLoop(io, interviewId, sessionId, capturedGeneration);
+  }
+
+  async function resumeFromFailedTurn(
+    io: Server,
+    interviewId: string,
+    sessionId: string,
+    capturedGeneration: number,
+    failed: LastFailedTurn,
+  ): Promise<void> {
+    const state = getState(interviewId);
+    if (state.candidateRecoveryTimer) {
+      clearTimeout(state.candidateRecoveryTimer);
+      state.candidateRecoveryTimer = null;
+    }
+    state.pendingQuestion = failed.pendingQuestion;
+    await runConductorLoop(io, interviewId, sessionId, capturedGeneration, {
+      stepsUsed: failed.stepsUsed,
+      companyPostedThisTurn: failed.companyPostedThisTurn,
+      candidatePostedThisTurn: failed.candidatePostedThisTurn,
+      startAt: startAtFromAgentType(failed.agentType),
+      command: failed.command,
+    });
   }
 
   function scheduleTurn(io: Server, interviewId: string, sessionId: string): void {
@@ -441,6 +561,7 @@ export function createRoomOrchestrator(
     }
 
     state.generation += 1;
+    state.lastFailedTurn = null;
     emitThinking(io, interviewId, { active: false });
 
     const capturedGeneration = state.generation;
@@ -469,6 +590,32 @@ export function createRoomOrchestrator(
 
     onLiveStart(_io: Server, _interviewId: string, _sessionId: string): void {
       // Agents wait for HR to signal the start of the interview via a human message.
+    },
+
+    onAgentRetry(io: Server, interviewId: string, sessionId: string): void {
+      if (closed) return;
+      const state = getState(interviewId);
+      if (state.busy || !state.lastFailedTurn) {
+        // Client may have optimistically set «Думаю…»; do not leave it stuck.
+        emitThinking(io, interviewId, { active: false });
+        io.to(roomName(interviewId)).emit("room:agent-error", {
+          error: SAFE_LLM_ERROR_UK,
+        });
+        return;
+      }
+      const failed = state.lastFailedTurn;
+      state.lastFailedTurn = null;
+      if (state.debounceTimer) {
+        clearTimeout(state.debounceTimer);
+        state.debounceTimer = null;
+      }
+      if (state.candidateRecoveryTimer) {
+        clearTimeout(state.candidateRecoveryTimer);
+        state.candidateRecoveryTimer = null;
+      }
+      state.generation += 1;
+      const capturedGeneration = state.generation;
+      void resumeFromFailedTurn(io, interviewId, sessionId, capturedGeneration, failed);
     },
 
     close(): void {

@@ -58,7 +58,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   } catch {
     // ignore parse errors
   }
-  const detail = body.detail ?? body.error;
+  const detail = body.error ?? body.detail;
   return new Error(detail ? `${fallback}: ${detail}` : fallback);
 }
 

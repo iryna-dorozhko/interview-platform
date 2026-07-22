@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createCompanyPrepRouter } from "./company-prep";
+import { LlmUnavailableError } from "../llm/errors";
+import { SAFE_LLM_ERROR_UK } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 import type { AuthUser } from "../auth/middleware";
 
@@ -148,6 +150,86 @@ function withUser(user: AuthUser) {
     next();
   };
 }
+
+test("POST /company-prep/message returns safe UK error after LLM retries exhausted", async () => {
+  const fakePrisma = makeFakePrisma();
+  let completeCalls = 0;
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      completeCalls += 1;
+      throw new LlmUnavailableError("omlx server not reachable");
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error, SAFE_LLM_ERROR_UK);
+    assert.equal(body.detail, undefined);
+    assert.equal(completeCalls, 3);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test("POST /company-prep/finish returns safe UK error after LLM retries exhausted", async () => {
+  const fakePrisma = makeFakePrisma({
+    sessions: [{ id: "session_1", hrUserId: "hr_1", isClosed: false }],
+  });
+  fakePrisma.__messages.push({
+    id: "m1",
+    sessionId: "session_1",
+    authorType: "HUMAN_HR",
+    content: "про компанію",
+    createdAt: new Date(1),
+  });
+  let completeCalls = 0;
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete() {
+      completeCalls += 1;
+      throw new LlmUnavailableError("omlx server not reachable");
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createCompanyPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/company-prep/finish`, {
+      method: "POST",
+    });
+
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error, SAFE_LLM_ERROR_UK);
+    assert.equal(body.detail, undefined);
+    assert.equal(completeCalls, 3);
+    assert.equal(fakePrisma.__sessions[0].isClosed, false);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
 
 test("POST /company-prep/message creates session and returns agent reply", async () => {
   const fakePrisma = makeFakePrisma();

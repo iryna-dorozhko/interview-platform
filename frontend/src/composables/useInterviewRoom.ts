@@ -137,6 +137,15 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.emit("room:message", { interviewId, content: text });
   }
 
+  function retryAgent(): void {
+    if (currentRole !== "HR") return;
+    if (!agentError.value) return;
+    if (connectionState.value !== "connected") return;
+    agentError.value = null;
+    agentThinking.value = { active: true };
+    socket.emit("room:agent-retry", { interviewId });
+  }
+
   onMounted(() => {
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -181,6 +190,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     arbiterProcessLog,
     currentRole,
     sendMessage,
+    retryAgent,
     isReadOnly,
   };
 }

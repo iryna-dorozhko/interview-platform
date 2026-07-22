@@ -6,7 +6,12 @@ import { canAccessInterviewRoom } from "./room-access";
 import { maybeTransitionToLive, roomName } from "./maybe-transition-live";
 import { getPresence, trackJoin, trackLeave } from "./room-presence";
 import type { RoomOrchestrator } from "./orchestrator";
-import type { LiveMessageDto, RoomJoinPayload, RoomMessagePayload } from "./types";
+import type {
+  LiveMessageDto,
+  RoomAgentRetryPayload,
+  RoomJoinPayload,
+  RoomMessagePayload,
+} from "./types";
 
 const MAX_CONTENT_LENGTH = 4000;
 
@@ -175,6 +180,37 @@ export function registerRoomHandlers(
         }
       } catch (error) {
         console.error("[room:message] failed:", error instanceof Error ? error.message : error);
+        socket.emit("room:error", { error: "Внутрішня помилка кімнати" });
+      }
+    });
+
+    socket.on("room:agent-retry", async (payload: RoomAgentRetryPayload) => {
+      try {
+        const user = getSocketUser(socket);
+        if (!user) {
+          socket.emit("room:error", { error: "Немає доступу" });
+          return;
+        }
+        const data = getSocketData(socket);
+        const interviewId =
+          typeof payload?.interviewId === "string" ? payload.interviewId.trim() : "";
+        if (!interviewId || data.interviewId !== interviewId) {
+          socket.emit("room:error", { error: "Невірний запит" });
+          return;
+        }
+        if (data.roomRole !== "HR") {
+          socket.emit("room:error", { error: "Немає доступу" });
+          return;
+        }
+        const prisma = getPrisma();
+        const interview = await loadInterview(prisma, interviewId);
+        if (!interview || interview.status === "ENDED") {
+          socket.emit("room:error", { error: "Співбесіда завершена" });
+          return;
+        }
+        const session = await ensureLiveSession(prisma, interviewId);
+        orchestrator.onAgentRetry(io, interviewId, session.id);
+      } catch {
         socket.emit("room:error", { error: "Внутрішня помилка кімнати" });
       }
     });

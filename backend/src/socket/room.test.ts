@@ -7,9 +7,22 @@ import { io as ioClient, type Socket as ClientSocket } from "socket.io-client";
 import type { LiveMessage, LiveSession, PrismaClient } from "@prisma/client";
 import { signToken } from "../auth/jwt";
 import { registerRoomHandlers } from "./room";
+import type { RoomOrchestrator } from "./orchestrator";
 import { resetPresenceForTests } from "./room-presence";
 
 process.env.JWT_SECRET = "test-secret-min-8-chars";
+
+function makeNoopOrchestrator(
+  overrides: Partial<RoomOrchestrator> = {},
+): RoomOrchestrator {
+  return {
+    onHumanMessage: () => {},
+    onLiveStart: () => {},
+    onAgentRetry: () => {},
+    close: () => {},
+    ...overrides,
+  };
+}
 
 type FakeInterview = {
   id: string;
@@ -114,15 +127,17 @@ function makeFakePrisma(
   } as unknown as PrismaClient;
 }
 
-async function startRoomServer(prisma: PrismaClient): Promise<{
+async function startRoomServer(
+  prisma: PrismaClient,
+  orchestrator: RoomOrchestrator = makeNoopOrchestrator(),
+): Promise<{
   httpServer: HttpServer;
   port: number;
   close: () => Promise<void>;
 }> {
   const httpServer = createServer();
   const io = new Server(httpServer);
-  const noopOrchestrator = { onHumanMessage: () => {}, onLiveStart: () => {} };
-  registerRoomHandlers(io, () => prisma, noopOrchestrator);
+  registerRoomHandlers(io, () => prisma, orchestrator);
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
   const port = (httpServer.address() as AddressInfo).port;
   return {
@@ -341,6 +356,85 @@ test("room:join emits room:error for interviews the user cannot access", async (
     const payload = await waitForEvent<{ error: string }>(socket, "room:error");
     assert.equal(payload.error, "Немає доступу");
     socket.disconnect();
+  } finally {
+    await server.close();
+  }
+});
+
+test("room:agent-retry calls onAgentRetry for HR in the joined room", async () => {
+  const interview: FakeInterview = {
+    id: "interview_1",
+    hrUserId: "hr_1",
+    candidateUserId: "cd_1",
+    status: "LIVE",
+  };
+  const sessions: FakeLiveSession[] = [{ id: "session_1", interviewId: "interview_1" }];
+  const prisma = makeFakePrisma(interview, sessions, []);
+
+  let resolveRetry!: (value: { interviewId: string; sessionId: string }) => void;
+  const retryPromise = new Promise<{ interviewId: string; sessionId: string }>((resolve) => {
+    resolveRetry = resolve;
+  });
+  const orchestrator = makeNoopOrchestrator({
+    onAgentRetry: (_io, interviewId, sessionId) => {
+      resolveRetry({ interviewId, sessionId });
+    },
+  });
+  const server = await startRoomServer(prisma, orchestrator);
+
+  try {
+    const hrSocket = await connectClient(server.port, hrToken);
+    hrSocket.emit("room:join", { interviewId: "interview_1" });
+    await waitForEvent(hrSocket, "room:messages");
+
+    hrSocket.emit("room:agent-retry", { interviewId: "interview_1" });
+    const called = await Promise.race([
+      retryPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout waiting for onAgentRetry")), 5000),
+      ),
+    ]);
+
+    assert.equal(called.interviewId, "interview_1");
+    assert.equal(called.sessionId, "session_1");
+
+    hrSocket.disconnect();
+  } finally {
+    await server.close();
+  }
+});
+
+test("room:agent-retry rejects candidate and does not call onAgentRetry", async () => {
+  const interview: FakeInterview = {
+    id: "interview_1",
+    hrUserId: "hr_1",
+    candidateUserId: "cd_1",
+    status: "LIVE",
+  };
+  const sessions: FakeLiveSession[] = [{ id: "session_1", interviewId: "interview_1" }];
+  const prisma = makeFakePrisma(interview, sessions, []);
+
+  let retryCalled = false;
+  const orchestrator = makeNoopOrchestrator({
+    onAgentRetry: () => {
+      retryCalled = true;
+    },
+  });
+  const server = await startRoomServer(prisma, orchestrator);
+
+  try {
+    const candidateSocket = await connectClient(server.port, candidateToken);
+    candidateSocket.emit("room:join", { interviewId: "interview_1" });
+    await waitForEvent(candidateSocket, "room:messages");
+
+    const errorPromise = waitForEvent<{ error: string }>(candidateSocket, "room:error");
+    candidateSocket.emit("room:agent-retry", { interviewId: "interview_1" });
+    const payload = await errorPromise;
+
+    assert.equal(payload.error, "Немає доступу");
+    assert.equal(retryCalled, false);
+
+    candidateSocket.disconnect();
   } finally {
     await server.close();
   }

@@ -1,4 +1,5 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import { withLlmRetry } from "../llm/retry";
 import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "../llm/types";
 import {
   parseVacancyCompensation,
@@ -234,7 +235,8 @@ export async function runArbiterTurn(
     pendingQuestion: options.pendingQuestion,
   });
 
-  const rawReply = await provider.complete(llmMessages, ARBITER_LLM_OPTIONS);
-
-  return parseArbiterCommand(rawReply);
+  return withLlmRetry(async () => {
+    const rawReply = await provider.complete(llmMessages, ARBITER_LLM_OPTIONS);
+    return parseArbiterCommand(rawReply);
+  }, { label: "arbiter" });
 }
