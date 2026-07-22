@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildGeminiHistory, isGeminiRateLimitError, parseGeminiRetryDelayMs, resolveGeminiPrompt } from "./gemini.provider";
+import { LlmEmptyResponseError, LlmUnavailableError } from "./errors";
+import {
+  buildGeminiHistory,
+  isGeminiRateLimitError,
+  mapGeminiCompleteError,
+  parseGeminiRetryDelayMs,
+  resolveGeminiPrompt,
+} from "./gemini.provider";
+import { isRetryableLlmError } from "./retry";
 
 test("buildGeminiHistory prepends synthetic user turn when history starts with agent message", () => {
   const history = buildGeminiHistory([
@@ -67,4 +75,20 @@ test("parseGeminiRetryDelayMs reads retry hint from 429 error", () => {
 test("isGeminiRateLimitError detects quota errors", () => {
   assert.equal(isGeminiRateLimitError(new Error("[429 Too Many Requests] quota exceeded")), true);
   assert.equal(isGeminiRateLimitError(new Error("network timeout")), false);
+});
+
+test("mapGeminiCompleteError wraps non-429 failures as retryable LlmUnavailableError", () => {
+  const wrapped = mapGeminiCompleteError(new Error("fetch failed"));
+  assert.ok(wrapped instanceof LlmUnavailableError);
+  assert.equal(isRetryableLlmError(wrapped), true);
+  assert.match(wrapped.message, /fetch failed/);
+});
+
+test("mapGeminiCompleteError keeps rate-limit and empty errors as-is", () => {
+  const rateLimit = new Error("[429 Too Many Requests] Please retry in 1.0s");
+  assert.equal(mapGeminiCompleteError(rateLimit), rateLimit);
+  assert.equal(isGeminiRateLimitError(mapGeminiCompleteError(rateLimit)), true);
+
+  const empty = new LlmEmptyResponseError();
+  assert.equal(mapGeminiCompleteError(empty), empty);
 });

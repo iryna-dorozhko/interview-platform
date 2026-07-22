@@ -715,6 +715,38 @@ test("orchestrator company failure; onAgentRetry resumes company without re-runn
   );
 });
 
+test("orchestrator onAgentRetry without lastFailedTurn emits thinking false and agent-error", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 0,
+    maxConductorSteps: 4,
+    runArbiterTurn: async () => cmd({ action: "WAIT", summaryUk: "ok" }),
+  });
+
+  // No prior failure → lastFailedTurn is null; must not leave client on «Думаю…».
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 20));
+
+  const thinkingOff = emitted.filter(
+    (e) =>
+      e.event === "room:agent-thinking" &&
+      (e.payload as { active?: boolean }).active === false,
+  );
+  const agentErrors = emitted.filter((e) => e.event === "room:agent-error");
+  assert.ok(thinkingOff.length >= 1, "must emit thinking active:false");
+  assert.ok(agentErrors.length >= 1, "must emit agent-error (not silent no-op)");
+  assert.equal(
+    typeof (agentErrors[0].payload as { error?: string }).error,
+    "string",
+  );
+  assert.ok(
+    ((agentErrors[0].payload as { error: string }).error).trim().length > 0,
+  );
+});
+
 test("orchestrator onAgentRetry while busy does not double-invoke", async () => {
   const messages: LiveMessage[] = [];
   const prisma = makePrisma(messages);

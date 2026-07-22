@@ -14,7 +14,7 @@ import {
   type ParsedCandidateLiveReply,
 } from "../agents/candidate-live-agent";
 import type { LiveAgentTurnContext } from "../agents/live-agent-turn-context";
-import { toSafeLlmErrorMessage } from "../llm/retry";
+import { SAFE_LLM_ERROR_UK, toSafeLlmErrorMessage } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 import type {
   LiveMessageDto,
@@ -595,7 +595,14 @@ export function createRoomOrchestrator(
     onAgentRetry(io: Server, interviewId: string, sessionId: string): void {
       if (closed) return;
       const state = getState(interviewId);
-      if (state.busy || !state.lastFailedTurn) return;
+      if (state.busy || !state.lastFailedTurn) {
+        // Client may have optimistically set «Думаю…»; do not leave it stuck.
+        emitThinking(io, interviewId, { active: false });
+        io.to(roomName(interviewId)).emit("room:agent-error", {
+          error: SAFE_LLM_ERROR_UK,
+        });
+        return;
+      }
       const failed = state.lastFailedTurn;
       state.lastFailedTurn = null;
       if (state.debounceTimer) {
