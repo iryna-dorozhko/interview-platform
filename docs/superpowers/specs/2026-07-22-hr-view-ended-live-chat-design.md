@@ -1,7 +1,7 @@
 # HR перегляд завершеного спільного чату — Design Spec
 
 **Дата:** 2026-07-22  
-**Статус:** Затверджено в brainstorming  
+**Статус:** Затверджено в brainstorming (оновлено: помітна кнопка на звіті)  
 **Контекст:** Після `ENDED` HR має зручно відкрити спільний live-чат з конкретним кандидатом лише для читання.  
 **Передумови:** Live room (`/interviews/:id/room`), `canAccessInterviewRoom` з `readOnly` для `ENDED`, сторінки `InterviewDetailView` і `ReportView`.  
 **Мова:** Українська (UI)
@@ -14,21 +14,20 @@ MVP уже має:
 
 - Спільний live-чат (HR, кандидат, Arbiter, Company AI, Candidate AI)
 - Socket.IO join для `ENDED` у режимі `readOnly` (історія повідомлень завантажується, відправка блокується)
-- Посилання на звіт зі списку співбесід і зі сторінки співбесіди
+- Посилання «Переглянути спільний чат» на `InterviewDetailView` і текстовий лінк на `ReportView`
 
-**Що відсутнє:**
+**Проблема:** на сторінці звіту лінк виглядає як звичайний текст і його легко пропустити.
 
-- Явне посилання «переглянути спільний чат» зі сторінки співбесіди та звіту після завершення
-
-**Мета:** HR зі сторінки співбесіди або звіту одним кліком відкриває завершений спільний чат у існуючій live-кімнаті (read-only).
+**Мета цього оновлення:** на `ReportView` зробити перехід у спільний чат помітною secondary-кнопкою «Переглянути співбесіду» під заголовком.
 
 **Поза scope:**
 
 - Доступ кандидата до перегляду чату з кабінету
-- Кнопка в списку співбесід
+- Зміни на `InterviewDetailView` (залишається поточне текстове посилання)
+- Кнопка в списку співбесід / списку звітів
 - Окремий REST transcript / новий API
-- Окремий route на кшталт `/interviews/:id/chat`
-- Додатковий polish UI кімнати під «режим архіву» (окремий банер, приховування agent sidebar тощо)
+- Окремий route на кшталт `/interviews/:id/chat` або `/transcript`
+- Polish UI кімнати під «режим архіву» (банер, приховування agent sidebar тощо)
 
 ---
 
@@ -37,22 +36,24 @@ MVP уже має:
 | Питання | Рішення |
 |---------|---------|
 | Хто переглядає | Лише HR |
-| Точки входу | Сторінка співбесіди + сторінка звіту |
-| Як показувати | Існуюча live-кімната read-only через Socket.IO |
-| Підхід | Посилання на `/interviews/:id/room` без нових backend-змін |
+| Точка входу (це оновлення) | Сторінка звіту під `h1` |
+| Візуал | Secondary-кнопка, не текстовий лінк |
+| Текст | «Переглянути співбесіду» |
+| Як показувати чат | Існуюча live-кімната read-only через Socket.IO |
+| Підхід | `RouterLink` на `/interviews/:id/room` без backend-змін |
 
 ---
 
 ## Підходи (розглянуті)
 
-### 1. Посилання + існуюча кімната — обрано
+### 1. Помітна secondary-кнопка + існуюча кімната — обрано
 
-`RouterLink` на detail і report → `interview-room`. Backend уже підтримує `ENDED` read-only.
+`RouterLink` під заголовком звіту зі стилями `btn-secondary` → `interview-room`. Backend уже підтримує `ENDED` read-only.
 
-**Плюси:** мінімальний scope, без нових API.  
+**Плюси:** мінімальний diff, поведінка вже є, кнопка помітна.  
 **Мінуси:** UX кімнати лишається «живим» (Socket.IO), хоча писати не можна.
 
-### 2. Те саме + polish UI кімнати — відхилено для MVP
+### 2. Кнопка + polish UI кімнати («Режим перегляду») — відхилено для цього кроку
 
 Чіткіший банер / приховування agent-noise для `ENDED`. Можна додати окремим кроком.
 
@@ -62,29 +63,30 @@ MVP уже має:
 
 ---
 
-## UI і точки входу
+## UI і точка входу
 
-### `InterviewDetailView` (`/interviews/:id`)
+### `ReportView` (`/report/:id`)
 
-Коли `interview.status === 'ENDED'`:
+Під заголовком «Звіт про співбесіду», перед блоком score / recommendation:
 
-- Показати посилання **«Переглянути спільний чат»** → `{ name: 'interview-room', params: { id: interview.id } }`
-- Якщо є `reportId` — зберегти існуюче «Переглянути повний звіт» без змін сенсу
+- `RouterLink` з класами secondary-кнопки (reuse наявних `.btn-secondary` на сторінці)
+- Текст: **«Переглянути співбесіду»**
+- Ціль: `{ name: 'interview-room', params: { id: report.interviewId } }`
+- Не використовувати programmatic `router.push` з `<button>` — зберегти семантику посилання (доступність, відкриття в новій вкладці)
 
-### `ReportView` (`/reports/:id`)
+Замінити поточний текстовий `.chat-link` / рядок `.chat-link-row` на цей button-look контрол. Стилі текстового лінка на звіті, якщо більше не використовуються — прибрати.
 
-- Показати посилання **«Переглянути спільний чат»** → `{ name: 'interview-room', params: { id: report.interviewId } }`
-- `interviewId` уже є в `FinalReport` / `GET /api/reports/:id`
+### `InterviewDetailView`
 
-Текст посилання однаковий на обох сторінках. Окремого copy/банера в кімнаті не додаємо.
+Без змін у цьому scope (залишається «Переглянути спільний чат» як зараз).
 
 ---
 
 ## Потік даних
 
 ```
-HR → InterviewDetailView або ReportView
-  → RouterLink → /interviews/:id/room
+HR → ReportView
+  → RouterLink (кнопка) → /interviews/:id/room
   → useInterviewRoom → room:join
   → room:messages (історія LiveMessage)
   → room:status ENDED → isReadOnly = true → ввід вимкнено
@@ -100,19 +102,19 @@ HR → InterviewDetailView або ReportView
 |----------|-----------|
 | Чужа співбесіда / немає доступу | Існуючий `room:error` |
 | Спроба надіслати повідомлення при `ENDED` | Існуюча відмова («Співбесіда завершена») |
-| Немає live-сесії / повідомлень | Порожній чат (існуюча поведінка `ensureLiveSession` + порожній список) |
+| Немає live-сесії / повідомлень | Порожній чат (існуюча поведінка) |
 
 ---
 
 ## Тестування
 
-- Backend: існуючі тести `canAccessInterviewRoom` / room для `ENDED` read-only — без змін у цьому scope
+- Backend: без змін
 - Frontend: ручна перевірка
-  1. Завершена співбесіда → detail → «Переглянути спільний чат» → історія видима, ввід disabled
-  2. Звіт цієї співбесіди → те саме посилання → та сама кімната
-  3. (Опційно) спроба send → помилка / блок
+  1. Відкрити звіт → під заголовком видно кнопку «Переглянути співбесіду» (не текстовий лінк)
+  2. Клік → кімната з історією, composer disabled
+  3. (Опційно) рішення ACCEPT/REJECT тощо на звіті лишаються без змін
 
-Автотести Vue для двох `RouterLink` не обов’язкові в MVP.
+Автотести Vue не обов’язкові в цьому scope.
 
 ---
 
@@ -120,7 +122,6 @@ HR → InterviewDetailView або ReportView
 
 | Файл | Зміна |
 |------|--------|
-| `frontend/src/views/InterviewDetailView.vue` | Посилання на room при `ENDED` |
-| `frontend/src/views/ReportView.vue` | Посилання на room за `report.interviewId` |
+| `frontend/src/views/ReportView.vue` | Текстовий лінк → secondary-кнопка «Переглянути співбесіду»; оновити/прибрати стилі `.chat-link*` |
 
-Backend / router / composable — без змін.
+Backend / router / composable / `InterviewDetailView` — без змін.
