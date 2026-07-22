@@ -287,6 +287,13 @@ onMounted(loadInterview);
         </RouterLink>
       </section>
 
+      <section v-if="interview.status === 'ENDED'" class="report-section">
+        <h2>Спільний чат</h2>
+        <RouterLink :to="{ name: 'interview-room', params: { id: interview.id } }">
+          Переглянути спільний чат
+        </RouterLink>
+      </section>
+
       <p v-if="interview.status === 'READY'" class="muted">
         Обидва профілі підтверджені. Спільна співбесіда буде доступна пізніше.
       </p>
