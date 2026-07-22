@@ -318,18 +318,20 @@ export function createRoomOrchestrator(
             stepsUsed += 1;
           } catch (error) {
             turnFailed = true;
-            emitAgentError(io, interviewId, "AGENT_ARBITER", error);
             console.error(
               "[orchestrator] AGENT_ARBITER turn failed:",
               error instanceof Error ? error.message : error,
             );
-            state.lastFailedTurn = {
-              agentType: "AGENT_ARBITER",
-              pendingQuestion: state.pendingQuestion,
-              stepsUsed,
-              companyPostedThisTurn,
-              candidatePostedThisTurn,
-            };
+            if (state.generation === capturedGeneration) {
+              emitAgentError(io, interviewId, "AGENT_ARBITER", error);
+              state.lastFailedTurn = {
+                agentType: "AGENT_ARBITER",
+                pendingQuestion: state.pendingQuestion,
+                stepsUsed,
+                companyPostedThisTurn,
+                candidatePostedThisTurn,
+              };
+            }
             break;
           }
 
@@ -411,19 +413,21 @@ export function createRoomOrchestrator(
             }
           } catch (error) {
             turnFailed = true;
-            emitAgentError(io, interviewId, "AGENT_COMPANY", error);
             console.error(
               "[orchestrator] AGENT_COMPANY turn failed:",
               error instanceof Error ? error.message : error,
             );
-            state.lastFailedTurn = {
-              agentType: "AGENT_COMPANY",
-              pendingQuestion: state.pendingQuestion,
-              command,
-              stepsUsed,
-              companyPostedThisTurn,
-              candidatePostedThisTurn,
-            };
+            if (state.generation === capturedGeneration) {
+              emitAgentError(io, interviewId, "AGENT_COMPANY", error);
+              state.lastFailedTurn = {
+                agentType: "AGENT_COMPANY",
+                pendingQuestion: state.pendingQuestion,
+                command,
+                stepsUsed,
+                companyPostedThisTurn,
+                candidatePostedThisTurn,
+              };
+            }
             break;
           }
           continue;
@@ -469,20 +473,22 @@ export function createRoomOrchestrator(
             }
           } catch (error) {
             turnFailed = true;
-            candidateStepFailed = true;
-            emitAgentError(io, interviewId, "AGENT_CANDIDATE", error);
             console.error(
               "[orchestrator] AGENT_CANDIDATE turn failed:",
               error instanceof Error ? error.message : error,
             );
-            state.lastFailedTurn = {
-              agentType: "AGENT_CANDIDATE",
-              pendingQuestion: state.pendingQuestion,
-              command,
-              stepsUsed,
-              companyPostedThisTurn,
-              candidatePostedThisTurn,
-            };
+            if (state.generation === capturedGeneration) {
+              candidateStepFailed = true;
+              emitAgentError(io, interviewId, "AGENT_CANDIDATE", error);
+              state.lastFailedTurn = {
+                agentType: "AGENT_CANDIDATE",
+                pendingQuestion: state.pendingQuestion,
+                command,
+                stepsUsed,
+                companyPostedThisTurn,
+                candidatePostedThisTurn,
+              };
+            }
             break;
           }
           continue;
@@ -495,24 +501,22 @@ export function createRoomOrchestrator(
         state.lastFailedTurn = null;
       }
     } finally {
-      state.busy = false;
-
       if (state.generation === capturedGeneration) {
+        state.busy = false;
         emitThinking(io, interviewId, { active: false });
-      }
 
-      if (
-        companyPostedThisTurn &&
-        !candidatePostedThisTurn &&
-        candidateStepFailed &&
-        state.generation === capturedGeneration &&
-        !state.candidateRecoveryTimer &&
-        !closed
-      ) {
-        state.candidateRecoveryTimer = setTimeout(() => {
-          state.candidateRecoveryTimer = null;
-          scheduleTurn(io, interviewId, sessionId);
-        }, 60_000);
+        if (
+          companyPostedThisTurn &&
+          !candidatePostedThisTurn &&
+          candidateStepFailed &&
+          !state.candidateRecoveryTimer &&
+          !closed
+        ) {
+          state.candidateRecoveryTimer = setTimeout(() => {
+            state.candidateRecoveryTimer = null;
+            scheduleTurn(io, interviewId, sessionId);
+          }, 60_000);
+        }
       }
     }
   }
@@ -534,6 +538,10 @@ export function createRoomOrchestrator(
     failed: LastFailedTurn,
   ): Promise<void> {
     const state = getState(interviewId);
+    if (state.candidateRecoveryTimer) {
+      clearTimeout(state.candidateRecoveryTimer);
+      state.candidateRecoveryTimer = null;
+    }
     state.pendingQuestion = failed.pendingQuestion;
     await runConductorLoop(io, interviewId, sessionId, capturedGeneration, {
       stepsUsed: failed.stepsUsed,
@@ -590,6 +598,14 @@ export function createRoomOrchestrator(
       if (state.busy || !state.lastFailedTurn) return;
       const failed = state.lastFailedTurn;
       state.lastFailedTurn = null;
+      if (state.debounceTimer) {
+        clearTimeout(state.debounceTimer);
+        state.debounceTimer = null;
+      }
+      if (state.candidateRecoveryTimer) {
+        clearTimeout(state.candidateRecoveryTimer);
+        state.candidateRecoveryTimer = null;
+      }
       state.generation += 1;
       const capturedGeneration = state.generation;
       void resumeFromFailedTurn(io, interviewId, sessionId, capturedGeneration, failed);

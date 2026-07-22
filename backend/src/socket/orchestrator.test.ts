@@ -798,3 +798,54 @@ test("orchestrator clears lastFailedTurn on new human message", async () => {
     "onAgentRetry must be no-op after human message cleared lastFailedTurn",
   );
 });
+
+test("orchestrator stale failure after generation bump must not restore lastFailedTurn", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterCalls = 0;
+  let rejectFirst: ((error: Error) => void) | null = null;
+  const firstHang = new Promise<never>((_, reject) => {
+    rejectFirst = reject;
+  });
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 0,
+    maxConductorSteps: 4,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        await firstHang;
+      }
+      return cmd({ action: "WAIT", summaryUk: "нове покоління" });
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(arbiterCalls, 1, "first turn must be awaiting arbiter");
+
+  // Bumps generation and clears lastFailedTurn while old turn is still in flight.
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(arbiterCalls, 2, "newer turn must start arbiter");
+
+  const errorsBeforeStale = emitted.filter((e) => e.event === "room:agent-error").length;
+  rejectFirst?.(new Error("stale superseded failure"));
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(
+    emitted.filter((e) => e.event === "room:agent-error").length,
+    errorsBeforeStale,
+    "superseded turn must not emit agent-error",
+  );
+
+  const callsBeforeRetry = arbiterCalls;
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(
+    arbiterCalls,
+    callsBeforeRetry,
+    "stale failure must not restore lastFailedTurn for retry",
+  );
+});
