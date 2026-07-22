@@ -600,3 +600,201 @@ test("orchestrator does not re-ANSWER after Candidate already posted this turn",
   assert.equal(candidateCalls, 1);
   assert.equal(arbiterN, 2);
 });
+
+test("orchestrator arbiter failure emits agent-error; onAgentRetry resumes arbiter", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 0,
+    maxConductorSteps: 4,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        throw new Error("ECONNRESET");
+      }
+      return cmd({ action: "WAIT", summaryUk: "Відновлено" });
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(arbiterCalls, 1);
+  const errors = emitted.filter((e) => e.event === "room:agent-error");
+  assert.equal(errors.length, 1);
+  assert.equal(
+    (errors[0].payload as { agentType: string; error: string }).agentType,
+    "AGENT_ARBITER",
+  );
+  assert.equal(
+    (errors[0].payload as { error: string }).error,
+    "AI тимчасово не відповів. Можна спробувати ще раз.",
+  );
+  const thinkingOff = emitted.filter(
+    (e) =>
+      e.event === "room:agent-thinking" &&
+      (e.payload as { active: boolean }).active === false,
+  );
+  assert.ok(thinkingOff.length >= 1);
+
+  emitted.length = 0;
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(arbiterCalls, 2);
+  const processEvents = emitted.filter((e) => e.event === "room:arbiter-process");
+  assert.ok(processEvents.some((e) => (e.payload as { action: string }).action === "WAIT"));
+});
+
+test("orchestrator company failure; onAgentRetry resumes company without re-running arbiter first", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterCalls = 0;
+  let companyCalls = 0;
+  let companyShouldFail = true;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 0,
+    maxConductorSteps: 6,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        return cmd({
+          action: "NEXT_QUESTION",
+          summaryUk: "Наступне питання",
+          briefUk: "Vue",
+        });
+      }
+      return cmd({ action: "WAIT", summaryUk: "Чекаємо" });
+    },
+    runCompanyLiveTurn: async () => {
+      companyCalls += 1;
+      if (companyShouldFail) {
+        throw new Error("company down");
+      }
+      return { post: true, message: "Розкажіть про Vue." };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(arbiterCalls, 1);
+  assert.equal(companyCalls, 1);
+  const errors = emitted.filter((e) => e.event === "room:agent-error");
+  assert.equal(errors.length, 1);
+  assert.equal(
+    (errors[0].payload as { agentType: string }).agentType,
+    "AGENT_COMPANY",
+  );
+
+  const arbiterBeforeRetry = arbiterCalls;
+  companyShouldFail = false;
+  emitted.length = 0;
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 60));
+
+  assert.equal(companyCalls, 2);
+  assert.ok(
+    arbiterCalls > arbiterBeforeRetry,
+    "after company succeeds, conductor continues to arbiter",
+  );
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.ok(
+    agentMessages.some(
+      (e) =>
+        (e.payload as { messages: Array<{ authorType: string; content: string }> })
+          .messages[0].authorType === "AGENT_COMPANY" &&
+        (e.payload as { messages: Array<{ content: string }> }).messages[0].content ===
+          "Розкажіть про Vue.",
+    ),
+  );
+});
+
+test("orchestrator onAgentRetry while busy does not double-invoke", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io } = makeIo();
+  let companyCalls = 0;
+  let failFirst = true;
+  let resolveCompany: ((value: { post: true; message: string }) => void) | null = null;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 0,
+    maxConductorSteps: 4,
+    runArbiterTurn: async () =>
+      cmd({
+        action: "NEXT_QUESTION",
+        summaryUk: "Питання",
+        briefUk: "Node",
+      }),
+    runCompanyLiveTurn: async () => {
+      companyCalls += 1;
+      if (failFirst) {
+        failFirst = false;
+        throw new Error("fail once");
+      }
+      return new Promise((resolve) => {
+        resolveCompany = () => resolve({ post: true, message: "Питання?" });
+      });
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(companyCalls, 1);
+
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(companyCalls, 2);
+
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(companyCalls, 2, "second retry while busy must be no-op");
+
+  resolveCompany?.({ post: true, message: "Питання?" });
+  await new Promise((r) => setTimeout(r, 40));
+});
+
+test("orchestrator clears lastFailedTurn on new human message", async () => {
+  const messages: LiveMessage[] = [];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  let arbiterCalls = 0;
+  let failNext = true;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 0,
+    maxConductorSteps: 4,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      if (failNext) {
+        failNext = false;
+        throw new Error("first fail");
+      }
+      return cmd({ action: "WAIT", summaryUk: "ok" });
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(arbiterCalls, 1);
+  assert.equal(emitted.filter((e) => e.event === "room:agent-error").length, 1);
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(arbiterCalls, 2);
+
+  const callsBeforeRetry = arbiterCalls;
+  orchestrator.onAgentRetry(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(
+    arbiterCalls,
+    callsBeforeRetry,
+    "onAgentRetry must be no-op after human message cleared lastFailedTurn",
+  );
+});
