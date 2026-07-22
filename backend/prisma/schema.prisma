@@ -385,14 +385,16 @@ model VacancyMatchScore {
 }
 
 model Dialog {
-  id              String          @id @default(cuid())
-  hrUserId        String
-  candidateUserId String
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  hrUser          User            @relation("HrDialogs", fields: [hrUserId], references: [id])
-  candidateUser   User            @relation("CandidateDialogs", fields: [candidateUserId], references: [id])
-  messages        DialogMessage[]
+  id                  String          @id @default(cuid())
+  hrUserId            String
+  candidateUserId     String
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  hrLastReadAt        DateTime?
+  candidateLastReadAt DateTime?
+  hrUser              User            @relation("HrDialogs", fields: [hrUserId], references: [id])
+  candidateUser       User            @relation("CandidateDialogs", fields: [candidateUserId], references: [id])
+  messages            DialogMessage[]
 
   @@unique([hrUserId, candidateUserId])
   @@index([hrUserId, updatedAt(sort: Desc)])
