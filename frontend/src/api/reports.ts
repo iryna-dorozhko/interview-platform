@@ -1,5 +1,13 @@
 import { fetchWithAuth } from "./client";
 
+export type InterviewDecisionType = "ACCEPT" | "REJECT" | "ADDITIONAL_MEETING";
+
+export type LatestDecision = {
+  id: string;
+  type: InterviewDecisionType;
+  createdAt: string;
+};
+
 export type FinalReport = {
   id: string;
   interviewId: string;
@@ -9,6 +17,7 @@ export type FinalReport = {
   strengths: string[];
   risks: string[];
   createdAt: string;
+  latestDecision: LatestDecision | null;
 };
 
 type ErrorBody = { error?: string; detail?: string };
@@ -68,4 +77,36 @@ export async function fetchReports(
   }
   const body = (await response.json()) as { reports: ReportSummary[] };
   return body.reports;
+}
+
+export async function draftDecisionLetter(
+  reportId: string,
+  type: InterviewDecisionType,
+): Promise<{ type: InterviewDecisionType; body: string }> {
+  const response = await fetchWithAuth(`/api/reports/${reportId}/decisions/draft`, {
+    method: "POST",
+    body: JSON.stringify({ type }),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося згенерувати лист");
+  }
+  return (await response.json()) as { type: InterviewDecisionType; body: string };
+}
+
+export async function sendDecision(
+  reportId: string,
+  type: InterviewDecisionType,
+  letterBody: string,
+): Promise<{ decision: LatestDecision; dialogId: string }> {
+  const response = await fetchWithAuth(`/api/reports/${reportId}/decisions`, {
+    method: "POST",
+    body: JSON.stringify({ type, letterBody }),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося надіслати рішення");
+  }
+  return (await response.json()) as {
+    decision: LatestDecision;
+    dialogId: string;
+  };
 }
