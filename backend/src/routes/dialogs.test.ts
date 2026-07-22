@@ -12,6 +12,8 @@ type FakeDialog = {
   candidateUserId: string;
   createdAt: Date;
   updatedAt: Date;
+  hrLastReadAt: Date | null;
+  candidateLastReadAt: Date | null;
 };
 
 type FakeDialogMessage = {
@@ -196,6 +198,8 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
           candidateUserId: data.candidateUserId,
           createdAt: now,
           updatedAt: now,
+          hrLastReadAt: null,
+          candidateLastReadAt: null,
         };
         dialogs.push(created);
         return created;
@@ -205,11 +209,19 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
         data,
       }: {
         where: { id: string };
-        data: { updatedAt?: Date };
+        data: {
+          updatedAt?: Date;
+          hrLastReadAt?: Date | null;
+          candidateLastReadAt?: Date | null;
+        };
       }) => {
         const dialog = dialogs.find((d) => d.id === where.id);
         if (!dialog) throw new Error("Dialog not found");
         if (data.updatedAt) dialog.updatedAt = data.updatedAt;
+        if (data.hrLastReadAt !== undefined) dialog.hrLastReadAt = data.hrLastReadAt;
+        if (data.candidateLastReadAt !== undefined) {
+          dialog.candidateLastReadAt = data.candidateLastReadAt;
+        }
         return dialog;
       },
     },
@@ -237,6 +249,29 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
         };
         messages.push(created);
         return created;
+      },
+      count: async ({
+        where,
+      }: {
+        where: {
+          dialogId: string;
+          senderUserId?: { not: string };
+          createdAt?: { gt: Date };
+        };
+      }) => {
+        return messages.filter((m) => {
+          if (m.dialogId !== where.dialogId) return false;
+          if (
+            where.senderUserId?.not != null &&
+            m.senderUserId === where.senderUserId.not
+          ) {
+            return false;
+          }
+          if (where.createdAt?.gt != null && !(m.createdAt > where.createdAt.gt)) {
+            return false;
+          }
+          return true;
+        }).length;
       },
     },
     interview: {
@@ -326,6 +361,8 @@ const baseDialog: FakeDialog = {
   candidateUserId: "cand_1",
   createdAt: new Date("2026-07-14T10:00:00.000Z"),
   updatedAt: new Date("2026-07-14T12:00:00.000Z"),
+  hrLastReadAt: null,
+  candidateLastReadAt: null,
 };
 
 const otherDialog: FakeDialog = {
@@ -334,6 +371,8 @@ const otherDialog: FakeDialog = {
   candidateUserId: "cand_2",
   createdAt: new Date("2026-07-14T11:00:00.000Z"),
   updatedAt: new Date("2026-07-14T13:00:00.000Z"),
+  hrLastReadAt: null,
+  candidateLastReadAt: null,
 };
 
 test("GET /dialogs lists only own dialogs for HR", async () => {
@@ -388,6 +427,101 @@ test("GET /dialogs lists only own dialogs for candidate", async () => {
     assert.equal(body.dialogs[0].id, "dlg_1");
     assert.deepEqual(body.dialogs[0].peer, { id: "hr_1", email: "hr@test.com" });
     assert.equal(body.dialogs[0].lastMessage, null);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /dialogs includes unreadCount for foreign messages only", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [baseDialog],
+    messages: [
+      {
+        id: "msg_own",
+        dialogId: "dlg_1",
+        senderUserId: "hr_1",
+        body: "from hr",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:00:00.000Z"),
+      },
+      {
+        id: "msg_1",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "hi",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:30:00.000Z"),
+      },
+      {
+        id: "msg_2",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "again",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:45:00.000Z"),
+      },
+    ],
+  });
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/dialogs`);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      dialogs: Array<{ id: string; unreadCount: number }>;
+    };
+    assert.equal(body.dialogs[0]?.unreadCount, 2);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /dialogs unreadCount respects hrLastReadAt cursor", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [
+      {
+        ...baseDialog,
+        hrLastReadAt: new Date("2026-07-14T11:40:00.000Z"),
+      },
+    ],
+    messages: [
+      {
+        id: "msg_old",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "old",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:30:00.000Z"),
+      },
+      {
+        id: "msg_new",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "new",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:50:00.000Z"),
+      },
+    ],
+  });
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/dialogs`);
+    const body = (await response.json()) as {
+      dialogs: Array<{ unreadCount: number }>;
+    };
+    assert.equal(body.dialogs[0]?.unreadCount, 1);
   } finally {
     server.close();
   }

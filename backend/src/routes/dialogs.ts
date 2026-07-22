@@ -15,6 +15,32 @@ function truncatePreview(body: string): string {
   return `${body.slice(0, PREVIEW_MAX)}…`;
 }
 
+function lastReadAtForUser(
+  dialog: {
+    hrUserId: string;
+    hrLastReadAt: Date | null;
+    candidateLastReadAt: Date | null;
+  },
+  userId: string,
+): Date | null {
+  return dialog.hrUserId === userId ? dialog.hrLastReadAt : dialog.candidateLastReadAt;
+}
+
+async function countUnreadMessages(
+  prisma: PrismaClient,
+  dialogId: string,
+  currentUserId: string,
+  lastReadAt: Date | null,
+): Promise<number> {
+  return prisma.dialogMessage.count({
+    where: {
+      dialogId,
+      senderUserId: { not: currentUserId },
+      ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+    },
+  });
+}
+
 async function isCandidateEligible(
   prisma: PrismaClient,
   hrUserId: string,
@@ -61,25 +87,34 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
     });
 
     res.status(200).json({
-      dialogs: dialogs.map((dialog) => {
-        const peer =
-          req.user!.role === "HR"
-            ? { id: dialog.candidateUser.id, email: dialog.candidateUser.email }
-            : { id: dialog.hrUser.id, email: dialog.hrUser.email };
-        const last = dialog.messages[0] ?? null;
-        return {
-          id: dialog.id,
-          peer,
-          lastMessage: last
-            ? {
-                body: truncatePreview(last.body),
-                createdAt: last.createdAt.toISOString(),
-                kind: last.kind,
-              }
-            : null,
-          updatedAt: dialog.updatedAt.toISOString(),
-        };
-      }),
+      dialogs: await Promise.all(
+        dialogs.map(async (dialog) => {
+          const peer =
+            req.user!.role === "HR"
+              ? { id: dialog.candidateUser.id, email: dialog.candidateUser.email }
+              : { id: dialog.hrUser.id, email: dialog.hrUser.email };
+          const last = dialog.messages[0] ?? null;
+          const unreadCount = await countUnreadMessages(
+            prisma,
+            dialog.id,
+            req.user!.id,
+            lastReadAtForUser(dialog, req.user!.id),
+          );
+          return {
+            id: dialog.id,
+            peer,
+            lastMessage: last
+              ? {
+                  body: truncatePreview(last.body),
+                  createdAt: last.createdAt.toISOString(),
+                  kind: last.kind,
+                }
+              : null,
+            updatedAt: dialog.updatedAt.toISOString(),
+            unreadCount,
+          };
+        }),
+      ),
     });
   });
 
