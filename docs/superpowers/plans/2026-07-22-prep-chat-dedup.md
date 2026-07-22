@@ -719,11 +719,127 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* Copy styles from CandidatePrepChat.vue (.chat-header through .btn-secondary:disabled) unchanged */
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 0.5rem;
+}
+.chat-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.chat-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.messages {
+  max-height: 24rem;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: #fafafa;
+  margin-bottom: 0.75rem;
+}
+.message {
+  margin-bottom: 0.75rem;
+  max-width: 85%;
+}
+.message.user {
+  margin-left: auto;
+  text-align: right;
+}
+.message.assistant {
+  margin-right: auto;
+  text-align: left;
+}
+.message-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+.message-text {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: inline-block;
+}
+.message.user .message-text {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.message.assistant .message-text {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+.thinking {
+  margin: 0;
+  color: #666;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+.error-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #fde8e8;
+  color: var(--danger);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.composer-input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+  resize: vertical;
+  min-height: 2.5rem;
+}
+.btn-primary,
+.btn-secondary {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: #fff;
+  color: #374151;
+  border-color: #d1d5db;
+}
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>
 ```
-
-(Paste the existing scoped CSS from `CandidatePrepChat.vue` into the `<style scoped>` block — do not invent new tokens.)
 
 - [ ] **Step 2: Rewrite `CandidatePrepChat.vue` as thin wrapper**
 
@@ -1017,7 +1133,7 @@ Important: `shouldAutoGreet` must read the `missingCompanyProfile` value set ins
 
 On delete when `missingCompanyProfile` is true, `shouldAutoGreet(() => !missingCompanyProfile.value)` returns false — no greeting (matches current behavior).
 
-Replace chat-view section with `PrepChatPanel` titled e.g. `"Чат з Company Agent"` (same title as currently in VacancyPrepView — copy exact string from the view).
+Replace chat-view section with `PrepChatPanel` with `title="Чат з Company Agent"`.
 
 Preserve the early UI for `missingCompanyProfile` (banner / CTA) that currently appears instead of chat — do not remove that branch; only replace the actual chat section.
 
