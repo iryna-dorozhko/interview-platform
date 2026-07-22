@@ -1,0 +1,88 @@
+{
+  "applications": [
+    {
+      "applicationId": "cmrt7akf4000ikxr9x1otmgwi",
+      "vacancyTitle": "Product Manager",
+      "status": "CONVERTED",
+      "steps": [],
+      "skipped": true,
+      "reason": "already has report",
+      "interviewId": "cmrt7kk9s000kkxr922mv0srv",
+      "reportId": "cmrt7qahd0010kxr9q83ydjw9"
+    },
+    {
+      "applicationId": "cmrt798sq000ckxr9llb50a46",
+      "vacancyTitle": "DevOps Engineer",
+      "status": "CONVERTED",
+      "steps": [],
+      "skipped": true,
+      "reason": "already has report",
+      "interviewId": "cmrt7qaid0011kxr9ig9s7ird",
+      "reportId": "cmrt7vvd4001gkxr9u15ybdbp"
+    },
+    {
+      "applicationId": "cmrt78apr0005kxr9jk7zvrve",
+      "vacancyTitle": "QA Engineer",
+      "status": "CONVERTED",
+      "steps": [
+        {
+          "step": "live-skipped",
+          "reason": "already LIVE"
+        }
+      ],
+      "candidateEmail": "qa@test.com",
+      "interviewId": "cmrt7vve2001hkxr9htf9g2ph",
+      "report": {
+        "recommendation": "MAYBE",
+        "matchScore": 62
+      },
+      "finalStatus": "ENDED",
+      "reportId": "cmrt84vdn001vkxr9v7p1n86n"
+    },
+    {
+      "applicationId": "cmrt3js9i007ecbr9ecyxu4lm",
+      "vacancyTitle": "Senior Frontend Developer (React)",
+      "status": "CONVERTED",
+      "steps": [
+        {
+          "step": "live",
+          "byType": {
+            "AGENT_ARBITER": 2,
+            "AGENT_COMPANY": 1,
+            "AGENT_CANDIDATE": 3,
+            "HUMAN_HR": 3,
+            "HUMAN_CANDIDATE": 2
+          },
+          "messageCount": 11
+        }
+      ],
+      "candidateEmail": "frontend@test.com",
+      "interviewId": "cmrt3k3s1007gcbr948zysflp",
+      "report": {
+        "recommendation": "MAYBE",
+        "matchScore": 42
+      },
+      "finalStatus": "ENDED",
+      "reportId": "cmrt8cb4k0028kxr9t1in2zud"
+    },
+    {
+      "applicationId": "cmrt288040063cbr9hpqjolr9",
+      "vacancyTitle": "Middle Backend Developer",
+      "status": "CONVERTED",
+      "steps": [],
+      "skipped": true,
+      "reason": "already has report",
+      "interviewId": "cmrt28ppr0065cbr93gkyg0qt",
+      "reportId": "cmrt39pwg0078cbr9e0wfr608"
+    }
+  ],
+  "ok": true,
+  "durationMs": 379192,
+  "summary": {
+    "total": 5,
+    "processed": 2,
+    "skipped": 3,
+    "failed": 0,
+    "withReport": 2
+  }
+}
