@@ -6,6 +6,7 @@ import {
   fetchDialogs,
   type DialogListItem,
 } from "../api/dialogs";
+import { formatUnreadBadge } from "../composables/useDialogUnread";
 import {
   fetchHrApplication,
   fetchHrApplications,
@@ -161,10 +162,20 @@ onMounted(loadDialogs);
     <p v-else-if="dialogs.length === 0" class="muted">Поки немає діалогів</p>
     <ul v-else class="rows" role="list">
       <li v-for="dialog in dialogs" :key="dialog.id">
-        <button type="button" class="row" @click="openDialog(dialog.id)">
+        <button
+          type="button"
+          class="row"
+          :class="{ unread: dialog.unreadCount > 0 }"
+          @click="openDialog(dialog.id)"
+        >
           <span class="peer">{{ dialog.peer.email }}</span>
           <span class="preview">{{ previewText(dialog) }}</span>
-          <span class="time">{{ formatDate(dialog.updatedAt) }}</span>
+          <span class="meta">
+            <span v-if="dialog.unreadCount > 0" class="row-badge">{{
+              formatUnreadBadge(dialog.unreadCount)
+            }}</span>
+            <span class="time">{{ formatDate(dialog.updatedAt) }}</span>
+          </span>
         </button>
       </li>
     </ul>
@@ -260,6 +271,9 @@ h1 {
 .row:hover {
   background: var(--surface-muted);
 }
+.row.unread .peer {
+  font-weight: 700;
+}
 .peer {
   font-weight: 600;
   overflow: hidden;
@@ -271,6 +285,24 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.row-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 .time {
   color: var(--muted);

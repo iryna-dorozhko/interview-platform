@@ -8,6 +8,7 @@ import {
   type DialogMessage,
   type InterviewDecisionType,
 } from "../api/dialogs";
+import { useDialogUnread } from "../composables/useDialogUnread";
 import { useAuthStore } from "../stores/auth";
 
 type LoadState = "loading" | "ready" | "error";
@@ -20,6 +21,7 @@ const DECISION_BADGES: Record<InterviewDecisionType, string> = {
 
 const route = useRoute();
 const auth = useAuthStore();
+const { markRead } = useDialogUnread();
 
 const isCandidate = computed(() => route.path.startsWith("/candidate"));
 const basePath = computed(() =>
@@ -85,6 +87,11 @@ async function loadThread(): Promise<void> {
     messages.value = thread.messages;
     await resolvePeerLabel(id);
     loadState.value = "ready";
+    try {
+      await markRead(id);
+    } catch {
+      // leave unread badge until next successful mark/poll
+    }
   } catch (error) {
     loadState.value = "error";
     loadError.value =
