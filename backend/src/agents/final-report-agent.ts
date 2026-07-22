@@ -199,6 +199,7 @@ export function buildFinalReportMessages(input: {
   transcript: string;
   companyProfile: unknown;
   candidateProfile: unknown;
+  requirements: VacancyRequirements;
 }): ChatMessage[] {
   const userContent = [
     "=== СТЕНОГРАМА ===",
@@ -209,6 +210,9 @@ export function buildFinalReportMessages(input: {
     "",
     "=== ПРОФІЛЬ КАНДИДАТА (JSON) ===",
     JSON.stringify(input.candidateProfile, null, 2),
+    "",
+    "=== ВИМОГИ ВАКАНСІЇ (critical / desired) ===",
+    JSON.stringify(input.requirements, null, 2),
   ].join("\n");
 
   return [

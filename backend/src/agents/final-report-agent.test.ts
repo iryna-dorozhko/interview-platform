@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildFinalReportMessages,
   FinalReportExtractionError,
   formatLiveTranscript,
   parseFinalReport,
@@ -233,6 +234,22 @@ test("parseFinalReport rejects contextFit out of range", () => {
     () => parseFinalReport(sampleReportJson({ contextFit: 101 }), sampleRequirements),
     FinalReportExtractionError,
   );
+});
+
+test("buildFinalReportMessages includes explicit critical/desired requirements block", () => {
+  const messages = buildFinalReportMessages({
+    transcript: "[HR] hi",
+    companyProfile: { role: "Backend" },
+    candidateProfile: { summary: "Dev" },
+    requirements: { critical: ["TypeScript"], desired: ["K8s"] },
+  });
+  const user = messages.find((m) => m.role === "user");
+  assert.ok(user);
+  assert.match(user.content, /=== ВИМОГИ ВАКАНСІЇ/);
+  assert.match(user.content, /critical/);
+  assert.match(user.content, /TypeScript/);
+  assert.match(user.content, /desired/);
+  assert.match(user.content, /K8s/);
 });
 
 test("FINAL_REPORT_SYSTEM_PROMPT_UK requires assessments and contextFit without matchScore", () => {
