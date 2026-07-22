@@ -38,6 +38,13 @@ function isHomeActive(): boolean {
     >
       Співбесіда
     </RouterLink>
+    <RouterLink
+      to="/candidate/dialogs"
+      class="nav-item"
+      :class="{ active: isActive('/candidate/dialogs') }"
+    >
+      Діалоги
+    </RouterLink>
   </nav>
 </template>
 

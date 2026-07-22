@@ -176,6 +176,7 @@ function mapInterviewListItem(item: InterviewWithRelations) {
     scheduledAt: item.scheduledAt?.toISOString() ?? null,
     invitation: serializeInvitation(pendingInvitation),
     candidateLinked: item.candidateUserId != null,
+    candidateUserId: item.candidateUserId ?? null,
     reportSummary: item.finalReport?.recommendation ?? null,
     reportId: item.finalReport?.id ?? null,
   };
@@ -194,6 +195,7 @@ function mapInterviewDetail(item: InterviewWithRelations) {
     scheduledAt: item.scheduledAt?.toISOString() ?? null,
     invitation: serializeInvitation(pendingInvitation),
     candidateLinked: item.candidateUserId != null,
+    candidateUserId: item.candidateUserId ?? null,
     reportSummary: item.finalReport?.recommendation ?? null,
     reportId: item.finalReport?.id ?? null,
   };

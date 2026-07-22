@@ -17,6 +17,7 @@ export type InterviewSummary = {
   scheduledAt: string | null;
   invitation: InterviewInvitation | null;
   candidateLinked: boolean;
+  candidateUserId: string | null;
   reportId: string | null;
   reportSummary: string | null;
 };
