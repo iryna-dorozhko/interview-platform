@@ -176,10 +176,13 @@ export function createCandidateMatchesRouter(
 
       let matchBreakdown: MatchBreakdown | unknown = offer.breakdown;
       if (matchBreakdown == null) {
-        const scoreRow = await prisma.vacancyMatchScore.findUnique({
+        const scoreRow = await prisma.vacancyMatchScore.findFirst({
           where: {
-            candidateUserId_vacancyId: { candidateUserId, vacancyId },
+            candidateUserId,
+            vacancyId,
+            rankedForConfirmedAt: profile.confirmedAt,
           },
+          orderBy: { createdAt: "desc" },
         });
         matchBreakdown = scoreRow?.breakdown ?? {};
       }

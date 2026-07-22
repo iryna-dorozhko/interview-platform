@@ -195,19 +195,26 @@ function makeFakePrisma(seed: {
               ? vacancies.find((vacancy) => vacancy.id === item.vacancyId) ?? null
               : undefined,
           })),
-      findUnique: async ({
+      findFirst: async ({
         where,
       }: {
-        where: { candidateUserId_vacancyId: { candidateUserId: string; vacancyId: string } };
-      }) => {
-        const key = where.candidateUserId_vacancyId;
-        return (
-          matchScores.find(
-            (item) =>
-              item.candidateUserId === key.candidateUserId && item.vacancyId === key.vacancyId,
-          ) ?? null
-        );
-      },
+        where: {
+          candidateUserId: string;
+          vacancyId: string;
+          rankedForConfirmedAt?: Date;
+        };
+      }) =>
+        matchScores.find((item) => {
+          if (item.candidateUserId !== where.candidateUserId) return false;
+          if (item.vacancyId !== where.vacancyId) return false;
+          if (
+            where.rankedForConfirmedAt != null &&
+            !sameInstant(item.rankedForConfirmedAt, where.rankedForConfirmedAt)
+          ) {
+            return false;
+          }
+          return true;
+        }) ?? null,
       createMany: async ({
         data,
       }: {

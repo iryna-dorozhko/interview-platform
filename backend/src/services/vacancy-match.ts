@@ -53,10 +53,10 @@ export function sortScoresDesc<T extends { matchScore: number }>(items: T[]): T[
   return [...items].sort((a, b) => b.matchScore - a.matchScore);
 }
 
-export function pickNextOffer(
-  scores: CandidateMatchOffer[],
+export function pickNextOffer<T extends { vacancyId: string; matchScore: number }>(
+  scores: T[],
   rejectedVacancyIds: Set<string>,
-): CandidateMatchOffer | null {
+): T | null {
   const ordered = sortScoresDesc(scores);
   for (const item of ordered) {
     if (!rejectedVacancyIds.has(item.vacancyId)) return item;
@@ -64,13 +64,13 @@ export function pickNextOffer(
   return null;
 }
 
-export function pickTopOffers(
-  scores: CandidateMatchOffer[],
+export function pickTopOffers<T extends { vacancyId: string; matchScore: number }>(
+  scores: T[],
   rejectedVacancyIds: Set<string>,
   limit = 5,
-): CandidateMatchOffer[] {
+): T[] {
   const ordered = sortScoresDesc(scores);
-  const result: CandidateMatchOffer[] = [];
+  const result: T[] = [];
   for (const item of ordered) {
     if (rejectedVacancyIds.has(item.vacancyId)) continue;
     result.push(item);
@@ -210,7 +210,7 @@ function toOffersFromCachedScores(
   scores: Array<{
     vacancyId: string;
     matchScore: number;
-    breakdown?: MatchBreakdown | null;
+    breakdown?: unknown;
     vacancy: { title: string } | null;
   }>,
 ): OfferBase[] {
