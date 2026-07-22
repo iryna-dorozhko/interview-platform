@@ -13,6 +13,7 @@ import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME, isSelfServiceQuestionnaire } f
 import { generateJoinCode } from "../utils/joinCode";
 import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
 import { assertInviteableEmail, cancelPendingInvitations } from "../utils/invitation";
+import { normalizeVacancyRequirements } from "../utils/vacancy-requirements";
 
 const MAX_CREATE_ATTEMPTS = 5;
 const EDITABLE_STATUSES = new Set(["AWAITING_CANDIDATE", "READY"]);
@@ -523,6 +524,12 @@ export function createInterviewsRouter(
       return;
     }
 
+    const requirements =
+      normalizeVacancyRequirements(companyProfile.requirements) ?? {
+        critical: [],
+        desired: [],
+      };
+
     const llmMessages = buildFinalReportMessages({
       transcript: formatLiveTranscript(
         messages.map((m) => ({
@@ -533,6 +540,7 @@ export function createInterviewsRouter(
       ),
       companyProfile,
       candidateProfile,
+      requirements,
     });
 
     let provider: LlmProvider;
@@ -565,7 +573,7 @@ export function createInterviewsRouter(
 
     let extracted;
     try {
-      extracted = parseFinalReport(rawReply);
+      extracted = parseFinalReport(rawReply, requirements);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[interviews:end] failed to parse final report:", detail);
