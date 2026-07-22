@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   confirmCompanyPrepProfile,
@@ -8,36 +8,81 @@ import {
   finishCompanyPrepChat,
   sendCompanyPrepMessage,
   updateCompanyPrepProfile,
-  type CompanyPrepMessage,
   type HrCompanyProfile,
 } from "../api/company-prep";
+import { usePrepChat } from "../composables/usePrepChat";
+import PrepChatPanel from "../components/PrepChatPanel.vue";
 
 const router = useRouter();
 
-const loadState = ref<"loading" | "ready" | "error">("loading");
-const errorMessage = ref<string | null>(null);
-
-const messages = ref<CompanyPrepMessage[]>([]);
-const isClosed = ref(false);
-const profile = ref<HrCompanyProfile | null>(null);
 const editableProfile = ref<HrCompanyProfile | null>(null);
 const viewingHistory = ref(false);
-
-const input = ref("");
-const sending = ref(false);
 const saving = ref(false);
 const confirming = ref(false);
-const lastReadyForConfirmation = ref(false);
-const messagesEl = ref<HTMLElement | null>(null);
-
-type FailedAction = "greeting" | "message" | "finish";
-const lastFailedAction = ref<FailedAction | null>(null);
 
 type ArrayField = "culture" | "companyDirection" | "policies" | "workFormat" | "onboardingApproach";
+
+const chat = usePrepChat<HrCompanyProfile>({
+  adapters: {
+    loadState: async () => {
+      const state = await fetchCompanyPrepState();
+      return {
+        messages: state.messages,
+        isClosed: state.isClosed,
+        profile: state.profile,
+      };
+    },
+    sendMessage: (text) => sendCompanyPrepMessage(text),
+    finishChat: () => finishCompanyPrepChat(),
+    deleteChat: () => deleteCompanyPrepChat(),
+    isUserMessage: (msg) => msg.authorType === "HUMAN_HR",
+    humanAuthorType: "HUMAN_HR",
+    agentAuthorType: "AGENT_COMPANY",
+  },
+  onAfterLoad: (state) => {
+    syncEditableProfile(state.profile);
+    viewingHistory.value = false;
+  },
+  onFinished: () => {
+    syncEditableProfile(chat.profile.value);
+    viewingHistory.value = false;
+  },
+  onDeleted: () => {
+    syncEditableProfile(null);
+    viewingHistory.value = false;
+  },
+});
+
+const {
+  loadState,
+  errorMessage,
+  messages,
+  isClosed,
+  profile,
+  input,
+  sending,
+  lastFailedAction,
+  messagesEl,
+  load,
+  send,
+  retry,
+  finish,
+  deleteChat,
+  onKeydown,
+  isUserMessage,
+} = chat;
 
 function syncEditableProfile(next: HrCompanyProfile | null): void {
   profile.value = next;
   editableProfile.value = next ? { ...next } : null;
+}
+
+function setMessagesEl(el: HTMLElement | null): void {
+  messagesEl.value = el;
+}
+
+function setInput(value: string): void {
+  input.value = value;
 }
 
 function textToArray(text: string): string[] {
@@ -61,165 +106,6 @@ function onCompanyNameInput(event: Event): void {
   if (!editableProfile.value) return;
   const target = event.target as HTMLInputElement;
   editableProfile.value.companyName = target.value;
-}
-
-async function scrollToBottom(): Promise<void> {
-  await nextTick();
-  const el = messagesEl.value;
-  if (el) el.scrollTop = el.scrollHeight;
-}
-
-async function loadPrepState(): Promise<void> {
-  loadState.value = "loading";
-  errorMessage.value = null;
-  try {
-    const state = await fetchCompanyPrepState();
-    messages.value = state.messages;
-    isClosed.value = state.isClosed;
-    syncEditableProfile(state.profile);
-    viewingHistory.value = false;
-    loadState.value = "ready";
-
-    if (!state.isClosed && state.messages.length === 0) {
-      await triggerGreeting();
-    }
-  } catch (error) {
-    loadState.value = "error";
-    errorMessage.value = error instanceof Error ? error.message : "Не вдалося завантажити анкету";
-  }
-}
-
-async function triggerGreeting(): Promise<void> {
-  sending.value = true;
-  try {
-    const response = await sendCompanyPrepMessage();
-    messages.value.push({
-      id: `local_${Date.now()}`,
-      authorType: "AGENT_COMPANY",
-      content: response.message,
-      createdAt: new Date().toISOString(),
-    });
-    lastReadyForConfirmation.value = response.readyForConfirmation;
-    lastFailedAction.value = null;
-    await scrollToBottom();
-  } catch (error) {
-    lastFailedAction.value = "greeting";
-    errorMessage.value = error instanceof Error ? error.message : "Не вдалося отримати відповідь агента";
-  } finally {
-    sending.value = false;
-  }
-}
-
-async function sendMessage(): Promise<void> {
-  const text = input.value.trim();
-  if (!text || sending.value) return;
-
-  errorMessage.value = null;
-  lastFailedAction.value = null;
-  input.value = "";
-  messages.value.push({
-    id: `local_${Date.now()}`,
-    authorType: "HUMAN_HR",
-    content: text,
-    createdAt: new Date().toISOString(),
-  });
-  await scrollToBottom();
-
-  sending.value = true;
-  try {
-    const response = await sendCompanyPrepMessage(text);
-    messages.value.push({
-      id: `local_${Date.now()}_reply`,
-      authorType: "AGENT_COMPANY",
-      content: response.message,
-      createdAt: new Date().toISOString(),
-    });
-    lastReadyForConfirmation.value = response.readyForConfirmation;
-    lastFailedAction.value = null;
-    await scrollToBottom();
-  } catch (error) {
-    lastFailedAction.value = "message";
-    errorMessage.value = error instanceof Error ? error.message : "Не вдалося отримати відповідь агента";
-  } finally {
-    sending.value = false;
-  }
-}
-
-async function retryLastFailed(): Promise<void> {
-  if (!lastFailedAction.value || sending.value) return;
-  const action = lastFailedAction.value;
-  errorMessage.value = null;
-  sending.value = true;
-  try {
-    if (action === "finish") {
-      const result = await finishCompanyPrepChat();
-      syncEditableProfile(result.profile);
-      isClosed.value = true;
-      viewingHistory.value = false;
-    } else {
-      const response = await sendCompanyPrepMessage();
-      messages.value.push({
-        id: `local_${Date.now()}_reply`,
-        authorType: "AGENT_COMPANY",
-        content: response.message,
-        createdAt: new Date().toISOString(),
-      });
-      lastReadyForConfirmation.value = response.readyForConfirmation;
-      await scrollToBottom();
-    }
-    lastFailedAction.value = null;
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : "Не вдалося отримати відповідь агента";
-  } finally {
-    sending.value = false;
-  }
-}
-
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    void sendMessage();
-  }
-}
-
-async function onDeleteChat(): Promise<void> {
-  if (!window.confirm("Видалити всю історію чату? Цю дію не можна скасувати.")) return;
-
-  errorMessage.value = null;
-  try {
-    await deleteCompanyPrepChat();
-    messages.value = [];
-    isClosed.value = false;
-    syncEditableProfile(null);
-    viewingHistory.value = false;
-    lastReadyForConfirmation.value = false;
-    await triggerGreeting();
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "Не вдалося видалити чат";
-  }
-}
-
-async function onFinishChat(): Promise<void> {
-  if (!lastReadyForConfirmation.value) {
-    const proceed = window.confirm("Даних може бути недостатньо. Все одно завершити й сформувати профіль?");
-    if (!proceed) return;
-  }
-
-  errorMessage.value = null;
-  sending.value = true;
-  try {
-    const response = await finishCompanyPrepChat();
-    syncEditableProfile(response.profile);
-    isClosed.value = true;
-    viewingHistory.value = false;
-    lastFailedAction.value = null;
-  } catch (error) {
-    lastFailedAction.value = "finish";
-    errorMessage.value = error instanceof Error ? error.message : "Не вдалося завершити чат";
-  } finally {
-    sending.value = false;
-  }
 }
 
 async function onSaveProfileEdits(): Promise<void> {
@@ -276,7 +162,9 @@ function goHome(): void {
   router.push({ name: "vacancies" });
 }
 
-onMounted(loadPrepState);
+onMounted(() => {
+  void load();
+});
 </script>
 
 <template>
@@ -383,7 +271,7 @@ onMounted(loadPrepState);
             class="btn-secondary"
             :disabled="!!profile.confirmedAt"
             :title="profile.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
-            @click="onDeleteChat"
+            @click="deleteChat"
           >
             Видалити чат
           </button>
@@ -408,67 +296,43 @@ onMounted(loadPrepState);
         </div>
       </section>
 
-      <section v-else class="chat-view">
-        <div class="chat-header">
-          <h2>Чат з Company Agent</h2>
-          <div class="chat-actions">
-            <button type="button" class="btn-secondary" :disabled="sending" @click="onDeleteChat">
-              Видалити чат
-            </button>
-            <button
-              v-if="!isClosed"
-              type="button"
-              class="btn-primary"
-              :disabled="sending"
-              @click="onFinishChat"
-            >
-              Завершити чат
-            </button>
-            <button v-else type="button" class="btn-secondary" @click="backToProfile">
-              Показати профіль
-            </button>
-          </div>
-        </div>
-
-        <div ref="messagesEl" class="messages" role="log" aria-live="polite">
-          <div
-            v-for="message in messages"
-            :key="message.id"
-            class="message"
-            :class="message.authorType === 'HUMAN_HR' ? 'user' : 'assistant'"
-          >
-            <span class="message-label">{{ message.authorType === "HUMAN_HR" ? "Ви" : "Агент" }}</span>
-            <p class="message-text">{{ message.content }}</p>
-          </div>
-          <p v-if="sending" class="thinking">Думаю…</p>
-        </div>
-
-        <p v-if="errorMessage" class="error-banner" role="alert">
-          {{ errorMessage }}
+      <PrepChatPanel
+        v-else
+        title="Чат з Company Agent"
+        :load-state="loadState"
+        :messages="messages"
+        :sending="sending"
+        :is-closed="isClosed"
+        :input="input"
+        :error-message="errorMessage"
+        :last-failed-action="lastFailedAction"
+        :is-user-message="isUserMessage"
+        :set-messages-el="setMessagesEl"
+        @update:input="setInput"
+        @send="send"
+        @retry="retry"
+        @finish="finish"
+        @delete="deleteChat"
+        @keydown="onKeydown"
+      >
+        <template #actions>
+          <button type="button" class="btn-secondary" :disabled="sending" @click="deleteChat">
+            Видалити чат
+          </button>
           <button
+            v-if="!isClosed"
             type="button"
-            class="btn-secondary"
-            :disabled="sending || !lastFailedAction"
-            @click="retryLastFailed"
-          >
-            Спробувати ще раз
-          </button>
-        </p>
-
-        <form v-if="!isClosed" class="composer" @submit.prevent="sendMessage">
-          <textarea
-            v-model="input"
-            class="composer-input"
-            rows="2"
-            placeholder="Напишіть відповідь…"
+            class="btn-primary"
             :disabled="sending"
-            @keydown="onKeydown"
-          />
-          <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">
-            Надіслати
+            @click="finish"
+          >
+            Завершити чат
           </button>
-        </form>
-      </section>
+          <button v-else type="button" class="btn-secondary" @click="backToProfile">
+            Показати профіль
+          </button>
+        </template>
+      </PrepChatPanel>
     </template>
   </main>
 </template>
@@ -495,67 +359,6 @@ onMounted(loadPrepState);
   color: var(--muted, #6b7280);
   line-height: 1.45;
 }
-.chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  gap: 0.5rem;
-}
-.chat-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.messages {
-  max-height: calc(100vh - 14rem);
-  min-height: 20rem;
-  overflow-y: auto;
-  border: 1px solid #eee;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  background: #fafafa;
-  margin-bottom: 0.75rem;
-}
-.message {
-  margin-bottom: 0.75rem;
-  max-width: 85%;
-}
-.message.user {
-  margin-left: auto;
-  text-align: right;
-}
-.message.assistant {
-  margin-right: auto;
-  text-align: left;
-}
-.message-label {
-  display: block;
-  font-size: 0.75rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-.message-text {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  display: inline-block;
-}
-.message.user .message-text {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.message.assistant .message-text {
-  background: #e5e7eb;
-  color: #1f2937;
-}
-.thinking {
-  margin: 0;
-  color: #666;
-  font-size: 0.875rem;
-  font-style: italic;
-}
 .error-banner {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -567,21 +370,6 @@ onMounted(loadPrepState);
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-}
-.composer {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-end;
-}
-.composer-input {
-  flex: 1;
-  font-family: inherit;
-  font-size: 1rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 0.375rem;
-  resize: vertical;
-  min-height: 2.5rem;
 }
 .btn-primary,
 .btn-secondary {
