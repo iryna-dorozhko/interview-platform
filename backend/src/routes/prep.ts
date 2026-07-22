@@ -14,6 +14,22 @@ import {
   normalizeVacancyRequirements,
 } from "../utils/vacancy-requirements";
 
+const BLOCKING_INTERVIEW_STATUSES = ["READY", "LIVE"] as const;
+
+export async function vacancyHasBlockingInterviews(
+  prisma: PrismaClient,
+  vacancyId: string
+): Promise<boolean> {
+  const found = await prisma.interview.findFirst({
+    where: {
+      vacancyId,
+      status: { in: [...BLOCKING_INTERVIEW_STATUSES] },
+    },
+    select: { id: true },
+  });
+  return found != null;
+}
+
 type MessageBody = {
   message?: unknown;
 };
@@ -168,6 +184,8 @@ export function createPrepRouter(
       return;
     }
 
+    const canEditProfile = !(await vacancyHasBlockingInterviews(prisma, vacancyId));
+
     const hrCompanyProfile = await prisma.hrCompanyProfile.findUnique({
       where: { hrUserId: req.user!.id },
     });
@@ -175,7 +193,13 @@ export function createPrepRouter(
 
     const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId } });
     if (!session) {
-      res.status(200).json({ messages: [], isClosed: false, profile: null, missingCompanyProfile });
+      res.status(200).json({
+        messages: [],
+        isClosed: false,
+        profile: null,
+        missingCompanyProfile,
+        canEditProfile,
+      });
       return;
     }
 
@@ -198,6 +222,7 @@ export function createPrepRouter(
       isClosed: session.isClosed,
       profile: profile ? serializeVacancyProfile(profile) : null,
       missingCompanyProfile,
+      canEditProfile,
     });
   });
 
