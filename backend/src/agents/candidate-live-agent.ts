@@ -1,4 +1,5 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import { withLlmRetry } from "../llm/retry";
 import type { ChatMessage, LlmProvider } from "../llm/types";
 import { AgentPostReplyParseError } from "./agent-post-reply";
 import type { LiveAgentTurnContext } from "./live-agent-turn-context";
@@ -250,10 +251,11 @@ export async function runCandidateLiveTurn(
     turnContext,
   });
 
-  const rawReply = await provider.complete(llmMessages);
-
   const requireConfidence =
     turnContext?.action === "ANSWER" || turnContext?.action === undefined;
 
-  return parseCandidateLiveReply(rawReply, { requireConfidence });
+  return withLlmRetry(async () => {
+    const rawReply = await provider.complete(llmMessages);
+    return parseCandidateLiveReply(rawReply, { requireConfidence });
+  }, { label: "candidate-live" });
 }

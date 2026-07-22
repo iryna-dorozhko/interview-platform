@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import { LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 import {
   ANSWER_NUDGE_UK,
   buildCandidateLiveMessages,
   CANDIDATE_QUESTIONS_NUDGE_UK,
+  CandidateLiveContextError,
   CandidateLiveReplyParseError,
   collectRecentInterviewerQuestions,
   COMPANY_QUESTION_NUDGE_UK,
@@ -266,4 +268,68 @@ test("runCandidateLiveTurn loads profile, calls LLM, parses reply", async () => 
   assert.equal(result.message, "Кандидат має 5 років досвіду.");
   assert.equal(result.confidence, "confirmed");
   assert.equal(result.needsHuman, false);
+});
+
+test("runCandidateLiveTurn throws when interview is missing without calling LLM", async () => {
+  let completeCalls = 0;
+  const prisma = {
+    interview: {
+      findUnique: async () => null,
+    },
+  } as unknown as PrismaClient;
+
+  const provider: LlmProvider = {
+    name: "test",
+    complete: async () => {
+      completeCalls += 1;
+      return "";
+    },
+  };
+
+  await assert.rejects(
+    () => runCandidateLiveTurn(prisma, "interview_1", "session_1", provider),
+    (err: unknown) => {
+      assert.ok(err instanceof CandidateLiveContextError);
+      return true;
+    },
+  );
+  assert.equal(completeCalls, 0);
+});
+
+test("runCandidateLiveTurn retries transient LLM failure then succeeds", async () => {
+  let completeCalls = 0;
+  const prisma = {
+    interview: {
+      findUnique: async () => ({
+        candidateProfile: {
+          summary: candidateProfile.summary,
+          experience: candidateProfile.experience,
+          skills: candidateProfile.skills,
+          goals: candidateProfile.goals,
+        },
+      }),
+    },
+    liveMessage: {
+      findMany: async () => [],
+    },
+  } as unknown as PrismaClient;
+
+  const provider: LlmProvider = {
+    name: "test",
+    complete: async () => {
+      completeCalls += 1;
+      if (completeCalls === 1) {
+        throw new LlmUnavailableError("temporary outage");
+      }
+      return '{ "post": true, "message": "Кандидат готовий.", "confidence": "confirmed" }';
+    },
+  };
+
+  const result = await runCandidateLiveTurn(prisma, "interview_1", "session_1", provider, {
+    action: "ANSWER",
+  });
+
+  assert.equal(completeCalls, 2);
+  assert.equal(result.message, "Кандидат готовий.");
+  assert.equal(result.confidence, "confirmed");
 });

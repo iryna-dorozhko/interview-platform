@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import { LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 import {
+  ArbiterContextError,
   ArbiterReplyParseError,
   NO_PENDING_QUESTION_NUDGE_UK,
   PENDING_QUESTION_NUDGE_UK,
@@ -199,16 +201,114 @@ test("runArbiterTurn loads context, calls LLM, and parses command", async () => 
 });
 
 test("runArbiterTurn throws when company profile is missing", async () => {
+  let completeCalls = 0;
   const fakePrisma = {
     interview: {
       findUnique: async () => ({ vacancy: { companyProfile: null } }),
     },
   } as unknown as PrismaClient;
 
-  const fakeProvider: LlmProvider = { name: "fake", complete: async () => "" };
+  const fakeProvider: LlmProvider = {
+    name: "fake",
+    complete: async () => {
+      completeCalls += 1;
+      return "";
+    },
+  };
 
   await assert.rejects(
     () => runArbiterTurn(fakePrisma, "interview_1", "session_1", fakeProvider),
-    /Missing company profile/,
+    (err: unknown) => {
+      assert.ok(err instanceof ArbiterContextError);
+      assert.match(err.message, /Missing company profile/);
+      return true;
+    },
   );
+  assert.equal(completeCalls, 0);
+});
+
+test("runArbiterTurn retries transient LLM failure then succeeds", async () => {
+  let completeCalls = 0;
+  const fakePrisma = {
+    interview: {
+      findUnique: async () => ({
+        vacancy: {
+          companyProfile: {
+            role: "Backend Developer",
+            requirements: ["Node.js"],
+            culture: ["remote"],
+            expectations: ["ship features"],
+            workConditions: [],
+            compensation: null,
+          },
+        },
+      }),
+    },
+    liveMessage: {
+      findMany: async () => [{ authorType: "HUMAN_HR", content: "Привіт" }],
+    },
+  } as unknown as PrismaClient;
+
+  const fakeProvider: LlmProvider = {
+    name: "fake",
+    complete: async () => {
+      completeCalls += 1;
+      if (completeCalls === 1) {
+        throw new LlmUnavailableError("temporary outage");
+      }
+      return '{ "action": "WAIT", "summaryUk": "Очікуємо" }';
+    },
+  };
+
+  const result = await runArbiterTurn(
+    fakePrisma,
+    "interview_1",
+    "session_1",
+    fakeProvider,
+  );
+
+  assert.equal(completeCalls, 2);
+  assert.deepEqual(result, { action: "WAIT", summaryUk: "Очікуємо" });
+});
+
+test("runArbiterTurn retries parse failure then succeeds", async () => {
+  let completeCalls = 0;
+  const fakePrisma = {
+    interview: {
+      findUnique: async () => ({
+        vacancy: {
+          companyProfile: {
+            role: "Backend Developer",
+            requirements: ["Node.js"],
+            culture: ["remote"],
+            expectations: ["ship features"],
+            workConditions: [],
+            compensation: null,
+          },
+        },
+      }),
+    },
+    liveMessage: {
+      findMany: async () => [{ authorType: "HUMAN_HR", content: "Привіт" }],
+    },
+  } as unknown as PrismaClient;
+
+  const fakeProvider: LlmProvider = {
+    name: "fake",
+    complete: async () => {
+      completeCalls += 1;
+      if (completeCalls === 1) return "not-json";
+      return '{ "action": "WAIT", "summaryUk": "Очікуємо" }';
+    },
+  };
+
+  const result = await runArbiterTurn(
+    fakePrisma,
+    "interview_1",
+    "session_1",
+    fakeProvider,
+  );
+
+  assert.equal(completeCalls, 2);
+  assert.equal(result.action, "WAIT");
 });

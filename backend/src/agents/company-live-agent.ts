@@ -1,4 +1,5 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
+import { withLlmRetry } from "../llm/retry";
 import type { ChatMessage, LlmProvider } from "../llm/types";
 import {
   parseVacancyCompensation,
@@ -147,6 +148,8 @@ export async function runCompanyLiveTurn(
     turnContext,
   });
 
-  const rawReply = await provider.complete(llmMessages);
-  return parseCompanyLiveReply(rawReply);
+  return withLlmRetry(async () => {
+    const rawReply = await provider.complete(llmMessages);
+    return parseCompanyLiveReply(rawReply);
+  }, { label: "company-live" });
 }
