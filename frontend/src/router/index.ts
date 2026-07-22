@@ -19,7 +19,6 @@ import CandidateLayout from "../layouts/CandidateLayout.vue";
 import CandidateHomeView from "../views/CandidateHomeView.vue";
 import CandidateProfileView from "../views/CandidateProfileView.vue";
 import CandidateInterviewView from "../views/CandidateInterviewView.vue";
-import CandidatePrepView from "../views/CandidatePrepView.vue";
 import CandidateMatchesView from "../views/CandidateMatchesView.vue";
 import HrApplicationsView from "../views/HrApplicationsView.vue";
 import HrInterviewRoomView from "../views/HrInterviewRoomView.vue";
@@ -68,7 +67,7 @@ export const router = createRouter({
         { path: "profile", name: "candidate-profile", component: CandidateProfileView },
         { path: "interview", name: "candidate-interview", component: CandidateInterviewView },
         { path: "interview/room", name: "candidate-interview-room", component: CandidateInterviewRoomView },
-        { path: "prep/:interviewId", name: "candidate-prep", component: CandidatePrepView },
+        { path: "prep/:interviewId", name: "candidate-prep", redirect: { name: "candidate-profile" } },
         { path: "matches", name: "candidate-matches", component: CandidateMatchesView },
         { path: "dialogs", name: "candidate-dialogs", component: DialogListView },
         { path: "dialogs/:id", name: "candidate-dialog", component: DialogThreadView },

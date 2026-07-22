@@ -913,7 +913,7 @@ npm --workspace backend run db:seed
 | Маршрут | Опис |
 |---|---|
 | `/candidate` | Кабінет кандидата, кнопка «Моя анкета» |
-| `/candidate/prep/:interviewId` | Чат з Candidate Agent |
+| `/candidate/profile` | Анкета + чат з Candidate Agent |
 
 **3. Сценарій перевірки:**
 
@@ -922,11 +922,11 @@ npm run dev
 ```
 
 1. Зареєструватися на `/candidate/register` (або увійти на `/candidate/login`)
-2. На `/candidate` ввести код **TEST01** → «Приєднатися» → «Моя анкета» → `/candidate/prep/:interviewId`
+2. На `/candidate` ввести код **TEST01** → «Приєднатися» → «Моя анкета» → `/candidate/profile`
 3. Агент привітається; надіслати 2–3 відповіді про досвід
 4. Перезавантажити сторінку — історія чату на місці
 5. «Видалити чат» → нова розмова з привітанням
-6. Увійти як HR → відкрити `/candidate/prep/:interviewId` → редірект на `/`
+6. Увійти як HR → відкрити `/candidate/prep/:interviewId` → редірект на `/candidate/profile` (зона кандидата; HR редірект на `/` через auth)
 
 **4. API (для порівняння з UI):**
 
@@ -969,7 +969,7 @@ curl -X POST "http://localhost:3000/api/candidate-prep/$INTERVIEW_ID/confirm" \
 ```
 
 **UI-сценарій:**
-1. Пройти анкету в `/candidate/prep/:interviewId` (3+ обміни).
+1. Пройти анкету в `/candidate/profile` (3+ обміни).
 2. Натиснути «Завершити чат» → переглянути профіль.
 3. Натиснути «Підтвердити профіль» → «✓ Підтверджено {дата}».
 4. Reload — профіль і `confirmedAt` на місці; «Видалити чат» disabled.
