@@ -283,6 +283,10 @@ export function createInterviewsRouter(
       res.status(400).json({ error: "Vacancy is not confirmed" });
       return;
     }
+    if (vacancy.hiddenAt != null) {
+      res.status(409).json({ error: "VACANCY_HIDDEN" });
+      return;
+    }
 
     let candidateEmailNormalized: string | null = null;
     const rawEmail = body.candidateEmail;

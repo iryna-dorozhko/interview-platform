@@ -9,6 +9,7 @@ type FakeVacancy = {
   hrUserId: string;
   title: string;
   status: string;
+  hiddenAt?: Date | null;
   companyProfile?: { confirmedAt: Date | null } | null;
 };
 
@@ -171,6 +172,7 @@ function makeFakePrisma(seed: {
                       title: vacancy.title,
                       hrUserId: vacancy.hrUserId,
                       status: vacancy.status,
+                      hiddenAt: vacancy.hiddenAt ?? null,
                       companyProfile: vacancy.companyProfile ?? null,
                     }
                   : null,
@@ -650,6 +652,55 @@ test("POST /hr/applications/:id/create-interview converts PENDING and links inte
     assert.equal(body.interview.id, applications[0].interviewId);
     assert.equal(interviews[0].candidateUserId, "cd_1");
     assert.equal(interviews[0].vacancyId, "v1");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/applications/:id/create-interview returns 409 when vacancy hidden", async () => {
+  const { prisma } = makeFakePrisma({
+    vacancies: [
+      {
+        id: "v1",
+        hrUserId: "hr_1",
+        title: "Frontend",
+        status: "CONFIRMED",
+        hiddenAt: new Date("2026-07-22T12:00:00.000Z"),
+        companyProfile: { confirmedAt: new Date() },
+      },
+    ],
+    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+    );
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, "VACANCY_HIDDEN");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

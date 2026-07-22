@@ -168,6 +168,10 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
       res.status(400).json({ error: "Vacancy is not confirmed" });
       return;
     }
+    if (application.vacancy.hiddenAt != null) {
+      res.status(409).json({ error: "VACANCY_HIDDEN" });
+      return;
+    }
 
     const body = (req.body ?? {}) as { scheduledAt?: unknown };
     const scheduledAt = parseOptionalScheduledAt(body.scheduledAt);
