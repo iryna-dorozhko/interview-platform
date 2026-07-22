@@ -6,6 +6,38 @@ import {
   parseFinalReport,
 } from "./final-report-agent";
 import { FINAL_REPORT_SYSTEM_PROMPT_UK } from "./prompts/final-report.uk";
+import { computeMatchScore } from "../services/match-score";
+
+const sampleRequirements = {
+  critical: ["Node.js"],
+  desired: ["Docker"],
+};
+
+function sampleReportJson(overrides: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    reportMarkdown:
+      "## Підсумок\n\nДобре.\n## Відповідність вимогам\n### Критичні\n- Node.js\n### Бажані\n- Docker",
+    recommendation: "MAYBE",
+    contextFit: 80,
+    assessments: [
+      {
+        requirement: "Node.js",
+        priority: "critical",
+        status: "met",
+        evidence: "Підтверджено в стенограмі",
+      },
+      {
+        requirement: "Docker",
+        priority: "desired",
+        status: "unmet",
+        evidence: "Немає досвіду",
+      },
+    ],
+    strengths: ["Досвід Node.js"],
+    risks: ["Немає Docker"],
+    ...overrides,
+  });
+}
 
 test("formatLiveTranscript maps author types to Ukrainian labels", () => {
   const text = formatLiveTranscript([
@@ -40,46 +72,167 @@ test("formatLiveTranscript includes confidence labels for AGENT_CANDIDATE", () =
 });
 
 test("parseFinalReport parses valid JSON", () => {
-  const raw = JSON.stringify({
-    reportMarkdown: "## Підсумок\n\nДобре.",
-    recommendation: "HIRE",
-    matchScore: 82,
-    strengths: ["Досвід Node.js"],
-    risks: ["Мало leadership"],
-  });
-  const result = parseFinalReport(raw);
+  const result = parseFinalReport(sampleReportJson({ recommendation: "HIRE" }), sampleRequirements);
   assert.equal(result.recommendation, "HIRE");
-  assert.equal(result.matchScore, 82);
+  assert.equal(
+    result.matchScore,
+    computeMatchScore(
+      [
+        {
+          requirement: "Node.js",
+          priority: "critical",
+          status: "met",
+          evidence: "Підтверджено в стенограмі",
+        },
+        {
+          requirement: "Docker",
+          priority: "desired",
+          status: "unmet",
+          evidence: "Немає досвіду",
+        },
+      ],
+      80,
+    ).matchScore,
+  );
   assert.equal(result.strengths[0], "Досвід Node.js");
   assert.match(result.reportMarkdown, /Підсумок/);
 });
 
 test("parseFinalReport strips markdown code fences", () => {
-  const raw = "```json\n{\"reportMarkdown\":\"## OK\",\"recommendation\":\"MAYBE\",\"matchScore\":50,\"strengths\":[\"a\"],\"risks\":[\"b\"]}\n```";
-  const result = parseFinalReport(raw);
+  const raw = `\`\`\`json\n${sampleReportJson()}\n\`\`\``;
+  const result = parseFinalReport(raw, sampleRequirements);
   assert.equal(result.recommendation, "MAYBE");
 });
 
 test("parseFinalReport throws on invalid recommendation", () => {
-  const raw = JSON.stringify({
-    reportMarkdown: "## X",
-    recommendation: "YES",
-    matchScore: 50,
-    strengths: ["a"],
-    risks: ["b"],
-  });
-  assert.throws(() => parseFinalReport(raw), FinalReportExtractionError);
+  const raw = sampleReportJson({ recommendation: "YES" });
+  assert.throws(() => parseFinalReport(raw, sampleRequirements), FinalReportExtractionError);
 });
 
-test("parseFinalReport throws when matchScore out of range", () => {
+test("parseFinalReport computes matchScore via computeMatchScore", () => {
+  const result = parseFinalReport(sampleReportJson(), sampleRequirements);
+  const expected = computeMatchScore(
+    [
+      {
+        requirement: "Node.js",
+        priority: "critical",
+        status: "met",
+        evidence: "Підтверджено в стенограмі",
+      },
+      {
+        requirement: "Docker",
+        priority: "desired",
+        status: "unmet",
+        evidence: "Немає досвіду",
+      },
+    ],
+    80,
+  );
+  assert.equal(result.matchScore, expected.matchScore);
+  assert.equal(result.recommendation, "MAYBE");
+});
+
+test("parseFinalReport caps matchScore at 69 when critical is unmet", () => {
+  const raw = sampleReportJson({
+    recommendation: "REJECT",
+    contextFit: 100,
+    assessments: [
+      {
+        requirement: "Node.js",
+        priority: "critical",
+        status: "unmet",
+        evidence: "Немає",
+      },
+      {
+        requirement: "Docker",
+        priority: "desired",
+        status: "met",
+        evidence: "Є",
+      },
+    ],
+    risks: ["Немає Node.js"],
+  });
+  const result = parseFinalReport(raw, sampleRequirements);
+  assert.ok(result.matchScore <= 69);
+  const expected = computeMatchScore(
+    [
+      {
+        requirement: "Node.js",
+        priority: "critical",
+        status: "unmet",
+        evidence: "Немає",
+      },
+      {
+        requirement: "Docker",
+        priority: "desired",
+        status: "met",
+        evidence: "Є",
+      },
+    ],
+    100,
+  );
+  assert.equal(result.matchScore, expected.matchScore);
+  assert.equal(expected.cappedByCriticalUnmet, true);
+});
+
+test("parseFinalReport rejects incomplete assessments", () => {
+  const raw = sampleReportJson({
+    assessments: [
+      {
+        requirement: "Node.js",
+        priority: "critical",
+        status: "met",
+        evidence: "ok",
+      },
+    ],
+  });
+  assert.throws(
+    () => parseFinalReport(raw, sampleRequirements),
+    FinalReportExtractionError,
+  );
+});
+
+test("parseFinalReport rejects wrong priority", () => {
+  const raw = sampleReportJson({
+    assessments: [
+      {
+        requirement: "Node.js",
+        priority: "desired",
+        status: "met",
+        evidence: "ok",
+      },
+      {
+        requirement: "Docker",
+        priority: "desired",
+        status: "met",
+        evidence: "ok",
+      },
+    ],
+  });
+  assert.throws(
+    () => parseFinalReport(raw, sampleRequirements),
+    FinalReportExtractionError,
+  );
+});
+
+test("parseFinalReport with empty requirements uses contextFit as matchScore", () => {
   const raw = JSON.stringify({
-    reportMarkdown: "## X",
-    recommendation: "HIRE",
-    matchScore: 101,
+    reportMarkdown: "## Підсумок\n\nOK",
+    recommendation: "MAYBE",
+    contextFit: 73,
+    assessments: [],
     strengths: ["a"],
     risks: ["b"],
   });
-  assert.throws(() => parseFinalReport(raw), FinalReportExtractionError);
+  const result = parseFinalReport(raw, { critical: [], desired: [] });
+  assert.equal(result.matchScore, 73);
+});
+
+test("parseFinalReport rejects contextFit out of range", () => {
+  assert.throws(
+    () => parseFinalReport(sampleReportJson({ contextFit: 101 }), sampleRequirements),
+    FinalReportExtractionError,
+  );
 });
 
 test("FINAL_REPORT_SYSTEM_PROMPT_UK requires assessments and contextFit without matchScore", () => {
