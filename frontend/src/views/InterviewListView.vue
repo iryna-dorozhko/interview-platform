@@ -76,6 +76,7 @@ function onInterviewCreated(interview: CreatedInterview): void {
     scheduledAt: interview.scheduledAt,
     invitation: interview.invitation,
     candidateLinked: false,
+    candidateUserId: null,
     reportId: null,
     reportSummary: null,
   });

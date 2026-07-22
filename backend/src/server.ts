@@ -11,6 +11,7 @@ import { createAuthRouter } from "./routes/auth";
 import { createHealthRouter } from "./routes/health";
 import { createInterviewsRouter } from "./routes/interviews";
 import { createReportsRouter } from "./routes/reports";
+import { createDialogsRouter } from "./routes/dialogs";
 import { createVacanciesRouter } from "./routes/vacancies";
 import { createLlmRouter } from "./routes/llm";
 import { createPrepRouter } from "./routes/prep";
@@ -56,7 +57,8 @@ app.use("/api", requireAuth, requireHr, createCompanyPrepRouter(() => prisma, ge
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createHrApplicationsRouter(() => prisma));
-app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma));
+app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma, getLlmProvider));
+app.use("/api", requireAuth, createDialogsRouter(() => prisma));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {

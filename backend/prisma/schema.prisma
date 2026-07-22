@@ -76,6 +76,17 @@ enum HrNotificationType {
   VACANCY_APPLICATION
 }
 
+enum InterviewDecisionType {
+  ACCEPT
+  REJECT
+  ADDITIONAL_MEETING
+}
+
+enum DialogMessageKind {
+  USER
+  DECISION_LETTER
+}
+
 model User {
   id                 String              @id @default(cuid())
   email              String              @unique
@@ -92,6 +103,10 @@ model User {
   offerDecisions      VacancyOfferDecision[] @relation("CandidateVacancyOfferDecisions")
   matchScores         VacancyMatchScore[]    @relation("CandidateVacancyMatchScores")
   hrNotifications     HrNotification[]       @relation("HrNotifications")
+  dialogsAsHr        Dialog[]          @relation("HrDialogs")
+  dialogsAsCandidate Dialog[]          @relation("CandidateDialogs")
+  dialogMessages     DialogMessage[]   @relation("DialogMessageSender")
+  interviewDecisions InterviewDecision[] @relation("HrInterviewDecisions")
 }
 
 model Vacancy {
@@ -133,6 +148,7 @@ model Interview {
   finalReport        FinalReport?
   invitations        Invitation[]
   vacancyApplication VacancyApplication?
+  decisions InterviewDecision[]
 
   @@index([hrUserId, createdAt(sort: Desc)])
   @@index([candidateUserId])
@@ -299,6 +315,7 @@ model FinalReport {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   interview      Interview      @relation(fields: [interviewId], references: [id])
+  decisions InterviewDecision[]
 }
 
 model VacancyApplication {
@@ -364,4 +381,57 @@ model VacancyMatchScore {
 
   @@unique([candidateUserId, vacancyId, rankedForConfirmedAt, rankedForVacancyConfirmedAt])
   @@index([candidateUserId, rankedForConfirmedAt])
+}
+
+model Dialog {
+  id              String          @id @default(cuid())
+  hrUserId        String
+  candidateUserId String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  hrUser          User            @relation("HrDialogs", fields: [hrUserId], references: [id])
+  candidateUser   User            @relation("CandidateDialogs", fields: [candidateUserId], references: [id])
+  messages        DialogMessage[]
+
+  @@unique([hrUserId, candidateUserId])
+  @@index([hrUserId, updatedAt(sort: Desc)])
+  @@index([candidateUserId, updatedAt(sort: Desc)])
+}
+
+model InterviewDecision {
+  id              String                @id @default(cuid())
+  interviewId     String
+  finalReportId   String
+  decidedByUserId String
+  type            InterviewDecisionType
+  letterBody      String
+  dialogMessageId String?               @unique
+  createdAt       DateTime              @default(now())
+
+  interview     Interview      @relation(fields: [interviewId], references: [id])
+  finalReport   FinalReport    @relation(fields: [finalReportId], references: [id])
+  decidedBy     User           @relation("HrInterviewDecisions", fields: [decidedByUserId], references: [id])
+  dialogMessage DialogMessage? @relation("DecisionLetterLink", fields: [dialogMessageId], references: [id])
+  letterMessages DialogMessage[] @relation("MessageDecision")
+
+  @@index([interviewId, createdAt(sort: Desc)])
+  @@index([finalReportId])
+}
+
+model DialogMessage {
+  id           String            @id @default(cuid())
+  dialogId     String
+  senderUserId String
+  body         String
+  kind         DialogMessageKind
+  decisionId   String?
+  createdAt    DateTime          @default(now())
+
+  dialog   Dialog             @relation(fields: [dialogId], references: [id])
+  sender   User               @relation("DialogMessageSender", fields: [senderUserId], references: [id])
+  decision InterviewDecision? @relation("MessageDecision", fields: [decisionId], references: [id])
+  linkedDecision InterviewDecision? @relation("DecisionLetterLink")
+
+  @@index([dialogId, createdAt])
+  @@index([decisionId])
 }

@@ -504,6 +504,7 @@ test("GET /interviews/mine returns interviews for the current HR only, newest fi
     assert.equal(body.interviews[1].id, "i1");
     assert.deepEqual(Object.keys(body.interviews[0]).sort(), [
       "candidateLinked",
+      "candidateUserId",
       "createdAt",
       "displayName",
       "id",

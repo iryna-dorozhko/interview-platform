@@ -26,6 +26,8 @@ import HrInterviewRoomView from "../views/HrInterviewRoomView.vue";
 import ReportListView from "../views/ReportListView.vue";
 import ReportView from "../views/ReportView.vue";
 import CandidateInterviewRoomView from "../views/CandidateInterviewRoomView.vue";
+import DialogListView from "../views/DialogListView.vue";
+import DialogThreadView from "../views/DialogThreadView.vue";
 
 function homeByRole(role: "HR" | "CANDIDATE"): RouteLocationRaw {
   return role === "HR" ? { name: "home" } : { name: "candidate-home" };
@@ -68,6 +70,8 @@ export const router = createRouter({
         { path: "interview/room", name: "candidate-interview-room", component: CandidateInterviewRoomView },
         { path: "prep/:interviewId", name: "candidate-prep", component: CandidatePrepView },
         { path: "matches", name: "candidate-matches", component: CandidateMatchesView },
+        { path: "dialogs", name: "candidate-dialogs", component: DialogListView },
+        { path: "dialogs/:id", name: "candidate-dialog", component: DialogThreadView },
       ],
     },
     {
@@ -122,6 +126,8 @@ export const router = createRouter({
           name: "report",
           component: ReportView,
         },
+        { path: "dialogs", name: "hr-dialogs", component: DialogListView },
+        { path: "dialogs/:id", name: "hr-dialog", component: DialogThreadView },
       ],
     },
     { path: "/prep/:interviewId", redirect: "/vacancies" },
