@@ -6,6 +6,10 @@ import {
   fetchDialogs,
   type DialogListItem,
 } from "../api/dialogs";
+import {
+  fetchHrApplication,
+  fetchHrApplications,
+} from "../api/hr-applications";
 import { fetchMyInterviews } from "../api/interviews";
 
 type ListState = "loading" | "ready" | "error";
@@ -76,7 +80,10 @@ async function openNewModal(): Promise<void> {
   eligibleError.value = null;
   eligibleState.value = "loading";
   try {
-    const interviews = await fetchMyInterviews();
+    const [interviews, summaries] = await Promise.all([
+      fetchMyInterviews(),
+      fetchHrApplications(),
+    ]);
     const byId = new Map<string, string>();
     for (const interview of interviews) {
       if (!interview.candidateUserId) continue;
@@ -87,6 +94,18 @@ async function openNewModal(): Promise<void> {
       if (!byId.has(interview.candidateUserId)) {
         byId.set(interview.candidateUserId, email);
       }
+    }
+    const applications = await Promise.all(
+      summaries.map((item) => fetchHrApplication(item.id)),
+    );
+    for (const application of applications) {
+      const id = application.candidate.id;
+      if (!id || byId.has(id)) continue;
+      const email =
+        application.candidate.email?.trim() ||
+        application.candidate.fullName?.trim() ||
+        id;
+      byId.set(id, email);
     }
     eligible.value = [...byId.entries()].map(([id, email]) => ({ id, email }));
     eligibleState.value = "ready";
@@ -161,7 +180,7 @@ onMounted(loadDialogs);
         <p v-else-if="eligibleState === 'error'" class="fail">{{ eligibleError }}</p>
         <template v-else>
           <p v-if="eligible.length === 0" class="muted">
-            Немає кандидатів із прив’язаних співбесід.
+            Немає кандидатів із співбесід або заявок.
           </p>
           <label v-else class="field">
             <span>Кандидат</span>

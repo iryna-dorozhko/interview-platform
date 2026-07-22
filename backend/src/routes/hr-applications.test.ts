@@ -547,6 +547,8 @@ test("GET /hr/applications/:id includes matchBreakdown for owning HR", async () 
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.deepEqual(body.application.matchBreakdown, breakdown);
+    assert.equal(body.application.candidate.id, "cd_1");
+    assert.equal(body.application.candidate.email, "cd@test.com");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

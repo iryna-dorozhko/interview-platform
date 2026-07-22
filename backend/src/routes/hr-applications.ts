@@ -138,6 +138,7 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
         interviewId: application.interviewId,
         createdAt: application.createdAt.toISOString(),
         candidate: {
+          id: application.candidateUserId,
           fullName: profile?.fullName ?? null,
           email: profile?.email ?? application.candidateUser.email,
         },

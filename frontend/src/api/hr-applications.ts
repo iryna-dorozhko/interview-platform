@@ -40,6 +40,7 @@ export type MatchBreakdown = {
 
 export type HrApplicationDetail = HrApplicationSummary & {
   candidate: {
+    id: string;
     fullName: string | null;
     email: string | null;
   };
