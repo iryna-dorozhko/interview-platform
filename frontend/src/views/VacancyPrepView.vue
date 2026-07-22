@@ -29,6 +29,8 @@ const viewingHistory = ref(false);
 const vacancyStatus = ref<string | null>(null);
 
 const editableProfile = ref<CompanyProfile | null>(null);
+const canEditProfile = ref(true);
+const editingConfirmed = ref(false);
 const saving = ref(false);
 
 const input = ref("");
@@ -70,7 +72,7 @@ function setCompensationDisplayText(text: string): void {
 }
 
 watch(profile, (next) => {
-  if (next && !next.confirmedAt) {
+  if (next && (!next.confirmedAt || editingConfirmed.value)) {
     syncEditableProfile(next);
   } else if (!next) {
     editableProfile.value = null;
@@ -95,6 +97,8 @@ async function loadPrepState(): Promise<void> {
     messages.value = state.messages;
     isClosed.value = state.isClosed;
     profile.value = state.profile;
+    canEditProfile.value = state.canEditProfile;
+    editingConfirmed.value = false;
     missingCompanyProfile.value = state.missingCompanyProfile;
     viewingHistory.value = false;
     loadState.value = "ready";
@@ -212,6 +216,19 @@ async function onFinishChat(): Promise<void> {
   }
 }
 
+function startEditingConfirmed(): void {
+  if (!profile.value?.confirmedAt || !canEditProfile.value) return;
+  errorMessage.value = null;
+  editingConfirmed.value = true;
+  syncEditableProfile(profile.value);
+}
+
+function cancelEditingConfirmed(): void {
+  editingConfirmed.value = false;
+  editableProfile.value = null;
+  errorMessage.value = null;
+}
+
 async function onSaveProfileEdits(): Promise<void> {
   if (!editableProfile.value) return;
   saving.value = true;
@@ -230,7 +247,12 @@ async function onSaveProfileEdits(): Promise<void> {
       compensation: editableProfile.value.compensation,
     });
     profile.value = updated;
-    syncEditableProfile(updated);
+    if (updated.confirmedAt) {
+      editingConfirmed.value = false;
+      editableProfile.value = null;
+    } else {
+      syncEditableProfile(updated);
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Не вдалося оновити профіль";
   } finally {
@@ -274,7 +296,7 @@ function onArrayFieldInput(field: ArrayProfileField, event: Event): void {
 async function onConfirmProfile(): Promise<void> {
   if (
     !window.confirm(
-      "Профіль буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?"
+      "Профіль буде опубліковано для співбесід і матчінгу. Підтвердити?"
     )
   ) {
     return;
@@ -285,6 +307,7 @@ async function onConfirmProfile(): Promise<void> {
   try {
     const response = await confirmPrepProfile(vacancyId.value);
     profile.value = response.profile;
+    editingConfirmed.value = false;
     editableProfile.value = null;
     vacancyStatus.value = response.vacancyStatus;
   } catch (error) {
@@ -328,7 +351,11 @@ onMounted(loadPrepState);
       <section v-else-if="isClosed && profile && !viewingHistory" class="profile-view">
         <h2>Зібраний профіль вакансії</h2>
 
-        <form v-if="!profile.confirmedAt && editableProfile" class="profile-form" @submit.prevent="onSaveProfileEdits">
+        <form
+          v-if="editableProfile && (!profile.confirmedAt || editingConfirmed)"
+          class="profile-form"
+          @submit.prevent="onSaveProfileEdits"
+        >
           <label class="field">
             <span class="field-label">Посада</span>
             <input v-model="editableProfile.role" type="text" class="field-input" />
@@ -482,12 +509,48 @@ onMounted(loadPrepState);
           >
             Підтвердити профіль
           </button>
-          <p v-else-if="vacancyStatus === 'CONFIRMED'" class="confirmed-banner">
-            ✓ Анкета підтверджена
-          </p>
-          <p v-else class="confirmed-banner">
-            ✓ Підтверджено {{ profile.confirmedAt ? new Date(profile.confirmedAt).toLocaleString("uk-UA") : "" }}
-          </p>
+          <template v-else-if="editingConfirmed">
+            <button
+              type="button"
+              class="btn-secondary"
+              :disabled="saving"
+              @click="cancelEditingConfirmed"
+            >
+              Скасувати
+            </button>
+            <button
+              type="button"
+              class="btn-primary"
+              :disabled="saving"
+              @click="onSaveProfileEdits"
+            >
+              {{ saving ? "Збереження…" : "Зберегти зміни" }}
+            </button>
+          </template>
+          <template v-else>
+            <p v-if="vacancyStatus === 'CONFIRMED'" class="confirmed-banner">
+              ✓ Анкета підтверджена
+            </p>
+            <p v-else class="confirmed-banner">
+              ✓ Підтверджено {{ profile.confirmedAt ? new Date(profile.confirmedAt).toLocaleString("uk-UA") : "" }}
+            </p>
+            <button
+              type="button"
+              class="btn-secondary"
+              :disabled="!canEditProfile"
+              :title="
+                canEditProfile
+                  ? ''
+                  : 'Неможливо змінити анкету: є активна співбесіда (READY/LIVE).'
+              "
+              @click="startEditingConfirmed"
+            >
+              Змінити
+            </button>
+            <p v-if="!canEditProfile" class="hint">
+              Неможливо змінити анкету: є активна співбесіда (READY/LIVE).
+            </p>
+          </template>
         </div>
       </section>
 
@@ -751,5 +814,10 @@ onMounted(loadPrepState);
   border-radius: 0.375rem;
   font-size: 0.875rem;
   font-weight: 600;
+}
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #64748b);
 }
 </style>
