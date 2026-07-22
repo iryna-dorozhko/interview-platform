@@ -1414,6 +1414,8 @@ Arbiter повертає структуровану команду (`action`, `s
 | Статус | `LIVE` → `ENDED` |
 | LLM | Аналіз transcript + профілі компанії та кандидата |
 
+**Скоринг:** LLM повертає `assessments` по кожній вимозі вакансії (`critical` / `desired`) і `contextFit`. Підсумковий `matchScore` рахує бекенд тією ж формулою, що й матчинг вакансій (`0.75×critical + 0.25×desired`, mix з `contextFit`, cap **69** при unmet critical). У markdown розділ «Відповідність вимогам» розділяє критичні й бажані; `HIRE` заборонений при unmet critical.
+
 **Успіх (201):**
 
 ```json
@@ -1443,7 +1445,7 @@ Arbiter повертає структуровану команду (`action`, `s
 |------|-----|------|
 | `reportMarkdown` | `string` | Повний markdown-звіт |
 | `recommendation` | `HIRE` \| `MAYBE` \| `REJECT` | Рекомендація HR |
-| `matchScore` | `int` (0–100) | Оцінка відповідності |
+| `matchScore` | `int` (0–100) | Оцінка відповідності; обчислено з assessments + contextFit |
 | `strengths` | `string[]` (JSON) | Сильні сторони кандидата |
 | `risks` | `string[]` (JSON) | Ризики / застереження |
 
