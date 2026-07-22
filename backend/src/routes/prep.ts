@@ -6,13 +6,20 @@ import {
   parseAgentReply,
   parseVacancyProfileExtraction,
 } from "../agents/company-agent";
-import { LlmError, LlmUnavailableError } from "../llm/errors";
+import { LlmError } from "../llm/errors";
+import { toSafeLlmErrorMessage, withLlmRetry } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 import { parseVacancyCompensation, parseWorkConditionsArray } from "../utils/vacancy-work-conditions";
 import {
   assertNonEmptyRequirements,
   normalizeVacancyRequirements,
 } from "../utils/vacancy-requirements";
+
+function llmHttpStatus(error: unknown): number {
+  if (error instanceof LlmError && error.code === "empty_response") return 502;
+  if (error instanceof Error && error.name.endsWith("ExtractionError")) return 502;
+  return 503;
+}
 
 type MessageBody = {
   message?: unknown;
@@ -247,39 +254,20 @@ export function createPrepRouter(
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[prep:finish] provider init failed:", detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
-      return;
-    }
-
-    let rawReply: string;
-    try {
-      rawReply = await provider.complete(llmMessages);
-    } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        console.error(`[prep:finish:${provider.name}] unavailable:`, error.message);
-        res.status(503).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
-      if (error instanceof LlmError && error.code === "empty_response") {
-        console.error(`[prep:finish:${provider.name}] empty response`);
-        res.status(502).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[prep:finish:${provider.name}] unexpected error:`, detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
     let extracted;
     try {
-      extracted = parseVacancyProfileExtraction(rawReply);
+      extracted = await withLlmRetry(async () => {
+        const rawReply = await provider.complete(llmMessages);
+        return parseVacancyProfileExtraction(rawReply);
+      }, { label: "prep:finish" });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      console.error("[prep:finish] failed to parse profile extraction:", detail);
-      res.status(502).json({ error: "LLM unavailable", detail });
+      console.error(`[prep:finish:${provider.name}] llm failed:`, detail);
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
@@ -492,29 +480,20 @@ export function createPrepRouter(
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[prep] provider init failed:", detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 
     let rawReply: string;
     try {
-      rawReply = await provider.complete(llmMessages);
+      rawReply = await withLlmRetry(
+        () => provider.complete(llmMessages),
+        { label: "prep:message" },
+      );
     } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        console.error(`[prep:${provider.name}] unavailable:`, error.message);
-        res.status(503).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
-      if (error instanceof LlmError && error.code === "empty_response") {
-        console.error(`[prep:${provider.name}] empty response`);
-        res.status(502).json({ error: "LLM unavailable", detail: error.message });
-        return;
-      }
-
       const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[prep:${provider.name}] unexpected error:`, detail);
-      res.status(503).json({ error: "LLM unavailable", detail });
+      console.error(`[prep:${provider.name}] llm failed:`, detail);
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
       return;
     }
 

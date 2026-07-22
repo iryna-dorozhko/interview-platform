@@ -5,6 +5,7 @@ import { requireAuth, requireHr, type AuthUser } from "../auth/middleware";
 import { signToken } from "../auth/jwt";
 import { createPrepRouter } from "./prep";
 import { LlmUnavailableError, LlmEmptyResponseError } from "../llm/errors";
+import { SAFE_LLM_ERROR_UK } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
 
 type FakeVacancy = { id: string; hrUserId: string; status?: string };
@@ -684,15 +685,17 @@ test("POST /prep/:vacancyId/finish returns 502 when LLM returns invalid JSON", a
   }
 });
 
-test("POST /prep/:vacancyId/finish returns 503 when LLM unavailable", async () => {
+test("POST /prep/:vacancyId/finish returns safe UK error after LLM retries exhausted", async () => {
   const fakePrisma = makeFakePrisma({
     vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
     sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
   });
+  let completeCalls = 0;
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
+      completeCalls += 1;
       throw new LlmUnavailableError("omlx server not reachable");
     },
   };
@@ -708,6 +711,10 @@ test("POST /prep/:vacancyId/finish returns 503 when LLM unavailable", async () =
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
     assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error, SAFE_LLM_ERROR_UK);
+    assert.equal(body.detail, undefined);
+    assert.equal(completeCalls, 3);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -1032,14 +1039,16 @@ test("POST /prep/:vacancyId/message returns 409 when session is closed", async (
   }
 });
 
-test("POST /prep/:vacancyId/message returns 503 when LLM unavailable", async () => {
+test("POST /prep/:vacancyId/message returns safe UK error after LLM retries exhausted", async () => {
   const fakePrisma = makeFakePrisma({
     vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
   });
+  let completeCalls = 0;
   const fakeProvider: LlmProvider = {
     name: "omlx",
     async complete() {
+      completeCalls += 1;
       throw new LlmUnavailableError("omlx server not reachable");
     },
   };
@@ -1061,7 +1070,9 @@ test("POST /prep/:vacancyId/message returns 503 when LLM unavailable", async () 
 
     assert.equal(response.status, 503);
     const body = await response.json();
-    assert.equal(body.error, "LLM unavailable");
+    assert.equal(body.error, SAFE_LLM_ERROR_UK);
+    assert.equal(body.detail, undefined);
+    assert.equal(completeCalls, 3);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
