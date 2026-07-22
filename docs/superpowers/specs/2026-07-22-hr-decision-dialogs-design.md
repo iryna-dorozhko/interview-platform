@@ -113,7 +113,7 @@ MVP уже має:
 
 Поточне рішення по співбесіді = **останній** `InterviewDecision` за `interviewId` + `createdAt desc`. Окремого `currentDecision` на `Interview` немає (уникаємо розсинхрону). Історія зберігається повністю — зміна рішення = новий рядок.
 
-Зв’язок: співбесіда повинна мати кандидата (`candidateUserId` або профіль з прив’язаним User), інакше draft/decision → 400.
+Зв’язок: для draft/decision обов’язковий `Interview.candidateUserId` (не лише email у `CandidateProfile`). Якщо `null` → `400`.
 
 ---
 
