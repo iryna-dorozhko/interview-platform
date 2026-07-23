@@ -1414,7 +1414,7 @@ Arbiter повертає структуровану команду (`action`, `s
 | Статус | `LIVE` → `ENDED` |
 | LLM | Аналіз transcript + профілі компанії та кандидата |
 
-**Скоринг:** LLM повертає `assessments` по кожній вимозі вакансії (`critical` / `desired`) і `contextFit`. Підсумковий `matchScore` рахує бекенд тією ж формулою, що й матчинг вакансій (`0.75×critical + 0.25×desired`, mix з `contextFit`, cap **69** при unmet critical). `recommendation` також нормалізує бекенд: усі critical `met` (або critical немає) → `HIRE`; будь-який critical `unmet`/`unknown` блокує `HIRE` (примусово `MAYBE`, якщо LLM дав `HIRE`). У markdown розділ «Відповідність вимогам» розділяє критичні й бажані.
+**Скоринг:** LLM повертає `assessments` по кожній вимозі вакансії (`critical` / `desired`) і `contextFit`. Підсумковий `matchScore` рахує бекенд тією ж формулою, що й матчинг вакансій (`0.75×critical + 0.25×desired`, mix з `contextFit`, cap **69** при unmet critical). `recommendation` також нормалізує бекенд: усі critical `met` (або critical немає) → `HIRE`; будь-який critical `unmet`/`unknown` блокує `HIRE` (примусово `MAYBE`, якщо LLM дав `HIRE`). Відхилення від цього правила дозволене лише з валідними `overrideKind` + `overrideReason` (≥20 символів); тоді бекенд зберігає recommendation від LLM і показує блок «Виняток» у UI звіту. Без валідного винятку baseline critical лишається обовʼязковим. У markdown розділ «Відповідність вимогам» розділяє критичні й бажані.
 
 **Успіх (201):**
 
@@ -1448,6 +1448,8 @@ Arbiter повертає структуровану команду (`action`, `s
 | `matchScore` | `int` (0–100) | Оцінка відповідності; обчислено з assessments + contextFit |
 | `strengths` | `string[]` (JSON) | Сильні сторони кандидата |
 | `risks` | `string[]` (JSON) | Ризики / застереження |
+| `overrideKind` | enum \| `null` | Тип винятку від critical-правила (`culture_fit`, `soft_skills`, `critical_gap_ok`, `red_flag`, `other`) |
+| `overrideReason` | `string` \| `null` | Пояснення винятку українською (≥20 символів, якщо є kind) |
 
 > Перегляд звіту в браузері (`/report/:id`) — **День 21**.
 
