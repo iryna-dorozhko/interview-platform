@@ -23,6 +23,7 @@ import { createCandidateMatchesRouter } from "./routes/candidate-matches";
 import { createHrApplicationsRouter } from "./routes/hr-applications";
 import { createRoomOrchestrator } from "./socket/orchestrator";
 import { registerRoomHandlers } from "./socket/room";
+import { registerDialogHandlers } from "./socket/dialogs";
 import { createGracefulShutdown } from "./server-lifecycle";
 
 const app = express();
@@ -73,6 +74,7 @@ const orchestrator = createRoomOrchestrator(() => prisma, {
   getLlmProvider,
 });
 registerRoomHandlers(io, () => prisma, orchestrator);
+registerDialogHandlers(io, () => prisma);
 
 function stopHttp(): Promise<void> {
   return new Promise((resolve, reject) => {
