@@ -402,6 +402,8 @@ model Dialog {
   updatedAt           DateTime        @updatedAt
   hrLastReadAt        DateTime?
   candidateLastReadAt DateTime?
+  hrHiddenAt          DateTime?
+  candidateHiddenAt   DateTime?
   hrUser              User            @relation("HrDialogs", fields: [hrUserId], references: [id])
   candidateUser       User            @relation("CandidateDialogs", fields: [candidateUserId], references: [id])
   messages            DialogMessage[]
