@@ -149,8 +149,29 @@ export const CANDIDATE_QUESTIONS_NUDGE_UK =
 
 const INTERVIEWER_AUTHOR_TYPES = new Set<LiveAuthorType>(["AGENT_COMPANY", "HUMAN_HR"]);
 
+const CANDIDATE_AUTHOR_TYPES = new Set<LiveAuthorType>([
+  "AGENT_CANDIDATE",
+  "HUMAN_CANDIDATE",
+]);
+
 export function collectRecentInterviewerQuestions(history: LiveHistoryItem[]): string[] {
   return history
+    .filter((item) => INTERVIEWER_AUTHOR_TYPES.has(item.authorType))
+    .map((item) => item.content.trim())
+    .filter(Boolean);
+}
+
+export function collectOpenInterviewerQuestions(history: LiveHistoryItem[]): string[] {
+  let afterIndex = -1;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (CANDIDATE_AUTHOR_TYPES.has(history[i]!.authorType)) {
+      afterIndex = i;
+      break;
+    }
+  }
+
+  return history
+    .slice(afterIndex + 1)
     .filter((item) => INTERVIEWER_AUTHOR_TYPES.has(item.authorType))
     .map((item) => item.content.trim())
     .filter(Boolean);

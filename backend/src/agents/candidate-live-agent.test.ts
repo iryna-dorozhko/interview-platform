@@ -9,6 +9,7 @@ import {
   CANDIDATE_QUESTIONS_NUDGE_UK,
   CandidateLiveContextError,
   CandidateLiveReplyParseError,
+  collectOpenInterviewerQuestions,
   collectRecentInterviewerQuestions,
   COMPANY_QUESTION_NUDGE_UK,
   formatCandidateTurnNudge,
@@ -200,6 +201,43 @@ test("collectRecentInterviewerQuestions returns Company and HR messages", () => 
   assert.deepEqual(collectRecentInterviewerQuestions(history), [
     "Розкажіть про досвід з Node.js.",
     "Як ви підходите до code review?",
+  ]);
+});
+
+test("collectOpenInterviewerQuestions returns Company+HR after last candidate reply", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_COMPANY", content: "Старий питання про Node." },
+    { authorType: "AGENT_CANDIDATE", content: "Кандидат має досвід з Node." },
+    { authorType: "AGENT_COMPANY", content: "Як організовуєте інтеграцію з REST API?" },
+    { authorType: "HUMAN_HR", content: "Над якими проектами ви працювали?" },
+  ];
+
+  assert.deepEqual(collectOpenInterviewerQuestions(history), [
+    "Як організовуєте інтеграцію з REST API?",
+    "Над якими проектами ви працювали?",
+  ]);
+});
+
+test("collectOpenInterviewerQuestions ignores interviewer messages before last candidate reply", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "HUMAN_HR", content: "Почнемо?" },
+    { authorType: "AGENT_COMPANY", content: "Розкажіть про Vue." },
+    { authorType: "HUMAN_CANDIDATE", content: "Працювала з Vue 3 роки." },
+    { authorType: "AGENT_COMPANY", content: "А з Pinia?" },
+  ];
+
+  assert.deepEqual(collectOpenInterviewerQuestions(history), ["А з Pinia?"]);
+});
+
+test("collectOpenInterviewerQuestions returns all interviewer messages when candidate never spoke", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_COMPANY", content: "Перше питання." },
+    { authorType: "HUMAN_HR", content: "Уточнення від HR." },
+  ];
+
+  assert.deepEqual(collectOpenInterviewerQuestions(history), [
+    "Перше питання.",
+    "Уточнення від HR.",
   ]);
 });
 
