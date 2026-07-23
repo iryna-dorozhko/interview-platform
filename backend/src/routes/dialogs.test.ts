@@ -14,6 +14,8 @@ type FakeDialog = {
   updatedAt: Date;
   hrLastReadAt: Date | null;
   candidateLastReadAt: Date | null;
+  hrHiddenAt: Date | null;
+  candidateHiddenAt: Date | null;
 };
 
 type FakeDialogMessage = {
@@ -77,7 +79,12 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
         include,
         select,
       }: {
-        where?: { hrUserId?: string; candidateUserId?: string };
+        where?: {
+          hrUserId?: string;
+          candidateUserId?: string;
+          hrHiddenAt?: null;
+          candidateHiddenAt?: null;
+        };
         orderBy?: { updatedAt: "desc" | "asc" };
         include?: {
           hrUser?: { select: { id: true; email: true } };
@@ -100,6 +107,8 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
           if (where?.candidateUserId != null && d.candidateUserId !== where.candidateUserId) {
             return false;
           }
+          if (where?.hrHiddenAt === null && d.hrHiddenAt != null) return false;
+          if (where?.candidateHiddenAt === null && d.candidateHiddenAt != null) return false;
           return true;
         });
         if (orderBy?.updatedAt === "desc") {
@@ -217,6 +226,8 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
           updatedAt: now,
           hrLastReadAt: null,
           candidateLastReadAt: null,
+          hrHiddenAt: null,
+          candidateHiddenAt: null,
         };
         dialogs.push(created);
         return created;
@@ -230,6 +241,8 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
           updatedAt?: Date;
           hrLastReadAt?: Date | null;
           candidateLastReadAt?: Date | null;
+          hrHiddenAt?: Date | null;
+          candidateHiddenAt?: Date | null;
         };
       }) => {
         const dialog = dialogs.find((d) => d.id === where.id);
@@ -238,6 +251,10 @@ function makeFakePrisma(seed: FakePrismaSeed = {}) {
         if (data.hrLastReadAt !== undefined) dialog.hrLastReadAt = data.hrLastReadAt;
         if (data.candidateLastReadAt !== undefined) {
           dialog.candidateLastReadAt = data.candidateLastReadAt;
+        }
+        if (data.hrHiddenAt !== undefined) dialog.hrHiddenAt = data.hrHiddenAt;
+        if (data.candidateHiddenAt !== undefined) {
+          dialog.candidateHiddenAt = data.candidateHiddenAt;
         }
         return dialog;
       },
@@ -380,6 +397,8 @@ const baseDialog: FakeDialog = {
   updatedAt: new Date("2026-07-14T12:00:00.000Z"),
   hrLastReadAt: null,
   candidateLastReadAt: null,
+  hrHiddenAt: null,
+  candidateHiddenAt: null,
 };
 
 const otherDialog: FakeDialog = {
@@ -390,6 +409,8 @@ const otherDialog: FakeDialog = {
   updatedAt: new Date("2026-07-14T13:00:00.000Z"),
   hrLastReadAt: null,
   candidateLastReadAt: null,
+  hrHiddenAt: null,
+  candidateHiddenAt: null,
 };
 
 test("GET /dialogs lists only own dialogs for HR", async () => {
@@ -748,6 +769,8 @@ test("GET /dialogs/unread-count sums unread across dialogs", async () => {
         updatedAt: new Date("2026-07-14T12:00:00.000Z"),
         hrLastReadAt: null,
         candidateLastReadAt: null,
+        hrHiddenAt: null,
+        candidateHiddenAt: null,
       },
     ],
     messages: [
@@ -904,6 +927,148 @@ test("GET /dialogs/unread-count for candidate uses candidateLastReadAt", async (
     const after = await fetch(`http://127.0.0.1:${port}/api/dialogs/unread-count`);
     const afterBody = (await after.json()) as { unreadCount: number };
     assert.equal(afterBody.unreadCount, 0);
+  } finally {
+    server.close();
+  }
+});
+
+test("DELETE /dialogs/:id hides dialog for HR only; candidate still lists it", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [{ ...baseDialog }],
+    messages: [
+      {
+        id: "msg_1",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "Hi",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:30:00.000Z"),
+      },
+    ],
+  });
+
+  const hrApp = makeApp(prisma, hrUser);
+  const hrServer = hrApp.listen(0);
+  const hrPort = (hrServer.address() as { port: number }).port;
+
+  try {
+    const del = await fetch(`http://127.0.0.1:${hrPort}/api/dialogs/dlg_1`, {
+      method: "DELETE",
+    });
+    assert.equal(del.status, 204);
+
+    const hrList = await fetch(`http://127.0.0.1:${hrPort}/api/dialogs`);
+    assert.equal(hrList.status, 200);
+    assert.equal((await hrList.json()).dialogs.length, 0);
+
+    const hrUnread = await fetch(`http://127.0.0.1:${hrPort}/api/dialogs/unread-count`);
+    assert.equal(hrUnread.status, 200);
+    assert.equal((await hrUnread.json()).unreadCount, 0);
+  } finally {
+    hrServer.close();
+  }
+
+  const candApp = makeApp(prisma, candidateUser);
+  const candServer = candApp.listen(0);
+  const candPort = (candServer.address() as { port: number }).port;
+
+  try {
+    const candList = await fetch(`http://127.0.0.1:${candPort}/api/dialogs`);
+    assert.equal(candList.status, 200);
+    assert.equal((await candList.json()).dialogs.length, 1);
+
+    const thread = await fetch(`http://127.0.0.1:${candPort}/api/dialogs/dlg_1`);
+    assert.equal(thread.status, 200);
+    assert.equal((await thread.json()).messages.length, 1);
+  } finally {
+    candServer.close();
+  }
+});
+
+test("DELETE /dialogs/:id hides dialog for candidate only", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [{ ...baseDialog }],
+  });
+  const app = makeApp(prisma, candidateUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const del = await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1`, {
+      method: "DELETE",
+    });
+    assert.equal(del.status, 204);
+
+    const list = await fetch(`http://127.0.0.1:${port}/api/dialogs`);
+    assert.equal((await list.json()).dialogs.length, 0);
+  } finally {
+    server.close();
+  }
+
+  const hrApp = makeApp(prisma, hrUser);
+  const hrServer = hrApp.listen(0);
+  const hrPort = (hrServer.address() as { port: number }).port;
+  try {
+    const list = await fetch(`http://127.0.0.1:${hrPort}/api/dialogs`);
+    assert.equal((await list.json()).dialogs.length, 1);
+  } finally {
+    hrServer.close();
+  }
+});
+
+test("DELETE /dialogs/:id returns 404 for non-participant", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [{ ...baseDialog }],
+  });
+  const app = makeApp(prisma, otherHr);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1`, {
+      method: "DELETE",
+    });
+    assert.equal(response.status, 404);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /dialogs/:id still works after hide for hider", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [
+      {
+        ...baseDialog,
+        hrHiddenAt: new Date("2026-07-20T10:00:00.000Z"),
+        candidateHiddenAt: null,
+      },
+    ],
+    messages: [
+      {
+        id: "msg_1",
+        dialogId: "dlg_1",
+        senderUserId: "cand_1",
+        body: "Still here",
+        kind: "USER",
+        decisionId: null,
+        createdAt: new Date("2026-07-14T11:30:00.000Z"),
+      },
+    ],
+  });
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.messages[0].body, "Still here");
   } finally {
     server.close();
   }

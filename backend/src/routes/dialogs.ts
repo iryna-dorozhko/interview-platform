@@ -26,6 +26,13 @@ function lastReadAtForUser(
   return dialog.hrUserId === userId ? dialog.hrLastReadAt : dialog.candidateLastReadAt;
 }
 
+function hiddenAtFieldForUser(
+  dialog: { hrUserId: string },
+  userId: string,
+): "hrHiddenAt" | "candidateHiddenAt" {
+  return dialog.hrUserId === userId ? "hrHiddenAt" : "candidateHiddenAt";
+}
+
 async function countUnreadMessages(
   prisma: PrismaClient,
   dialogId: string,
@@ -69,8 +76,8 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
     const prisma = getPrisma();
     const where =
       req.user!.role === "HR"
-        ? { hrUserId: req.user!.id }
-        : { candidateUserId: req.user!.id };
+        ? { hrUserId: req.user!.id, hrHiddenAt: null }
+        : { candidateUserId: req.user!.id, candidateHiddenAt: null };
 
     const dialogs = await prisma.dialog.findMany({
       where,
@@ -183,8 +190,8 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
     const prisma = getPrisma();
     const where =
       req.user!.role === "HR"
-        ? { hrUserId: req.user!.id }
-        : { candidateUserId: req.user!.id };
+        ? { hrUserId: req.user!.id, hrHiddenAt: null }
+        : { candidateUserId: req.user!.id, candidateHiddenAt: null };
 
     const dialogs = await prisma.dialog.findMany({
       where,
@@ -225,6 +232,22 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
 
     await prisma.dialog.update({ where: { id: dialog.id }, data });
     res.status(200).json({ ok: true });
+  });
+
+  router.delete("/dialogs/:id", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const dialog = await prisma.dialog.findUnique({ where: { id: req.params.id } });
+    if (!dialog || !isParticipant(dialog, req.user!.id)) {
+      res.status(404).json({ error: "Dialog not found" });
+      return;
+    }
+
+    const field = hiddenAtFieldForUser(dialog, req.user!.id);
+    await prisma.dialog.update({
+      where: { id: dialog.id },
+      data: { [field]: new Date() },
+    });
+    res.status(204).send();
   });
 
   router.get("/dialogs/:id", async (req: Request, res: Response) => {
