@@ -141,6 +141,8 @@ export function createReportsRouter(
         matchScore: report.matchScore,
         strengths: report.strengths as string[],
         risks: report.risks as string[],
+        overrideKind: report.overrideKind,
+        overrideReason: report.overrideReason,
         createdAt: report.createdAt,
         latestDecision,
       },

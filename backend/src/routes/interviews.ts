@@ -600,6 +600,8 @@ export function createInterviewsRouter(
             matchScore: extracted.matchScore,
             strengths: extracted.strengths,
             risks: extracted.risks,
+            overrideKind: extracted.overrideKind,
+            overrideReason: extracted.overrideReason,
           },
         });
       });

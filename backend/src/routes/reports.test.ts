@@ -17,6 +17,8 @@ type FakeReport = {
   matchScore: number;
   strengths: string[];
   risks: string[];
+  overrideKind: string | null;
+  overrideReason: string | null;
   createdAt: Date;
   companyProfile?: Record<string, unknown> | null;
   candidateProfile?: Record<string, unknown> | null;
@@ -111,6 +113,8 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
           matchScore: report.matchScore,
           strengths: report.strengths,
           risks: report.risks,
+          overrideKind: report.overrideKind,
+          overrideReason: report.overrideReason,
           createdAt: report.createdAt,
           ...(interview ? { interview } : {}),
         };
@@ -369,6 +373,8 @@ const sampleReport: FakeReport = {
   matchScore: 82,
   strengths: ["Досвід Node.js"],
   risks: ["Мало leadership"],
+  overrideKind: null,
+  overrideReason: null,
   createdAt: new Date("2026-07-14T09:00:00.000Z"),
   companyProfile: { role: "Backend" },
   candidateProfile: { fullName: "Anna" },
@@ -433,8 +439,37 @@ test("GET /reports/:id returns full report for owner HR", async () => {
     assert.equal(body.report.matchScore, 82);
     assert.deepEqual(body.report.strengths, ["Досвід Node.js"]);
     assert.deepEqual(body.report.risks, ["Мало leadership"]);
+    assert.equal(body.report.overrideKind, null);
+    assert.equal(body.report.overrideReason, null);
     assert.equal(body.report.reportMarkdown, "## Підсумок\n\nКандидат підходить.");
     assert.equal(body.report.createdAt, sampleReport.createdAt.toISOString());
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports/:id returns override fields when present", async () => {
+  const withOverride = {
+    ...sampleReport,
+    overrideKind: "soft_skills",
+    overrideReason: "Сильний red flag по комунікації під час live.",
+  };
+  const app = makeApp(makeFakePrisma([withOverride]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.report.overrideKind, "soft_skills");
+    assert.equal(body.report.overrideReason, withOverride.overrideReason);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
