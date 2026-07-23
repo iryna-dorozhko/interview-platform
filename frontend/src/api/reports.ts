@@ -8,6 +8,13 @@ export type LatestDecision = {
   createdAt: string;
 };
 
+export type RecommendationOverrideKind =
+  | "culture_fit"
+  | "soft_skills"
+  | "critical_gap_ok"
+  | "red_flag"
+  | "other";
+
 export type FinalReport = {
   id: string;
   interviewId: string;
@@ -16,6 +23,8 @@ export type FinalReport = {
   matchScore: number;
   strengths: string[];
   risks: string[];
+  overrideKind: RecommendationOverrideKind | null;
+  overrideReason: string | null;
   createdAt: string;
   latestDecision: LatestDecision | null;
 };

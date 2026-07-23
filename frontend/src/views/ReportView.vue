@@ -24,6 +24,14 @@ const RECOMMENDATION_LABELS: Record<string, string> = {
   REJECT: "Відхилити",
 };
 
+const OVERRIDE_KIND_LABELS: Record<string, string> = {
+  culture_fit: "Культурний fit",
+  soft_skills: "Soft skills",
+  critical_gap_ok: "Critical gap прийнятний",
+  red_flag: "Червоний прапорець",
+  other: "Інше",
+};
+
 const DECISION_LABELS: Record<InterviewDecisionType, string> = {
   ACCEPT: "Прийняти",
   REJECT: "Відхилити",
@@ -45,6 +53,10 @@ const renderedMarkdown = computed(() => {
 
 function recommendationLabel(value: string): string {
   return RECOMMENDATION_LABELS[value] ?? value;
+}
+
+function overrideKindLabel(value: string): string {
+  return OVERRIDE_KIND_LABELS[value] ?? value;
 }
 
 function badgeClass(value: string): string {
@@ -141,6 +153,15 @@ onMounted(loadReport);
           <span class="recommendation-label">Рекомендація</span>
         </div>
       </div>
+
+      <section
+        v-if="report.overrideKind && report.overrideReason"
+        class="exception-block"
+      >
+        <h2 class="exception-title">Виняток</h2>
+        <p class="exception-kind">{{ overrideKindLabel(report.overrideKind) }}</p>
+        <p class="exception-reason">{{ report.overrideReason }}</p>
+      </section>
 
       <section class="decision-block">
         <p v-if="report.latestDecision" class="latest-decision">
@@ -294,6 +315,25 @@ onMounted(loadReport);
 .recommendation-value {
   font-size: 1.25rem;
   font-weight: 700;
+}
+.exception-block {
+  margin: 1rem 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border, #cbd5e1);
+}
+.exception-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.exception-kind {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+.exception-reason {
+  margin: 0;
+  line-height: 1.45;
 }
 .badge-hire {
   background: #dcfce7;
