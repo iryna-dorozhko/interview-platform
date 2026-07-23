@@ -150,6 +150,7 @@ model Interview {
   invitations        Invitation[]
   vacancyApplication VacancyApplication?
   decisions InterviewDecision[]
+  evalSnapshot       InterviewEvalSnapshot?
 
   @@index([hrUserId, createdAt(sort: Desc)])
   @@index([candidateUserId])
@@ -419,6 +420,31 @@ model InterviewDecision {
 
   @@index([interviewId, createdAt(sort: Desc)])
   @@index([finalReportId])
+}
+
+model InterviewEvalSnapshot {
+  id                      String                  @id @default(cuid())
+  interviewId             String                  @unique
+  prepCandidateDurationMs Int?
+  prepVacancyDurationMs   Int?
+  liveDurationMs          Int?
+  autoRetryCount          Int                     @default(0)
+  manualRetryCount        Int                     @default(0)
+  hrMessageCount          Int                     @default(0)
+  hrControlActionCount    Int                     @default(0)
+  clarifyingQuestionCount Int                     @default(0)
+  agentMessageCount       Int                     @default(0)
+  finalMatchScore         Int?
+  arbiterRecommendation   Recommendation?
+  hrDecisionType          InterviewDecisionType?
+  hrAgreedWithArbiter     Boolean?
+  reportCreatedAt         DateTime?
+  decisionUpdatedAt       DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  interview               Interview               @relation(fields: [interviewId], references: [id])
+
+  @@index([reportCreatedAt])
 }
 
 model DialogMessage {

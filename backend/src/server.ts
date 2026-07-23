@@ -12,6 +12,7 @@ import { createHealthRouter } from "./routes/health";
 import { createInterviewsRouter } from "./routes/interviews";
 import { createReportsRouter } from "./routes/reports";
 import { createDialogsRouter } from "./routes/dialogs";
+import { createEvalRouter } from "./routes/eval";
 import { createVacanciesRouter } from "./routes/vacancies";
 import { createLlmRouter } from "./routes/llm";
 import { createPrepRouter } from "./routes/prep";
@@ -51,6 +52,8 @@ app.use(
 app.use("/api/candidate", createCandidateInterviewRouter(() => prisma));
 app.use("/api/candidate", createCandidateInvitationsRouter(() => prisma));
 app.use("/api/candidate", createCandidateMatchesRouter(() => prisma, getLlmProvider));
+// Eng-only eval API (token auth; must not sit behind requireHr).
+app.use("/api", createEvalRouter(() => prisma));
 // Shared HR+candidate routes must be registered BEFORE any `/api` + requireHr stack.
 // Otherwise Express runs requireHr for every later `/api/*` path (including /dialogs).
 app.use("/api", requireAuth, createDialogsRouter(() => prisma));

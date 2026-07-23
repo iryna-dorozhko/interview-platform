@@ -1,6 +1,7 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import { withLlmRetry } from "../llm/retry";
 import type { ChatMessage, LlmProvider } from "../llm/types";
+import { bumpAutoRetry } from "../services/interview-eval-counters";
 import { AgentPostReplyParseError } from "./agent-post-reply";
 import type { LiveAgentTurnContext } from "./live-agent-turn-context";
 import { CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK } from "./prompts/candidate-live-agent.uk";
@@ -13,6 +14,7 @@ export interface ParsedCandidateLiveReply {
   message?: string;
   confidence?: CandidateConfidenceLevel;
   needsHuman: boolean;
+  kind?: "clarifying" | "normal";
 }
 
 export { AgentPostReplyParseError as CandidateLiveReplyParseError };
@@ -63,12 +65,21 @@ export function parseCandidateLiveReply(
     throw new AgentPostReplyParseError("missing or invalid field: message");
   }
 
+  const kindRaw = record.kind;
+  let kind: "clarifying" | "normal" = "normal";
+  if (kindRaw !== undefined && kindRaw !== null) {
+    if (kindRaw !== "clarifying" && kindRaw !== "normal") {
+      throw new AgentPostReplyParseError("invalid field: kind");
+    }
+    kind = kindRaw;
+  }
+
   const confidenceRaw = record.confidence;
   if (confidenceRaw === undefined || confidenceRaw === null) {
     if (options?.requireConfidence) {
       throw new AgentPostReplyParseError("missing or invalid field: confidence");
     }
-    return { post: true, message: message.trim(), needsHuman: false };
+    return { post: true, message: message.trim(), needsHuman: false, kind };
   }
 
   const confidence = parseConfidenceLevel(confidenceRaw);
@@ -77,6 +88,7 @@ export function parseCandidateLiveReply(
     message: message.trim(),
     confidence,
     needsHuman: confidence === "unknown",
+    kind,
   };
 }
 
@@ -257,5 +269,8 @@ export async function runCandidateLiveTurn(
   return withLlmRetry(async () => {
     const rawReply = await provider.complete(llmMessages);
     return parseCandidateLiveReply(rawReply, { requireConfidence });
-  }, { label: "candidate-live" });
+  }, {
+    label: "candidate-live",
+    onRetry: () => bumpAutoRetry(interviewId),
+  });
 }

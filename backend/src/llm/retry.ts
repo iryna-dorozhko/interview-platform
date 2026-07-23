@@ -10,6 +10,8 @@ export type WithLlmRetryOptions = {
   label?: string;
   maxAttempts?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Called after a failed retryable attempt, before sleep (0-based failed attempt index). */
+  onRetry?: (attemptIndex: number) => void;
 };
 
 function defaultSleep(ms: number): Promise<void> {
@@ -60,6 +62,7 @@ export async function withLlmRetry<T>(
       const hasMore = attempt < maxAttempts - 1;
       if (!retryable || !hasMore) break;
 
+      options.onRetry?.(attempt);
       const delay = backoffMs(attempt, error);
       console.warn(
         `[llm-retry:${label}] attempt ${attempt + 1}/${maxAttempts} failed:`,

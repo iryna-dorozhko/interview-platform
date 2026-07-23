@@ -3,6 +3,7 @@ export interface ParsedPostReply {
   message?: string;
   /** Candidate asks the live human to answer; conductor must stop and WAIT. */
   needsHuman?: boolean;
+  kind?: "clarifying" | "normal";
 }
 
 export class AgentPostReplyParseError extends Error {
@@ -15,6 +16,12 @@ export class AgentPostReplyParseError extends Error {
 function stripCodeFences(text: string): string {
   const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   return match ? match[1] : text;
+}
+
+function parseKind(value: unknown): "clarifying" | "normal" {
+  if (value === undefined || value === null) return "normal";
+  if (value === "clarifying" || value === "normal") return value;
+  throw new AgentPostReplyParseError("invalid field: kind");
 }
 
 export function parsePostReply(rawText: string): ParsedPostReply {
@@ -31,7 +38,7 @@ export function parsePostReply(rawText: string): ParsedPostReply {
     throw new AgentPostReplyParseError("Agent reply is not a JSON object");
   }
 
-  const { post, message, needsHuman } = data as Record<string, unknown>;
+  const { post, message, needsHuman, kind } = data as Record<string, unknown>;
 
   if (typeof post !== "boolean") {
     throw new AgentPostReplyParseError("missing or invalid field: post");
@@ -49,6 +56,7 @@ export function parsePostReply(rawText: string): ParsedPostReply {
       post: true,
       message: message.trim(),
       needsHuman: needsHuman === true,
+      kind: parseKind(kind),
     };
   }
 

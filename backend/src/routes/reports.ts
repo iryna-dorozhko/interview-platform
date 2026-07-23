@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { generateDecisionLetter } from "../agents/decision-letter-agent";
 import type { LlmProvider } from "../llm/types";
+import { updateEvalAfterDecision } from "../services/interview-eval";
 
 const DECISION_TYPES = new Set(["ACCEPT", "REJECT", "ADDITIONAL_MEETING"]);
 
@@ -292,6 +293,12 @@ export function createReportsRouter(
 
       return { decision, dialogId: dialog.id };
     });
+
+    try {
+      await updateEvalAfterDecision(prisma, report.interviewId);
+    } catch (error) {
+      console.error("[eval] phase2 failed:", error);
+    }
 
     res.status(201).json({
       decision: {

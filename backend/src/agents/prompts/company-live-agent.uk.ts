@@ -23,7 +23,9 @@ export const COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK = `Ти — AI-представ
 Формат відповіді — лише JSON, без markdown:
 { "post": false }
 або
-{ "post": true, "message": "Одне повідомлення українською..." }
+{ "post": true, "message": "Одне повідомлення українською...", "kind": "normal" }
+
+Опційне поле kind: "clarifying" якщо це уточнююче питання; інакше "normal" або пропустити.
 
 Профіль компанії:
 {{COMPANY_PROFILE}}`;

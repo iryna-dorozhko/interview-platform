@@ -1,6 +1,7 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import { withLlmRetry } from "../llm/retry";
 import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "../llm/types";
+import { bumpAutoRetry } from "../services/interview-eval-counters";
 import {
   parseVacancyCompensation,
   parseWorkConditionsArray,
@@ -238,5 +239,8 @@ export async function runArbiterTurn(
   return withLlmRetry(async () => {
     const rawReply = await provider.complete(llmMessages, ARBITER_LLM_OPTIONS);
     return parseArbiterCommand(rawReply);
-  }, { label: "arbiter" });
+  }, {
+    label: "arbiter",
+    onRetry: () => bumpAutoRetry(interviewId),
+  });
 }

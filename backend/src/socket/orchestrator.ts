@@ -16,6 +16,11 @@ import {
 import type { LiveAgentTurnContext } from "../agents/live-agent-turn-context";
 import { SAFE_LLM_ERROR_UK, toSafeLlmErrorMessage } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
+import {
+  bumpAgentMessage,
+  bumpHrControl,
+  bumpManualRetry,
+} from "../services/interview-eval-counters";
 import type {
   LiveMessageDto,
   RoomAgentThinkingEvent,
@@ -351,6 +356,7 @@ export function createRoomOrchestrator(
               "AGENT_ARBITER",
               command.publicMessage,
             );
+            bumpAgentMessage(interviewId, "normal");
           }
 
           if (state.generation !== capturedGeneration) {
@@ -405,6 +411,10 @@ export function createRoomOrchestrator(
                 interviewId,
                 "AGENT_COMPANY",
                 reply.message,
+              );
+              bumpAgentMessage(
+                interviewId,
+                reply.kind === "clarifying" ? "clarifying" : "normal",
               );
               companyPostedThisTurn = true;
               if (command.action !== "COMPANY_ANSWER") {
@@ -463,6 +473,10 @@ export function createRoomOrchestrator(
                 "AGENT_CANDIDATE",
                 reply.message,
                 prismaConfidence,
+              );
+              bumpAgentMessage(
+                interviewId,
+                reply.kind === "clarifying" ? "clarifying" : "normal",
               );
               candidatePostedThisTurn = true;
             }
@@ -605,6 +619,8 @@ export function createRoomOrchestrator(
       }
       const failed = state.lastFailedTurn;
       state.lastFailedTurn = null;
+      bumpManualRetry(interviewId);
+      bumpHrControl(interviewId);
       if (state.debounceTimer) {
         clearTimeout(state.debounceTimer);
         state.debounceTimer = null;
