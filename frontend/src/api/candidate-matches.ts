@@ -17,7 +17,7 @@ export type ActiveApplication = {
   id: string;
   vacancyId: string;
   matchScore: number;
-  status: "PENDING" | "CONVERTED" | "WITHDRAWN" | "DECLINED_BY_HR";
+  status: "PENDING" | "CONVERTED" | "WITHDRAWN" | "DECLINED_BY_HR" | "ACCEPTED" | "ADDITIONAL_MEETING";
   vacancyTitle?: string;
 };
 

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import {
   createInterviewFromApplication,
+  draftApplicationDecline,
   fetchHrApplication,
   fetchHrApplications,
   fetchHrNotifications,
   markNotificationRead,
+  sendApplicationDecline,
   type HrApplicationDetail,
   type MatchBreakdown,
 } from "../api/hr-applications";
@@ -19,6 +21,8 @@ const STATUS_LABELS: Record<string, string> = {
   CONVERTED: "Створено співбесіду",
   WITHDRAWN: "Відкликано",
   DECLINED_BY_HR: "Відхилено HR",
+  ACCEPTED: "Прийнято",
+  ADDITIONAL_MEETING: "Потрібна додаткова зустріч",
 };
 
 const router = useRouter();
@@ -37,8 +41,15 @@ const creating = ref(false);
 const createError = ref<string | null>(null);
 const createdJoinCode = ref<string | null>(null);
 
+const declineModalOpen = ref(false);
+const declineDraftBody = ref("");
+const declineModalState = ref<"loading" | "edit" | "error" | "sent">("loading");
+const declineModalError = ref<string | null>(null);
+const declineSentDialogId = ref<string | null>(null);
+const declining = ref(false);
+
 const canCreateInterview = computed(
-  () => detail.value?.status === "PENDING" && !creating.value,
+  () => detail.value?.status === "PENDING" && !creating.value && !declining.value,
 );
 
 function isMatchBreakdown(value: unknown): value is MatchBreakdown {
@@ -195,6 +206,59 @@ function goToInterview(): void {
   router.push({ name: "interview-detail", params: { id: detail.value.interviewId } });
 }
 
+function closeDeclineModal(): void {
+  declineModalOpen.value = false;
+  declining.value = false;
+}
+
+async function openDeclineModal(): Promise<void> {
+  if (!detail.value || detail.value.status !== "PENDING" || declining.value) return;
+  declineModalOpen.value = true;
+  declineModalState.value = "loading";
+  declineModalError.value = null;
+  declineDraftBody.value = "";
+  declineSentDialogId.value = null;
+  declining.value = true;
+  try {
+    const draft = await draftApplicationDecline(detail.value.id);
+    declineDraftBody.value = draft.body;
+    declineModalState.value = "edit";
+  } catch (error) {
+    declineModalState.value = "error";
+    declineModalError.value =
+      error instanceof Error ? error.message : "Не вдалося згенерувати лист";
+  } finally {
+    declining.value = false;
+  }
+}
+
+async function submitDecline(): Promise<void> {
+  if (!detail.value || detail.value.status !== "PENDING" || declining.value) return;
+  const letterBody = declineDraftBody.value.trim();
+  if (!letterBody) return;
+
+  declining.value = true;
+  declineModalError.value = null;
+  try {
+    const result = await sendApplicationDecline(detail.value.id, letterBody);
+    const updated: HrApplicationDetail = {
+      ...detail.value,
+      status: result.application.status,
+    };
+    detail.value = updated;
+    applications.value = applications.value.map((item) =>
+      item.id === updated.id ? updated : item,
+    );
+    declineSentDialogId.value = result.dialogId;
+    declineModalState.value = "sent";
+  } catch (error) {
+    declineModalError.value =
+      error instanceof Error ? error.message : "Не вдалося надіслати відмову";
+  } finally {
+    declining.value = false;
+  }
+}
+
 async function markUnreadNotifications(): Promise<void> {
   try {
     const notifications = await fetchHrNotifications();
@@ -345,13 +409,26 @@ onMounted(() => {
               />
             </label>
             <p v-if="createError" class="fail" role="alert">{{ createError }}</p>
-            <button type="submit" class="btn-primary" :disabled="!canCreateInterview">
-              {{ creating ? "Створення…" : "Створити співбесіду" }}
-            </button>
+            <div class="pending-actions">
+              <button type="submit" class="btn-primary" :disabled="!canCreateInterview">
+                {{ creating ? "Створення…" : "Створити співбесіду" }}
+              </button>
+              <button
+                type="button"
+                class="btn-secondary"
+                :disabled="creating || declining"
+                @click="openDeclineModal"
+              >
+                Відхилити
+              </button>
+            </div>
           </form>
 
           <div v-else class="converted">
             <p v-if="createdJoinCode" class="join-code">Код: {{ createdJoinCode }}</p>
+            <p v-else-if="detail.status === 'DECLINED_BY_HR'" class="muted">
+              Заявку відхилено. Лист надіслано кандидату в «Діалоги».
+            </p>
             <p v-else-if="detail.interviewId" class="muted">
               Співбесіду вже створено з цієї заявки.
             </p>
@@ -366,6 +443,61 @@ onMounted(() => {
           </div>
         </template>
       </section>
+    </div>
+
+    <div v-if="declineModalOpen" class="modal-overlay" @click.self="closeDeclineModal">
+      <div class="modal" role="dialog" aria-labelledby="decline-modal-title">
+        <h2 id="decline-modal-title">Відхилити заявку</h2>
+
+        <p v-if="declineModalState === 'loading'">Завантаження…</p>
+
+        <template v-else-if="declineModalState === 'error'">
+          <p class="fail" role="alert">{{ declineModalError }}</p>
+          <div class="actions">
+            <button type="button" class="btn-secondary" @click="closeDeclineModal">
+              Закрити
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="declineModalState === 'sent'">
+          <p class="success-message">Відмову надіслано кандидату.</p>
+          <RouterLink
+            v-if="declineSentDialogId"
+            :to="'/dialogs/' + declineSentDialogId"
+            class="dialog-link"
+            @click="closeDeclineModal"
+          >
+            Відкрити діалог
+          </RouterLink>
+          <div class="actions">
+            <button type="button" class="btn-secondary" @click="closeDeclineModal">
+              Закрити
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="declineModalState === 'edit'">
+          <label class="field">
+            <span>Текст листа</span>
+            <textarea v-model="declineDraftBody" rows="10" />
+          </label>
+          <p v-if="declineModalError" class="fail" role="alert">{{ declineModalError }}</p>
+          <div class="actions">
+            <button type="button" class="btn-secondary" @click="closeDeclineModal">
+              Скасувати
+            </button>
+            <button
+              type="button"
+              class="btn-primary"
+              :disabled="!declineDraftBody.trim() || declining"
+              @click="submitDecline"
+            >
+              Надіслати
+            </button>
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -568,5 +700,64 @@ onMounted(() => {
   background: #f3f4f6;
   color: #374151;
   border-color: #d1d5db;
+}
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+.modal {
+  background: var(--surface, #fff);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 32rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+.modal h2 {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+}
+.field textarea {
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  resize: vertical;
+  min-height: 10rem;
+}
+.success-message {
+  margin: 0 0 0.75rem;
+}
+.dialog-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9375rem;
+}
+.dialog-link:hover {
+  text-decoration: underline;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 </style>

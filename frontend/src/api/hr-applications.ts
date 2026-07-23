@@ -137,3 +137,34 @@ export async function createInterviewFromApplication(
   }
   return (await response.json()) as CreateInterviewFromApplicationResult;
 }
+
+export async function draftApplicationDecline(id: string): Promise<{ body: string }> {
+  const response = await fetchWithAuth(`/api/hr/applications/${id}/decline/draft`, {
+    method: "POST",
+    body: "{}",
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося згенерувати лист-відмову");
+  }
+  return (await response.json()) as { body: string };
+}
+
+export async function sendApplicationDecline(
+  id: string,
+  letterBody: string,
+): Promise<{ application: { id: string; status: string }; dialogId: string }> {
+  const response = await fetchWithAuth(`/api/hr/applications/${id}/decline`, {
+    method: "POST",
+    body: JSON.stringify({ letterBody }),
+  });
+  if (!response.ok) {
+    if (response.status === 409) {
+      throw new Error("Заявка вже оброблена");
+    }
+    throw await parseError(response, "Не вдалося надіслати відмову");
+  }
+  return (await response.json()) as {
+    application: { id: string; status: string };
+    dialogId: string;
+  };
+}
