@@ -317,7 +317,12 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
 
     await prisma.dialog.update({
       where: { id: dialog.id },
-      data: { updatedAt: new Date() },
+      data: {
+        updatedAt: new Date(),
+        ...(dialog.hrUserId === req.user!.id
+          ? { candidateHiddenAt: null }
+          : { hrHiddenAt: null }),
+      },
     });
 
     res.status(201).json({

@@ -1073,3 +1073,73 @@ test("GET /dialogs/:id still works after hide for hider", async () => {
     server.close();
   }
 });
+
+test("candidate message after HR hide clears hrHiddenAt and restores HR list", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [
+      {
+        ...baseDialog,
+        hrHiddenAt: new Date("2026-07-20T10:00:00.000Z"),
+        candidateHiddenAt: null,
+      },
+    ],
+  });
+
+  const candApp = makeApp(prisma, candidateUser);
+  const candServer = candApp.listen(0);
+  const candPort = (candServer.address() as { port: number }).port;
+
+  try {
+    const send = await fetch(`http://127.0.0.1:${candPort}/api/dialogs/dlg_1/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "Ping" }),
+    });
+    assert.equal(send.status, 201);
+  } finally {
+    candServer.close();
+  }
+
+  const hrApp = makeApp(prisma, hrUser);
+  const hrServer = hrApp.listen(0);
+  const hrPort = (hrServer.address() as { port: number }).port;
+
+  try {
+    const list = await fetch(`http://127.0.0.1:${hrPort}/api/dialogs`);
+    assert.equal(list.status, 200);
+    assert.equal((await list.json()).dialogs.length, 1);
+  } finally {
+    hrServer.close();
+  }
+});
+
+test("own message after hide does not clear own hiddenAt", async () => {
+  const prisma = makeFakePrisma({
+    users,
+    dialogs: [
+      {
+        ...baseDialog,
+        hrHiddenAt: new Date("2026-07-20T10:00:00.000Z"),
+        candidateHiddenAt: null,
+      },
+    ],
+  });
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const send = await fetch(`http://127.0.0.1:${port}/api/dialogs/dlg_1/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "Still hidden for me" }),
+    });
+    assert.equal(send.status, 201);
+
+    const list = await fetch(`http://127.0.0.1:${port}/api/dialogs`);
+    assert.equal((await list.json()).dialogs.length, 0);
+  } finally {
+    server.close();
+  }
+});
