@@ -505,6 +505,13 @@ test("FINAL_REPORT_SYSTEM_PROMPT_UK requires assessments and contextFit without 
     FINAL_REPORT_SYSTEM_PROMPT_UK,
     /unmet або unknown — recommendation НЕ може бути HIRE/i,
   );
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /overrideKind/);
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /overrideReason/);
+  assert.match(FINAL_REPORT_SYSTEM_PROMPT_UK, /critical_gap_ok/);
+  assert.match(
+    FINAL_REPORT_SYSTEM_PROMPT_UK,
+    /відхилитись від цього правила ЛИШЕ|можна відхилитись/i,
+  );
   assert.doesNotMatch(
     FINAL_REPORT_SYSTEM_PROMPT_UK,
     /\{"reportMarkdown":".*","recommendation":"HIRE\|MAYBE\|REJECT","matchScore":0-100/,
