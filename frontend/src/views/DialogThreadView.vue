@@ -184,6 +184,8 @@ async function onDelete(): Promise<void> {
         </button>
       </form>
     </template>
+  </div>
+</template>
 
 <style scoped>
 .thread {
