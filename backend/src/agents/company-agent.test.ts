@@ -58,6 +58,23 @@ test("company agent system prompt includes work conditions block with seven subt
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /чотир/i); // 4 themes
 });
 
+test("company agent system prompt asks role first and seniority only neutrally if missing", () => {
+  assert.doesNotMatch(
+    COMPANY_AGENT_SYSTEM_PROMPT_UK,
+    /Посада \(роль, рівень — junior\/middle\/senior, команда\)/,
+  );
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /перше питання лише про (назву )?посади|назву посади\/роль|лише про назву посади/i);
+  assert.match(
+    COMPANY_AGENT_SYSTEM_PROMPT_UK,
+    /досвід|грейд|рівень відповідальності/i,
+  );
+  assert.match(
+    COMPANY_AGENT_SYSTEM_PROMPT_UK,
+    /не нав.?язуй|не починай.*junior|junior\/middle\/senior/i,
+  );
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /якщо HR (сам )?не (згадав|вказав)|лише якщо.*не (згадав|вказав)/i);
+});
+
 test("extraction prompt encodes workConditions and compensation", () => {
   assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /workConditions/i);
   assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /compensation/i);
