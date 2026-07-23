@@ -167,6 +167,17 @@ test("candidate live prompt forbids repeating information from chat history", ()
   assert.match(CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK, /лише нові для чату/i);
 });
 
+test("candidate live prompt answers all open interviewer questions in one message", () => {
+  assert.match(
+    CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK,
+    /відкрит.*(питан|пункт).*одн(ому|им) повідомлен|кілька відкритих|усі відкриті/i,
+  );
+  assert.match(
+    CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK,
+    /коротк.*(підтверд|речен).*лише.*(пункт|питан)|НЕ скасовує відповідь на інші відкриті/i,
+  );
+});
+
 test("ANSWER nudge references confidence not needsHuman", () => {
   assert.match(ANSWER_NUDGE_UK, /confidence/i);
   assert.doesNotMatch(ANSWER_NUDGE_UK, /needsHuman:true/);
