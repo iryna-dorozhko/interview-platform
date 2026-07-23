@@ -11,12 +11,21 @@ export type LiveTranscriptItem = {
   candidateConfidence?: CandidateConfidence | null;
 };
 
+export type RecommendationOverrideKind =
+  | "culture_fit"
+  | "soft_skills"
+  | "critical_gap_ok"
+  | "red_flag"
+  | "other";
+
 export type ExtractedFinalReport = {
   reportMarkdown: string;
   recommendation: "HIRE" | "MAYBE" | "REJECT";
   matchScore: number;
   strengths: string[];
   risks: string[];
+  overrideKind: RecommendationOverrideKind | null;
+  overrideReason: string | null;
 };
 
 export class FinalReportExtractionError extends Error {
@@ -36,6 +45,14 @@ const AUTHOR_LABELS: Record<LiveAuthorType, string> = {
 
 const VALID_RECOMMENDATIONS = new Set(["HIRE", "MAYBE", "REJECT"]);
 const VALID_STATUSES = new Set<RequirementStatus>(["met", "unknown", "unmet"]);
+const VALID_OVERRIDE_KINDS = new Set<RecommendationOverrideKind>([
+  "culture_fit",
+  "soft_skills",
+  "critical_gap_ok",
+  "red_flag",
+  "other",
+]);
+const MIN_OVERRIDE_REASON_LENGTH = 20;
 
 function expectedRequirements(
   requirements: VacancyRequirements,
@@ -120,7 +137,7 @@ function toStringArray(value: unknown, field: string): string[] {
   return value.map((item) => String(item));
 }
 
-function normalizeRecommendation(
+function baselineRecommendation(
   assessments: RequirementAssessment[],
   recommendation: ExtractedFinalReport["recommendation"],
 ): ExtractedFinalReport["recommendation"] {
@@ -129,6 +146,39 @@ function normalizeRecommendation(
   if (allCriticalMet) return "HIRE";
   if (recommendation === "HIRE") return "MAYBE";
   return recommendation;
+}
+
+function parseOverride(
+  kindRaw: unknown,
+  reasonRaw: unknown,
+): { kind: RecommendationOverrideKind; reason: string } | null {
+  if (typeof kindRaw !== "string" || typeof reasonRaw !== "string") return null;
+  if (!VALID_OVERRIDE_KINDS.has(kindRaw as RecommendationOverrideKind)) return null;
+  const reason = reasonRaw.trim();
+  if (reason.length < MIN_OVERRIDE_REASON_LENGTH) return null;
+  return { kind: kindRaw as RecommendationOverrideKind, reason };
+}
+
+function resolveRecommendation(
+  assessments: RequirementAssessment[],
+  llmRecommendation: ExtractedFinalReport["recommendation"],
+  kindRaw: unknown,
+  reasonRaw: unknown,
+): {
+  recommendation: ExtractedFinalReport["recommendation"];
+  overrideKind: RecommendationOverrideKind | null;
+  overrideReason: string | null;
+} {
+  const baseline = baselineRecommendation(assessments, llmRecommendation);
+  const exception = parseOverride(kindRaw, reasonRaw);
+  if (!exception || llmRecommendation === baseline) {
+    return { recommendation: baseline, overrideKind: null, overrideReason: null };
+  }
+  return {
+    recommendation: llmRecommendation,
+    overrideKind: exception.kind,
+    overrideReason: exception.reason,
+  };
 }
 
 const CONFIDENCE_LABELS: Record<string, string> = {
@@ -173,7 +223,7 @@ export function parseFinalReport(
     throw new FinalReportExtractionError("LLM response is not a JSON object");
   }
 
-  const { reportMarkdown, recommendation, contextFit, assessments, strengths, risks } =
+  const { reportMarkdown, recommendation, contextFit, assessments, strengths, risks, overrideKind, overrideReason } =
     data as Record<string, unknown>;
 
   if (typeof reportMarkdown !== "string" || !reportMarkdown.trim()) {
@@ -196,17 +246,21 @@ export function parseFinalReport(
 
   const validatedAssessments = validateAssessments(assessments, requirements);
   const breakdown = computeMatchScore(validatedAssessments, contextFit);
-  const normalizedRecommendation = normalizeRecommendation(
+  const resolved = resolveRecommendation(
     validatedAssessments,
     recommendation as ExtractedFinalReport["recommendation"],
+    overrideKind,
+    overrideReason,
   );
 
   return {
     reportMarkdown: reportMarkdown.trim(),
-    recommendation: normalizedRecommendation,
+    recommendation: resolved.recommendation,
     matchScore: breakdown.matchScore,
     strengths: toStringArray(strengths, "strengths"),
     risks: toStringArray(risks, "risks"),
+    overrideKind: resolved.overrideKind,
+    overrideReason: resolved.overrideReason,
   };
 }
 

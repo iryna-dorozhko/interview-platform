@@ -14,6 +14,8 @@ const sampleRequirements = {
   desired: ["Docker"],
 };
 
+const VALID_REASON = "Сильний red flag по комунікації під час live.";
+
 function sampleReportJson(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
     reportMarkdown:
@@ -139,6 +141,127 @@ test("parseFinalReport forces HIRE when all critical are met even if LLM returne
     sampleRequirements,
   );
   assert.equal(result.recommendation, "HIRE");
+});
+
+test("parseFinalReport keeps MAYBE with exception when all critical met", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "MAYBE",
+      overrideKind: "soft_skills",
+      overrideReason: VALID_REASON,
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "MAYBE");
+  assert.equal(result.overrideKind, "soft_skills");
+  assert.equal(result.overrideReason, VALID_REASON);
+});
+
+test("parseFinalReport keeps REJECT with exception when all critical met", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "REJECT",
+      overrideKind: "red_flag",
+      overrideReason: VALID_REASON,
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "REJECT");
+  assert.equal(result.overrideKind, "red_flag");
+});
+
+test("parseFinalReport keeps HIRE with exception when critical unmet", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "HIRE",
+      overrideKind: "critical_gap_ok",
+      overrideReason: VALID_REASON,
+      assessments: [
+        {
+          requirement: "Node.js",
+          priority: "critical",
+          status: "unmet",
+          evidence: "Немає",
+        },
+        {
+          requirement: "Docker",
+          priority: "desired",
+          status: "met",
+          evidence: "Є",
+        },
+      ],
+      risks: ["Немає Node.js — прийнятний gap"],
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "HIRE");
+  assert.equal(result.overrideKind, "critical_gap_ok");
+  assert.equal(result.overrideReason, VALID_REASON);
+});
+
+test("parseFinalReport ignores short overrideReason and applies baseline", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "MAYBE",
+      overrideKind: "culture_fit",
+      overrideReason: "коротко",
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "HIRE");
+  assert.equal(result.overrideKind, null);
+  assert.equal(result.overrideReason, null);
+});
+
+test("parseFinalReport ignores invalid overrideKind and applies baseline", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "MAYBE",
+      overrideKind: "nope",
+      overrideReason: VALID_REASON,
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "HIRE");
+  assert.equal(result.overrideKind, null);
+});
+
+test("parseFinalReport strips unused exception when LLM matches baseline", () => {
+  const result = parseFinalReport(
+    sampleReportJson({
+      recommendation: "REJECT",
+      overrideKind: "other",
+      overrideReason: VALID_REASON,
+      assessments: [
+        {
+          requirement: "Node.js",
+          priority: "critical",
+          status: "unmet",
+          evidence: "Немає",
+        },
+        {
+          requirement: "Docker",
+          priority: "desired",
+          status: "met",
+          evidence: "Є",
+        },
+      ],
+      risks: ["Немає Node.js"],
+    }),
+    sampleRequirements,
+  );
+  assert.equal(result.recommendation, "REJECT");
+  assert.equal(result.overrideKind, null);
+  assert.equal(result.overrideReason, null);
+});
+
+test("parseFinalReport returns null override when fields omitted", () => {
+  const result = parseFinalReport(
+    sampleReportJson({ recommendation: "HIRE" }),
+    sampleRequirements,
+  );
+  assert.equal(result.overrideKind, null);
+  assert.equal(result.overrideReason, null);
 });
 
 test("parseFinalReport downgrades HIRE to MAYBE when any critical is unmet", () => {
