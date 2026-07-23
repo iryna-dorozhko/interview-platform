@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import type { Server } from "socket.io";
+import { emitDialogMessage } from "../socket/dialogs";
 
 const PREVIEW_MAX = 120;
 
@@ -69,7 +71,10 @@ async function isCandidateEligible(
   return application != null;
 }
 
-export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
+export function createDialogsRouter(
+  getPrisma: () => PrismaClient,
+  getIo: () => Server,
+): Router {
   const router = Router();
 
   router.get("/dialogs", async (req: Request, res: Response) => {
@@ -325,16 +330,16 @@ export function createDialogsRouter(getPrisma: () => PrismaClient): Router {
       },
     });
 
-    res.status(201).json({
-      message: {
-        id: message.id,
-        dialogId: message.dialogId,
-        senderUserId: message.senderUserId,
-        body: message.body,
-        kind: message.kind,
-        createdAt: message.createdAt.toISOString(),
-      },
-    });
+    const messageDto = {
+      id: message.id,
+      dialogId: message.dialogId,
+      senderUserId: message.senderUserId,
+      body: message.body,
+      kind: message.kind as "USER" | "DECISION_LETTER",
+      createdAt: message.createdAt.toISOString(),
+    };
+    emitDialogMessage(getIo(), dialog.id, messageDto);
+    res.status(201).json({ message: messageDto });
   });
 
   return router;

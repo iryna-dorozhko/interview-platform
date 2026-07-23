@@ -1,5 +1,6 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { connectSocket } from "../api/socket";
+import { createTypingEmitter, typingLabelFor } from "../utils/typing-indicator";
 
 export type LiveAuthorType =
   | "HUMAN_HR"
@@ -41,8 +42,21 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
   const agentThinking = ref<AgentThinkingState | null>(null);
   const agentError = ref<string | null>(null);
   const arbiterProcessLog = ref<ArbiterProcessEntry[]>([]);
+  const peerTypingRole = ref<"HR" | "CANDIDATE" | null>(null);
 
   const socket = connectSocket();
+
+  const peerTypingLabel = computed(() =>
+    peerTypingRole.value ? typingLabelFor(peerTypingRole.value) : null,
+  );
+
+  const typingEmitter = createTypingEmitter({
+    emit: (isTyping) => {
+      if (connectionState.value !== "connected") return;
+      if (interviewStatus.value === "ENDED") return;
+      socket.emit("room:typing", { interviewId, isTyping });
+    },
+  });
 
   function mergeMessages(incoming: LiveMessage[]): void {
     const byId = new Map(messages.value.map((item) => [item.id, item]));
@@ -130,10 +144,23 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     errorMessage.value = payload?.error ?? "Помилка кімнати";
   }
 
+  function onTyping(payload: { role?: "HR" | "CANDIDATE"; isTyping?: boolean }): void {
+    if (payload?.role !== "HR" && payload?.role !== "CANDIDATE") return;
+    if (typeof payload.isTyping !== "boolean") return;
+    if (payload.role === currentRole) return;
+    peerTypingRole.value = payload.isTyping ? payload.role : null;
+  }
+
+  function notifyTypingInput(text: string): void {
+    typingEmitter.onInput(text);
+  }
+
   function sendMessage(content: string): void {
     const text = content.trim();
     if (!text || connectionState.value !== "connected") return;
     if (interviewStatus.value === "ENDED") return;
+    typingEmitter.onSend();
+    peerTypingRole.value = null;
     socket.emit("room:message", { interviewId, content: text });
   }
 
@@ -156,6 +183,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.on("room:agent-thinking", onAgentThinking);
     socket.on("room:agent-error", onAgentError);
     socket.on("room:arbiter-process", onArbiterProcess);
+    socket.on("room:typing", onTyping);
 
     if (socket.connected) {
       onConnect();
@@ -174,6 +202,9 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.off("room:agent-thinking", onAgentThinking);
     socket.off("room:agent-error", onAgentError);
     socket.off("room:arbiter-process", onArbiterProcess);
+    socket.off("room:typing", onTyping);
+    typingEmitter.onSend();
+    typingEmitter.dispose();
   });
 
   const isReadOnly = computed(
@@ -188,8 +219,10 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     agentThinking,
     agentError,
     arbiterProcessLog,
+    peerTypingLabel,
     currentRole,
     sendMessage,
+    notifyTypingInput,
     retryAgent,
     isReadOnly,
   };

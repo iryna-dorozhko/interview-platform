@@ -18,11 +18,13 @@ const {
   connectionState,
   errorMessage,
   sendMessage,
+  notifyTypingInput,
   isReadOnly,
   agentThinking,
   interviewStatus,
   agentError,
   arbiterProcessLog,
+  peerTypingLabel,
   retryAgent,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 
@@ -115,7 +117,9 @@ async function onEndInterview(): Promise<void> {
       :disabled="isReadOnly"
       :error-message="errorMessage"
       :agent-thinking="agentThinking"
+      :peer-typing-label="peerTypingLabel"
       @send="sendMessage"
+      @typing-input="notifyTypingInput"
     />
     <AgentStatusPanel
       v-if="currentRole === 'HR'"

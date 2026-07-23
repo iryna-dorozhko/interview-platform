@@ -41,7 +41,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(detail ? `${fallback}: ${detail}` : fallback);
 }
 
-type BackendDialogMessage = {
+export type BackendDialogMessage = {
   id: string;
   senderUserId: string;
   body: string;
@@ -50,7 +50,7 @@ type BackendDialogMessage = {
   decision?: { type: InterviewDecisionType } | null;
 };
 
-function mapDialogMessage(message: BackendDialogMessage): DialogMessage {
+export function mapDialogMessage(message: BackendDialogMessage): DialogMessage {
   return {
     id: message.id,
     senderUserId: message.senderUserId,

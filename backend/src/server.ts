@@ -23,6 +23,7 @@ import { createCandidateMatchesRouter } from "./routes/candidate-matches";
 import { createHrApplicationsRouter } from "./routes/hr-applications";
 import { createRoomOrchestrator } from "./socket/orchestrator";
 import { registerRoomHandlers } from "./socket/room";
+import { registerDialogHandlers } from "./socket/dialogs";
 import { createGracefulShutdown } from "./server-lifecycle";
 
 const app = express();
@@ -53,14 +54,14 @@ app.use("/api/candidate", createCandidateInvitationsRouter(() => prisma));
 app.use("/api/candidate", createCandidateMatchesRouter(() => prisma, getLlmProvider));
 // Shared HR+candidate routes must be registered BEFORE any `/api` + requireHr stack.
 // Otherwise Express runs requireHr for every later `/api/*` path (including /dialogs).
-app.use("/api", requireAuth, createDialogsRouter(() => prisma));
+app.use("/api", requireAuth, createDialogsRouter(() => prisma, () => io));
 app.use("/api", requireAuth, requireHr, createLlmRouter(getLlmProvider));
 app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createCompanyPrepRouter(() => prisma, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createHrApplicationsRouter(() => prisma));
-app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma, getLlmProvider));
+app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma, getLlmProvider, () => io));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -73,6 +74,7 @@ const orchestrator = createRoomOrchestrator(() => prisma, {
   getLlmProvider,
 });
 registerRoomHandlers(io, () => prisma, orchestrator);
+registerDialogHandlers(io, () => prisma);
 
 function stopHttp(): Promise<void> {
   return new Promise((resolve, reject) => {

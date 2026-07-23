@@ -357,17 +357,30 @@ const defaultFakeLlm = {
   complete: async () => "Шановний кандидате, …",
 };
 
+function makeNoopIo() {
+  return {
+    to: () => ({
+      emit: () => {},
+    }),
+  };
+}
+
 function makeApp(
   fakePrisma: ReturnType<typeof makeFakePrisma>,
   user?: AuthUser,
   fakeLlm: { complete: (...args: unknown[]) => Promise<string> } = defaultFakeLlm,
+  getIo: () => unknown = () => makeNoopIo(),
 ) {
   const app = express();
   app.use(express.json());
   app.use(withUser(user));
   app.use(
     "/api",
-    createReportsRouter(() => fakePrisma as never, () => fakeLlm as never),
+    createReportsRouter(
+      () => fakePrisma as never,
+      () => fakeLlm as never,
+      getIo as never,
+    ),
   );
   return app;
 }
@@ -838,8 +851,16 @@ test("POST /reports/:id/decisions/draft returns 403 for wrong HR", async () => {
 });
 
 test("POST /reports/:id/decisions creates decision, dialog, and letter message; second reuses dialog", async () => {
+  const emitted: Array<{ room: string; event: string; payload: unknown }> = [];
+  const recordingIo = {
+    to: (room: string) => ({
+      emit: (event: string, payload: unknown) => {
+        emitted.push({ room, event, payload });
+      },
+    }),
+  };
   const fakePrisma = makeFakePrisma([sampleReport]);
-  const app = makeApp(fakePrisma, hrUser);
+  const app = makeApp(fakePrisma, hrUser, defaultFakeLlm, () => recordingIo);
   const server = app.listen(0);
   const port = (server.address() as { port: number }).port;
 
@@ -861,6 +882,14 @@ test("POST /reports/:id/decisions creates decision, dialog, and letter message; 
     assert.equal(fakePrisma.__messages[0].kind, "DECISION_LETTER");
     assert.equal(fakePrisma.__messages[0].body, "Вітаємо!");
     assert.equal(fakePrisma.__decisions[0].dialogMessageId, fakePrisma.__messages[0].id);
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0]?.event, "dialog:message");
+    assert.equal(emitted[0]?.room, `dialog:${firstBody.dialogId}`);
+    const broadcast = emitted[0]?.payload as {
+      message: { kind: string; decision?: { type: string } };
+    };
+    assert.equal(broadcast.message.kind, "DECISION_LETTER");
+    assert.equal(broadcast.message.decision?.type, "ACCEPT");
 
     const second = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
       method: "POST",
@@ -879,6 +908,7 @@ test("POST /reports/:id/decisions creates decision, dialog, and letter message; 
     assert.equal(fakePrisma.__decisions.length, 2);
     assert.equal(fakePrisma.__messages[1].kind, "DECISION_LETTER");
     assert.equal(fakePrisma.__messages[1].body, "Потрібна ще одна зустріч.");
+    assert.equal(emitted.length, 2);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

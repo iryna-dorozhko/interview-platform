@@ -404,6 +404,84 @@ test("room:agent-retry calls onAgentRetry for HR in the joined room", async () =
   }
 });
 
+test("room:typing relays to peer without echoing sender", async () => {
+  const interview: FakeInterview = {
+    id: "interview_1",
+    hrUserId: "hr_1",
+    candidateUserId: "cd_1",
+    status: "LIVE",
+  };
+  const prisma = makeFakePrisma(interview, [{ id: "session_1", interviewId: "interview_1" }], []);
+  const server = await startRoomServer(prisma);
+
+  try {
+    const hrSocket = await connectClient(server.port, hrToken);
+    const candidateSocket = await connectClient(server.port, candidateToken);
+    hrSocket.emit("room:join", { interviewId: "interview_1" });
+    candidateSocket.emit("room:join", { interviewId: "interview_1" });
+    await Promise.all([
+      waitForEvent(hrSocket, "room:messages"),
+      waitForEvent(candidateSocket, "room:messages"),
+    ]);
+
+    const peerTyping = waitForEvent<{ role: string; isTyping: boolean }>(
+      candidateSocket,
+      "room:typing",
+    );
+    let senderGotTyping = false;
+    hrSocket.once("room:typing", () => {
+      senderGotTyping = true;
+    });
+
+    hrSocket.emit("room:typing", { interviewId: "interview_1", isTyping: true });
+    const payload = await peerTyping;
+    assert.equal(payload.role, "HR");
+    assert.equal(payload.isTyping, true);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(senderGotTyping, false);
+
+    hrSocket.disconnect();
+    candidateSocket.disconnect();
+  } finally {
+    await server.close();
+  }
+});
+
+test("room:typing ignored when interviewId does not match joined room", async () => {
+  const interview: FakeInterview = {
+    id: "interview_1",
+    hrUserId: "hr_1",
+    candidateUserId: "cd_1",
+    status: "LIVE",
+  };
+  const prisma = makeFakePrisma(interview, [{ id: "session_1", interviewId: "interview_1" }], []);
+  const server = await startRoomServer(prisma);
+
+  try {
+    const hrSocket = await connectClient(server.port, hrToken);
+    const candidateSocket = await connectClient(server.port, candidateToken);
+    hrSocket.emit("room:join", { interviewId: "interview_1" });
+    candidateSocket.emit("room:join", { interviewId: "interview_1" });
+    await Promise.all([
+      waitForEvent(hrSocket, "room:messages"),
+      waitForEvent(candidateSocket, "room:messages"),
+    ]);
+
+    let got = false;
+    candidateSocket.once("room:typing", () => {
+      got = true;
+    });
+    hrSocket.emit("room:typing", { interviewId: "other", isTyping: true });
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(got, false);
+
+    hrSocket.disconnect();
+    candidateSocket.disconnect();
+  } finally {
+    await server.close();
+  }
+});
+
 test("room:agent-retry rejects candidate and does not call onAgentRetry", async () => {
   const interview: FakeInterview = {
     id: "interview_1",

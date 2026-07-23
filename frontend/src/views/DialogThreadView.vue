@@ -1,18 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import {
   deleteDialog,
-  fetchDialog,
   fetchDialogs,
-  sendDialogMessage,
   type DialogMessage,
   type InterviewDecisionType,
 } from "../api/dialogs";
+import { useDialogThread } from "../composables/useDialogThread";
 import { useDialogUnread } from "../composables/useDialogUnread";
 import { useAuthStore } from "../stores/auth";
-
-type LoadState = "loading" | "ready" | "error";
 
 const DECISION_BADGES: Record<InterviewDecisionType, string> = {
   ACCEPT: "Прийнято",
@@ -31,18 +28,46 @@ const basePath = computed(() =>
 );
 const dialogId = computed(() => String(route.params.id));
 
-const loadState = ref<LoadState>("loading");
-const loadError = ref<string | null>(null);
-const messages = ref<DialogMessage[]>([]);
 const peerLabel = ref("Діалог");
-
-const draft = ref("");
-const sending = ref(false);
-const sendError = ref<string | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 
 const currentUserId = computed(() => auth.user?.id ?? null);
+
+const {
+  loadState,
+  loadError,
+  messages,
+  draft,
+  sending,
+  sendError,
+  peerTypingLabel,
+  notifyTypingInput,
+  send,
+} = useDialogThread(dialogId, {
+  currentUserId,
+  onLoaded: async (id) => {
+    peerLabel.value = "Діалог";
+    try {
+      const list = await fetchDialogs();
+      const match = list.find((item) => item.id === id);
+      if (match?.peer?.email) {
+        peerLabel.value = match.peer.email;
+      }
+    } catch {
+      // keep default label
+    }
+    try {
+      await markRead(id);
+    } catch {
+      // leave unread badge until next successful mark/poll
+    }
+  },
+});
+
+watch(draft, (value) => {
+  notifyTypingInput(value);
+});
 
 function isOwn(message: DialogMessage): boolean {
   return currentUserId.value != null && message.senderUserId === currentUserId.value;
@@ -61,64 +86,6 @@ function formatTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-async function resolvePeerLabel(id: string): Promise<void> {
-  try {
-    const list = await fetchDialogs();
-    const match = list.find((item) => item.id === id);
-    if (match?.peer?.email) {
-      peerLabel.value = match.peer.email;
-      return;
-    }
-  } catch {
-    // fall through
-  }
-  peerLabel.value = "Діалог";
-}
-
-async function loadThread(): Promise<void> {
-  loadState.value = "loading";
-  loadError.value = null;
-  sendError.value = null;
-  deleteError.value = null;
-  draft.value = "";
-  messages.value = [];
-  peerLabel.value = "Діалог";
-
-  const id = dialogId.value;
-  try {
-    const thread = await fetchDialog(id);
-    messages.value = thread.messages;
-    await resolvePeerLabel(id);
-    loadState.value = "ready";
-    try {
-      await markRead(id);
-    } catch {
-      // leave unread badge until next successful mark/poll
-    }
-  } catch (error) {
-    loadState.value = "error";
-    loadError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити діалог";
-  }
-}
-
-async function onSend(): Promise<void> {
-  const body = draft.value.trim();
-  if (!body || sending.value) return;
-  sending.value = true;
-  sendError.value = null;
-  try {
-    const message = await sendDialogMessage(dialogId.value, body);
-    messages.value = [...messages.value, message];
-    draft.value = "";
-  } catch (error) {
-    sendError.value =
-      error instanceof Error ? error.message : "Не вдалося надіслати повідомлення";
-  } finally {
-    sending.value = false;
-  }
 }
 
 async function onDelete(): Promise<void> {
@@ -141,11 +108,6 @@ async function onDelete(): Promise<void> {
     deleting.value = false;
   }
 }
-
-onMounted(loadThread);
-watch(dialogId, () => {
-  void loadThread();
-});
 </script>
 
 <template>
@@ -199,9 +161,10 @@ watch(dialogId, () => {
             </time>
           </div>
         </div>
+        <p v-if="peerTypingLabel" class="typing">{{ peerTypingLabel }}</p>
       </div>
 
-      <form class="composer" @submit.prevent="onSend">
+      <form class="composer" @submit.prevent="send">
         <label class="field">
           <span class="sr-only">Повідомлення</span>
           <textarea
@@ -221,8 +184,6 @@ watch(dialogId, () => {
         </button>
       </form>
     </template>
-  </div>
-</template>
 
 <style scoped>
 .thread {
@@ -274,6 +235,12 @@ h1 {
 }
 .muted {
   color: var(--muted);
+}
+.typing {
+  margin: 0.25rem 0 0;
+  color: #666;
+  font-size: 0.875rem;
+  font-style: italic;
 }
 .fail {
   color: var(--danger);

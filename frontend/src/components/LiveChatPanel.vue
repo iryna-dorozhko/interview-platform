@@ -14,10 +14,12 @@ const props = defineProps<{
   disabled?: boolean;
   errorMessage?: string | null;
   agentThinking?: AgentThinkingState | null;
+  peerTypingLabel?: string | null;
 }>();
 
 const emit = defineEmits<{
   send: [content: string];
+  typingInput: [content: string];
 }>();
 
 const input = ref("");
@@ -48,6 +50,10 @@ watch(
     void scrollToBottom();
   },
 );
+
+watch(input, (value) => {
+  emit("typingInput", value);
+});
 
 function sendMessage(): void {
   const text = input.value.trim();
@@ -106,6 +112,7 @@ function messageConfidenceBadge(message: LiveMessage) {
         </p>
       </div>
       <p v-if="agentThinking?.active" class="thinking">{{ thinkingLabel }} думає…</p>
+      <p v-if="peerTypingLabel" class="thinking">{{ peerTypingLabel }}</p>
     </div>
 
     <form class="composer" @submit.prevent="sendMessage">
