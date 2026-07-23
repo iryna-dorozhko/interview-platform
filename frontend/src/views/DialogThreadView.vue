@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { RouterLink, useRoute } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import {
+  deleteDialog,
   fetchDialog,
   fetchDialogs,
   sendDialogMessage,
@@ -20,8 +21,9 @@ const DECISION_BADGES: Record<InterviewDecisionType, string> = {
 };
 
 const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
-const { markRead } = useDialogUnread();
+const { markRead, refresh } = useDialogUnread();
 
 const isCandidate = computed(() => route.path.startsWith("/candidate"));
 const basePath = computed(() =>
@@ -37,6 +39,8 @@ const peerLabel = ref("Діалог");
 const draft = ref("");
 const sending = ref(false);
 const sendError = ref<string | null>(null);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const currentUserId = computed(() => auth.user?.id ?? null);
 
@@ -77,6 +81,7 @@ async function loadThread(): Promise<void> {
   loadState.value = "loading";
   loadError.value = null;
   sendError.value = null;
+  deleteError.value = null;
   draft.value = "";
   messages.value = [];
   peerLabel.value = "Діалог";
@@ -116,6 +121,27 @@ async function onSend(): Promise<void> {
   }
 }
 
+async function onDelete(): Promise<void> {
+  if (deleting.value) return;
+  const ok = window.confirm(
+    "Видалити цей діалог зі свого списку? Він знову з’явиться, якщо співрозмовник напише нове повідомлення.",
+  );
+  if (!ok) return;
+
+  deleting.value = true;
+  deleteError.value = null;
+  try {
+    await deleteDialog(dialogId.value);
+    await refresh();
+    await router.push(basePath.value);
+  } catch (error) {
+    deleteError.value =
+      error instanceof Error ? error.message : "Не вдалося видалити діалог";
+  } finally {
+    deleting.value = false;
+  }
+}
+
 onMounted(loadThread);
 watch(dialogId, () => {
   void loadThread();
@@ -126,7 +152,19 @@ watch(dialogId, () => {
   <div class="thread">
     <header class="header">
       <RouterLink :to="basePath" class="back-link">← До діалогів</RouterLink>
-      <h1>{{ peerLabel }}</h1>
+      <div class="header-row">
+        <h1>{{ peerLabel }}</h1>
+        <button
+          v-if="loadState === 'ready'"
+          type="button"
+          class="btn-danger"
+          :disabled="deleting"
+          @click="onDelete"
+        >
+          Видалити
+        </button>
+      </div>
+      <p v-if="deleteError" class="fail" role="alert">{{ deleteError }}</p>
     </header>
 
     <p v-if="loadState === 'loading'">Завантаження…</p>
@@ -200,6 +238,12 @@ watch(dialogId, () => {
   flex-direction: column;
   gap: 0.35rem;
 }
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
 .back-link {
   color: var(--accent);
   text-decoration: none;
@@ -212,6 +256,21 @@ watch(dialogId, () => {
 h1 {
   margin: 0;
   font-size: 1.25rem;
+}
+.btn-danger {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #fca5a5;
+  background: #fff;
+  color: var(--danger);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .muted {
   color: var(--muted);

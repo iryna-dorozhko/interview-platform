@@ -134,3 +134,12 @@ export async function sendDialogMessage(id: string, body: string): Promise<Dialo
   const payload = (await response.json()) as { message: BackendDialogMessage };
   return mapDialogMessage(payload.message);
 }
+
+export async function deleteDialog(id: string): Promise<void> {
+  const response = await fetchWithAuth(`/api/dialogs/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося видалити діалог");
+  }
+}
