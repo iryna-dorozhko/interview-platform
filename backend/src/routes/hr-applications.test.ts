@@ -87,6 +87,31 @@ function makeFakePrisma(seed: {
     email: string;
     status: string;
   }> = [];
+  const dialogs: Array<{
+    id: string;
+    hrUserId: string;
+    candidateUserId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    candidateHiddenAt: Date | null;
+  }> = [];
+  const messages: Array<{
+    id: string;
+    dialogId: string;
+    senderUserId: string;
+    body: string;
+    kind: string;
+    decisionId: string | null;
+    createdAt: Date;
+  }> = [];
+  const offerDecisions: Array<{
+    id: string;
+    candidateUserId: string;
+    vacancyId: string;
+    decision: string;
+  }> = [];
+  let dialogSeq = 0;
+  let messageSeq = 0;
 
   const prisma = {
     vacancy: {
@@ -388,12 +413,124 @@ function makeFakePrisma(seed: {
         return created;
       },
     },
+    dialog: {
+      findUnique: async ({
+        where,
+      }: {
+        where: {
+          hrUserId_candidateUserId: { hrUserId: string; candidateUserId: string };
+        };
+      }) => {
+        const key = where.hrUserId_candidateUserId;
+        return (
+          dialogs.find(
+            (d) =>
+              d.hrUserId === key.hrUserId && d.candidateUserId === key.candidateUserId,
+          ) ?? null
+        );
+      },
+      create: async ({
+        data,
+      }: {
+        data: { hrUserId: string; candidateUserId: string };
+      }) => {
+        dialogSeq += 1;
+        const now = new Date();
+        const created = {
+          id: `dlg_${dialogSeq}`,
+          hrUserId: data.hrUserId,
+          candidateUserId: data.candidateUserId,
+          createdAt: now,
+          updatedAt: now,
+          candidateHiddenAt: null as Date | null,
+        };
+        dialogs.push(created);
+        return created;
+      },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { updatedAt?: Date; candidateHiddenAt?: Date | null };
+      }) => {
+        const dialog = dialogs.find((d) => d.id === where.id);
+        if (!dialog) throw new Error("Dialog not found");
+        if (data.updatedAt) dialog.updatedAt = data.updatedAt;
+        if (data.candidateHiddenAt !== undefined) {
+          dialog.candidateHiddenAt = data.candidateHiddenAt;
+        }
+        return dialog;
+      },
+    },
+    dialogMessage: {
+      create: async ({
+        data,
+      }: {
+        data: {
+          dialogId: string;
+          senderUserId: string;
+          body: string;
+          kind: string;
+          decisionId?: string | null;
+        };
+      }) => {
+        messageSeq += 1;
+        const created = {
+          id: `msg_${messageSeq}`,
+          dialogId: data.dialogId,
+          senderUserId: data.senderUserId,
+          body: data.body,
+          kind: data.kind,
+          decisionId: data.decisionId ?? null,
+          createdAt: new Date(),
+        };
+        messages.push(created);
+        return created;
+      },
+    },
+    vacancyOfferDecision: {
+      upsert: async ({
+        where,
+        create,
+      }: {
+        where: {
+          candidateUserId_vacancyId: { candidateUserId: string; vacancyId: string };
+        };
+        create: { candidateUserId: string; vacancyId: string; decision: string };
+        update: { decision: string };
+      }) => {
+        const key = where.candidateUserId_vacancyId;
+        const existing = offerDecisions.find(
+          (item) =>
+            item.candidateUserId === key.candidateUserId &&
+            item.vacancyId === key.vacancyId,
+        );
+        if (existing) {
+          existing.decision = create.decision;
+          return existing;
+        }
+        const created = {
+          id: `offer_${offerDecisions.length + 1}`,
+          candidateUserId: create.candidateUserId,
+          vacancyId: create.vacancyId,
+          decision: create.decision,
+        };
+        offerDecisions.push(created);
+        return created;
+      },
+    },
     $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => {
       const interviewsSnap = interviews.map((item) => ({ ...item }));
       const applicationsSnap = applications.map((item) => ({ ...item }));
       const invitationsSnap = invitations.map((item) => ({ ...item }));
+      const dialogsSnap = dialogs.map((item) => ({ ...item }));
+      const messagesSnap = messages.map((item) => ({ ...item }));
+      const offerSnap = offerDecisions.map((item) => ({ ...item }));
       const interviewSeqSnap = interviewSeq;
       const invSeqSnap = invSeq;
+      const dialogSeqSnap = dialogSeq;
+      const messageSeqSnap = messageSeq;
       try {
         return await fn(prisma);
       } catch (error) {
@@ -403,11 +540,22 @@ function makeFakePrisma(seed: {
         applications.push(...applicationsSnap);
         invitations.length = 0;
         invitations.push(...invitationsSnap);
+        dialogs.length = 0;
+        dialogs.push(...dialogsSnap);
+        messages.length = 0;
+        messages.push(...messagesSnap);
+        offerDecisions.length = 0;
+        offerDecisions.push(...offerSnap);
         interviewSeq = interviewSeqSnap;
         invSeq = invSeqSnap;
+        dialogSeq = dialogSeqSnap;
+        messageSeq = messageSeqSnap;
         throw error;
       }
     },
+    __dialogs: dialogs,
+    __messages: messages,
+    __offerDecisions: offerDecisions,
   };
 
   return { prisma, applications, interviews, notifications, invitations };
@@ -420,11 +568,31 @@ function withUser(user: AuthUser) {
   };
 }
 
-function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>["prisma"], user: AuthUser) {
+type FakeLlm = { complete: (messages: unknown) => Promise<string> };
+type FakeIo = { to: (room: string) => { emit: (...args: unknown[]) => void } };
+
+const defaultFakeLlm: FakeLlm = { complete: async () => "Лист-відмова" };
+const defaultFakeIo: FakeIo = {
+  to: (_room: string) => ({ emit: () => undefined }),
+};
+
+function makeApp(
+  fakePrisma: ReturnType<typeof makeFakePrisma>["prisma"],
+  user: AuthUser,
+  llm: FakeLlm = defaultFakeLlm,
+  io: FakeIo = defaultFakeIo,
+) {
   const app = express();
   app.use(express.json());
   app.use(withUser(user));
-  app.use("/api", createHrApplicationsRouter(() => fakePrisma as never));
+  app.use(
+    "/api",
+    createHrApplicationsRouter(
+      () => fakePrisma as never,
+      () => llm as never,
+      () => io as never,
+    ),
+  );
   return app;
 }
 
@@ -893,6 +1061,151 @@ test("POST /hr/applications/:id/create-interview double-convert returns 409 with
     assert.equal(interviews.length, 1);
     assert.equal(applications[0].status, "CONVERTED");
     assert.equal(applications[0].interviewId, interviews[0].id);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+const declineSeed = () =>
+  makeFakePrisma({
+    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    users: [
+      { id: "hr_1", email: "hr@test.com", role: "HR" },
+      { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" },
+    ],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Сильний фронтенд",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date("2026-07-01T10:00:00.000Z"),
+      },
+    ],
+  });
+
+test("POST /hr/applications/:id/decline/draft returns letter body", async () => {
+  const { prisma } = declineSeed();
+  const fakeLlm = { complete: async () => "Шановний кандидате, на жаль..." };
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" }, fakeLlm);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline/draft`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+    );
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { body: string };
+    assert.match(body.body, /Шановний кандидате/);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/applications/:id/decline sets DECLINED_BY_HR, posts DECISION_LETTER, upserts offer", async () => {
+  const { prisma, applications } = declineSeed();
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ letterBody: "Дякуємо, наразі відмовляємо." }),
+      },
+    );
+    assert.equal(response.status, 201);
+    const body = (await response.json()) as {
+      application: { id: string; status: string };
+      dialogId: string;
+    };
+    assert.equal(body.application.status, "DECLINED_BY_HR");
+    assert.equal(applications[0].status, "DECLINED_BY_HR");
+    assert.ok(body.dialogId);
+    assert.equal(prisma.__messages.length, 1);
+    assert.equal(prisma.__messages[0].kind, "DECISION_LETTER");
+    assert.equal(prisma.__messages[0].decisionId, null);
+    assert.equal(prisma.__offerDecisions.length, 1);
+    assert.equal(prisma.__offerDecisions[0].decision, "REJECTED");
+    assert.equal(prisma.__offerDecisions[0].vacancyId, "v1");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/applications/:id/decline returns 409 when not PENDING", async () => {
+  const { prisma, applications } = declineSeed();
+  applications[0].status = "CONVERTED";
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ letterBody: "Текст" }),
+      },
+    );
+    assert.equal(response.status, 409);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/applications/:id/decline returns 400 for empty letterBody", async () => {
+  const { prisma } = declineSeed();
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ letterBody: "   " }),
+      },
+    );
+    assert.equal(response.status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/applications/:id/decline/draft returns 502 when LLM throws", async () => {
+  const { prisma } = declineSeed();
+  const fakeLlm = {
+    complete: async () => {
+      throw new Error("llm down");
+    },
+  };
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" }, fakeLlm);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline/draft`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+    );
+    assert.equal(response.status, 502);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

@@ -1,5 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import type { Server } from "socket.io";
+import { generateApplicationDeclineLetter } from "../agents/application-decline-letter-agent";
+import type { LlmProvider } from "../llm/types";
+import { applyTerminalApplicationStatus } from "../services/application-hr-decision";
+import { emitDialogMessage } from "../socket/dialogs";
 import {
   ACTIVE_CANDIDATE_INTERVIEW_STATUSES,
   getConfirmedQuestionnaireProfile,
@@ -35,7 +40,11 @@ function mapApplicationListItem(app: {
   };
 }
 
-export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Router {
+export function createHrApplicationsRouter(
+  getPrisma: () => PrismaClient,
+  getLlmProvider: () => LlmProvider,
+  getIo: () => Server,
+): Router {
   const router = Router();
 
   router.get("/hr/notifications", async (req: Request, res: Response) => {
@@ -321,6 +330,121 @@ export function createHrApplicationsRouter(getPrisma: () => PrismaClient): Route
         status: "CONVERTED",
         interviewId: result.interview.id,
       },
+    });
+  });
+
+  router.post("/hr/applications/:id/decline/draft", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const application = await prisma.vacancyApplication.findUnique({
+      where: { id: req.params.id },
+      include: {
+        vacancy: { select: { id: true, title: true, hrUserId: true } },
+      },
+    });
+
+    if (!application || application.vacancy.hrUserId !== req.user!.id) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+    if (application.status !== "PENDING") {
+      res.status(409).json({ error: "Application is not pending" });
+      return;
+    }
+
+    try {
+      const body = await generateApplicationDeclineLetter(getLlmProvider(), {
+        vacancyTitle: application.vacancy.title,
+        candidateSummary: application.candidateSummary,
+        matchScore: application.matchScore,
+      });
+      res.status(200).json({ body });
+    } catch {
+      res.status(502).json({ error: "Failed to generate letter" });
+    }
+  });
+
+  router.post("/hr/applications/:id/decline", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const hrUserId = req.user!.id;
+    const application = await prisma.vacancyApplication.findUnique({
+      where: { id: req.params.id },
+      include: {
+        vacancy: { select: { id: true, title: true, hrUserId: true } },
+      },
+    });
+
+    if (!application || application.vacancy.hrUserId !== hrUserId) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+    if (application.status !== "PENDING") {
+      res.status(409).json({ error: "Application is not pending" });
+      return;
+    }
+
+    const letterBodyRaw = req.body?.letterBody;
+    if (typeof letterBodyRaw !== "string" || letterBodyRaw.trim().length === 0) {
+      res.status(400).json({ error: "letterBody required" });
+      return;
+    }
+    const letterBody = letterBodyRaw.trim();
+    const candidateUserId = application.candidateUserId;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.dialog.findUnique({
+        where: {
+          hrUserId_candidateUserId: {
+            hrUserId,
+            candidateUserId,
+          },
+        },
+      });
+
+      const dialog =
+        existing ??
+        (await tx.dialog.create({
+          data: {
+            hrUserId,
+            candidateUserId,
+          },
+        }));
+
+      const message = await tx.dialogMessage.create({
+        data: {
+          dialogId: dialog.id,
+          senderUserId: hrUserId,
+          body: letterBody,
+          kind: "DECISION_LETTER",
+        },
+      });
+
+      await applyTerminalApplicationStatus(tx, {
+        applicationId: application.id,
+        candidateUserId,
+        vacancyId: application.vacancyId,
+        status: "DECLINED_BY_HR",
+      });
+
+      await tx.dialog.update({
+        where: { id: dialog.id },
+        data: { updatedAt: new Date(), candidateHiddenAt: null },
+      });
+
+      return { dialogId: dialog.id, message };
+    });
+
+    emitDialogMessage(getIo(), result.dialogId, {
+      id: result.message.id,
+      dialogId: result.dialogId,
+      senderUserId: result.message.senderUserId,
+      body: result.message.body,
+      kind: "DECISION_LETTER",
+      createdAt: result.message.createdAt.toISOString(),
+    });
+
+    res.status(201).json({
+      application: { id: application.id, status: "DECLINED_BY_HR" },
+      dialogId: result.dialogId,
     });
   });
 
