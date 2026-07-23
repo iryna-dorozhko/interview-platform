@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import type { Server } from "socket.io";
 import { generateDecisionLetter } from "../agents/decision-letter-agent";
 import type { LlmProvider } from "../llm/types";
+import { emitDialogMessage } from "../socket/dialogs";
 
 const DECISION_TYPES = new Set(["ACCEPT", "REJECT", "ADDITIONAL_MEETING"]);
 
@@ -16,6 +18,7 @@ function parseDecisionType(raw: unknown): DecisionType | null {
 export function createReportsRouter(
   getPrisma: () => PrismaClient,
   getLlmProvider: () => LlmProvider,
+  getIo: () => Server,
 ): Router {
   const router = Router();
 
@@ -292,7 +295,17 @@ export function createReportsRouter(
         data: { updatedAt: new Date(), candidateHiddenAt: null },
       });
 
-      return { decision, dialogId: dialog.id };
+      return { decision, dialogId: dialog.id, message };
+    });
+
+    emitDialogMessage(getIo(), result.dialogId, {
+      id: result.message.id,
+      dialogId: result.dialogId,
+      senderUserId: result.message.senderUserId,
+      body: result.message.body,
+      kind: "DECISION_LETTER",
+      createdAt: result.message.createdAt.toISOString(),
+      decision: { type: result.decision.type as DecisionType },
     });
 
     res.status(201).json({
