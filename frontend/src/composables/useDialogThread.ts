@@ -148,6 +148,10 @@ export function useDialogThread(
   onUnmounted(() => {
     socket.off("dialog:message", onSocketMessage);
     socket.off("dialog:typing", onSocketTyping);
+    const id = dialogId.value;
+    if (id) {
+      socket.emit("dialog:typing", { dialogId: id, isTyping: false });
+    }
     typingEmitter.dispose();
   });
 

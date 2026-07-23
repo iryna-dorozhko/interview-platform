@@ -203,6 +203,7 @@ export function useInterviewRoom(interviewId: string, currentRole: "HR" | "CANDI
     socket.off("room:agent-error", onAgentError);
     socket.off("room:arbiter-process", onArbiterProcess);
     socket.off("room:typing", onTyping);
+    typingEmitter.onSend();
     typingEmitter.dispose();
   });
 
