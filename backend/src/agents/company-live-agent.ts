@@ -1,6 +1,7 @@
 import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import { withLlmRetry } from "../llm/retry";
 import type { ChatMessage, LlmProvider } from "../llm/types";
+import { bumpAutoRetry } from "../services/interview-eval-counters";
 import {
   parseVacancyCompensation,
   parseWorkConditionsArray,
@@ -151,5 +152,8 @@ export async function runCompanyLiveTurn(
   return withLlmRetry(async () => {
     const rawReply = await provider.complete(llmMessages);
     return parseCompanyLiveReply(rawReply);
-  }, { label: "company-live" });
+  }, {
+    label: "company-live",
+    onRetry: () => bumpAutoRetry(interviewId),
+  });
 }

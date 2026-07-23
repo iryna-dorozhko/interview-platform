@@ -48,3 +48,15 @@ test("parsePostReply defaults needsHuman to false when omitted", () => {
   const result = parsePostReply('{ "post": true, "message": "Я працював з Node.js." }');
   assert.equal(result.needsHuman, false);
 });
+
+test("parsePostReply accepts kind clarifying", () => {
+  const result = parsePostReply(
+    '{ "post": true, "message": "Уточніть стек?", "kind": "clarifying" }',
+  );
+  assert.equal(result.kind, "clarifying");
+});
+
+test("parsePostReply defaults kind to normal when omitted", () => {
+  const result = parsePostReply('{ "post": true, "message": "Привіт" }');
+  assert.equal(result.kind, "normal");
+});

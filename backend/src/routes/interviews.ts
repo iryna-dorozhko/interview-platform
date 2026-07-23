@@ -14,6 +14,8 @@ import { generateJoinCode } from "../utils/joinCode";
 import { resolveCandidateProfileForInterview } from "../utils/interview-readiness";
 import { assertInviteableEmail, cancelPendingInvitations } from "../utils/invitation";
 import { normalizeVacancyRequirements } from "../utils/vacancy-requirements";
+import { bumpHrControl } from "../services/interview-eval-counters";
+import { upsertEvalAfterReport } from "../services/interview-eval";
 
 const MAX_CREATE_ATTEMPTS = 5;
 const EDITABLE_STATUSES = new Set(["AWAITING_CANDIDATE", "READY"]);
@@ -592,6 +594,10 @@ export function createInterviewsRouter(
           where: { id: interviewId },
           data: { status: "ENDED" },
         });
+        await tx.liveSession.updateMany({
+          where: { interviewId, endedAt: null },
+          data: { endedAt: new Date() },
+        });
         return tx.finalReport.create({
           data: {
             interviewId,
@@ -608,6 +614,13 @@ export function createInterviewsRouter(
       console.error("[interviews:end] failed to persist report:", detail);
       res.status(500).json({ error: "Internal error", detail });
       return;
+    }
+
+    try {
+      bumpHrControl(interviewId);
+      await upsertEvalAfterReport(prisma, interviewId);
+    } catch (error) {
+      console.error("[eval] phase1 failed:", error);
     }
 
     getIo().to(roomName(interviewId)).emit("room:status", { status: "ENDED" });

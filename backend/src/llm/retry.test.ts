@@ -94,3 +94,23 @@ test("withLlmRetry uses Gemini retry hint delay", async () => {
   assert.equal(attempts, 2);
   assert.ok(sleeps[0]! >= 1000);
 });
+
+test("withLlmRetry calls onRetry before each retry attempt", async () => {
+  let calls = 0;
+  let attempts = 0;
+  const result = await withLlmRetry(
+    async () => {
+      attempts += 1;
+      if (attempts === 1) throw new LlmUnavailableError("temp");
+      return "ok";
+    },
+    {
+      sleep: async () => {},
+      onRetry: () => {
+        calls += 1;
+      },
+    },
+  );
+  assert.equal(result, "ok");
+  assert.equal(calls, 1);
+});

@@ -12,6 +12,7 @@ import { parseAgentReply } from "../agents/agent-reply";
 import { LlmError } from "../llm/errors";
 import { toSafeLlmErrorMessage, withLlmRetry } from "../llm/retry";
 import type { LlmProvider } from "../llm/types";
+import { bumpAutoRetry, bumpManualRetry } from "../services/interview-eval-counters";
 import { maybeTransitionToReady } from "../utils/interview-readiness";
 
 function llmHttpStatus(error: unknown): number {
@@ -263,6 +264,8 @@ export function createCandidatePrepRouter(
       await prisma.prepMessageCandidate.create({
         data: { sessionId: session.id, authorType: "HUMAN_CANDIDATE", content: message },
       });
+    } else {
+      bumpManualRetry(interviewId);
     }
 
     const history = await prisma.prepMessageCandidate.findMany({
@@ -291,7 +294,10 @@ export function createCandidatePrepRouter(
     try {
       rawReply = await withLlmRetry(
         () => provider.complete(llmMessages),
-        { label: "candidate-prep:message" },
+        {
+          label: "candidate-prep:message",
+          onRetry: () => bumpAutoRetry(interviewId),
+        },
       );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -391,10 +397,13 @@ export function createCandidatePrepRouter(
             }
           }
         } catch {
-          // keep original rawReply; parseCandidateProfileExtraction handles invalid JSON
+          // fall through to normal parse
         }
         return parseCandidateProfileExtraction(parseInput);
-      }, { label: "candidate-prep:finish" });
+      }, {
+        label: "candidate-prep:finish",
+        onRetry: () => bumpAutoRetry(interviewId),
+      });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error(`[candidate-prep:finish:${provider.name}] llm failed:`, detail);
