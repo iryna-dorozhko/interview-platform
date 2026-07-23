@@ -365,7 +365,7 @@ git commit -m "feat(eval): add in-memory interview eval counters"
 Fake prisma in tests (minimal stubs for `interview.findUnique`, `liveMessage.count`, `interviewEvalSnapshot.upsert/update`, `interviewDecision.findFirst`) — follow patterns from `reports.test.ts`.
 
 **Phase 1 algorithm:**
-1. Load interview with `prepSessionCd`, `vacancy.prepSession` (`PrepSessionHr`), `liveSession`, `finalReport`.
+1. Load interview with `prepSessionCd`, `vacancy.prepSessionHr`, `liveSession`, `finalReport`.
 2. If no `finalReport` — no-op (or throw in service; route should only call after create).
 3. `hrMessageCount` = count `LiveMessage` where `authorType === "HUMAN_HR"` for session.
 4. `agentMessageCount` = max(DB count of `AGENT_*`, runtime `agentMessageCount`).
