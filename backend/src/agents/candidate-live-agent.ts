@@ -142,7 +142,7 @@ export const COMPANY_QUESTION_NUDGE_UK =
   "[Система] Company Agent поставив питання. Відповідай про кандидата (третя особа) з confidence: confirmed | inferred | unknown. Не перефразовуй питання.";
 
 export const ANSWER_NUDGE_UK =
-  "[Система] Команда Arbiter: ANSWER. Відповідай про кандидата (третя особа) згідно з профілем. Обов'язково вкажи confidence: confirmed (факт з профілю), inferred (висновок/часткові дані), unknown (немає даних — попроси живу людину). Не перефразовуй питання — лише відповідь. Не дублюй уже сказане в чаті.";
+  "[Система] Команда Arbiter: ANSWER. Відповідай про кандидата (третя особа) згідно з профілем. Якщо відкритих питань кілька — покрий усі в одному повідомленні (хронологічно). Обов'язково вкажи confidence: confirmed (факт з профілю), inferred (висновок/часткові дані), unknown (немає даних — попроси живу людину). Не перефразовуй питання — лише відповідь. Не дублюй уже сказане в чаті.";
 
 export const CANDIDATE_QUESTIONS_NUDGE_UK =
   "[Система] Команда Arbiter: CANDIDATE_QUESTIONS. Постав одне нове питання компанії в інтересах кандидата (не те, що вже питали AGENT_COMPANY, HUMAN_HR або AGENT_CANDIDATE, і не перефразовуй їх), або коротко скажи, що питань немає.";
@@ -187,19 +187,28 @@ export function formatInterviewerQuestionsBlock(history: LiveHistoryItem[]): str
   return `\n\nПитання Company/HR у чаті (не дублюй і не перефразовуй):\n${lines}`;
 }
 
+export function formatOpenInterviewerQuestionsBlock(history: LiveHistoryItem[]): string {
+  const questions = collectOpenInterviewerQuestions(history);
+  if (questions.length === 0) {
+    return "";
+  }
+
+  const lines = questions.map((question, index) => `${index + 1}. ${question}`).join("\n");
+  return `\n\nВідкриті питання (відповідай на всі в одному повідомленні, хронологічно):\n${lines}`;
+}
+
 export function formatCandidateTurnNudge(
   turnContext: LiveAgentTurnContext,
   history: LiveHistoryItem[] = [],
 ): string {
   const brief = turnContext.briefUk?.trim();
   const briefPart = brief ? ` Підказка Arbiter: ${brief}` : "";
-  const questionBlock = formatInterviewerQuestionsBlock(history);
 
   if (turnContext.action === "CANDIDATE_QUESTIONS") {
-    return `${CANDIDATE_QUESTIONS_NUDGE_UK}${briefPart}${questionBlock}`;
+    return `${CANDIDATE_QUESTIONS_NUDGE_UK}${briefPart}${formatInterviewerQuestionsBlock(history)}`;
   }
 
-  return `${ANSWER_NUDGE_UK}${briefPart}${questionBlock}`;
+  return `${ANSWER_NUDGE_UK}${briefPart}${formatOpenInterviewerQuestionsBlock(history)}`;
 }
 
 export function buildCandidateLiveMessages(input: {
@@ -227,7 +236,7 @@ export function buildCandidateLiveMessages(input: {
   if (last?.authorType === "AGENT_COMPANY") {
     messages.push({
       role: "user",
-      content: `${COMPANY_QUESTION_NUDGE_UK}${formatInterviewerQuestionsBlock(input.history)}`,
+      content: `${COMPANY_QUESTION_NUDGE_UK}${formatOpenInterviewerQuestionsBlock(input.history)}`,
     });
   }
 

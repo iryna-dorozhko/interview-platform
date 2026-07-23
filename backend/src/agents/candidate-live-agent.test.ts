@@ -253,7 +253,43 @@ test("buildCandidateLiveMessages lists Company questions in ANSWER nudge", () =>
   });
 
   assert.match(messages.at(-1)!.content, /Розкажіть про досвід з Node\.js\./);
-  assert.match(messages.at(-1)!.content, /не дублюй|не повторюй|не перефраз/i);
+  assert.match(messages.at(-1)!.content, /Відкриті питання|на всі|в одному повідомленні/i);
+});
+
+test("ANSWER nudge lists only open questions and instructs answering all", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_COMPANY", content: "Старий питання про Node." },
+    { authorType: "AGENT_CANDIDATE", content: "Кандидат має досвід з Node." },
+    { authorType: "AGENT_COMPANY", content: "Як організовуєте інтеграцію з REST API?" },
+    { authorType: "HUMAN_HR", content: "Над якими проектами ви працювали?" },
+  ];
+
+  const nudge = formatCandidateTurnNudge({ action: "ANSWER", briefUk: "REST і проєкти" }, history);
+
+  assert.match(nudge, /Відкриті питання/i);
+  assert.match(nudge, /на всі|в одному повідомленні/i);
+  assert.match(nudge, /REST API/);
+  assert.match(nudge, /проектами/);
+  assert.doesNotMatch(nudge, /Старий питання про Node/);
+});
+
+test("buildCandidateLiveMessages ANSWER nudge uses open questions after interrupt", () => {
+  const history: Array<{ authorType: LiveAuthorType; content: string }> = [
+    { authorType: "AGENT_CANDIDATE", content: "Кандидат уже відповів раніше." },
+    { authorType: "AGENT_COMPANY", content: "Розкажіть про досвід з Node.js." },
+    { authorType: "HUMAN_HR", content: "Як ви підходите до code review?" },
+  ];
+
+  const messages = buildCandidateLiveMessages({
+    candidateProfile,
+    history,
+    turnContext: { action: "ANSWER", briefUk: "Node і review" },
+  });
+
+  const nudge = messages.at(-1)!.content;
+  assert.match(nudge, /Розкажіть про досвід з Node\.js\./);
+  assert.match(nudge, /code review/);
+  assert.match(nudge, /на всі|в одному повідомленні/i);
 });
 
 test("buildCandidateLiveMessages lists Company questions in CANDIDATE_QUESTIONS nudge", () => {
