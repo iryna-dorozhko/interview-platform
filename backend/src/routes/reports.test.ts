@@ -60,6 +60,13 @@ type FakePrismaSeed = {
   decisions?: FakeDecision[];
   dialogs?: FakeDialog[];
   messages?: FakeDialogMessage[];
+  applications?: Array<{
+    id: string;
+    candidateUserId: string;
+    vacancyId: string;
+    interviewId: string | null;
+    status: string;
+  }>;
 };
 
 function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
@@ -67,6 +74,15 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
   const decisions = Array.isArray(seed) ? [] : [...(seed.decisions ?? [])];
   const dialogs = Array.isArray(seed) ? [] : [...(seed.dialogs ?? [])];
   const messages = Array.isArray(seed) ? [] : [...(seed.messages ?? [])];
+  const applications = Array.isArray(seed)
+    ? []
+    : [...(seed.applications ?? [])].map((item) => ({ ...item }));
+  const offerDecisions: Array<{
+    id: string;
+    candidateUserId: string;
+    vacancyId: string;
+    decision: string;
+  }> = [];
   let decisionSeq = decisions.length;
   let dialogSeq = dialogs.length;
   let messageSeq = messages.length;
@@ -336,11 +352,64 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
         return created;
       },
     },
+    vacancyApplication: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { interviewId: string };
+      }) =>
+        applications.find((item) => item.interviewId === where.interviewId) ?? null,
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { status: string };
+      }) => {
+        const app = applications.find((item) => item.id === where.id);
+        if (!app) throw new Error("application not found");
+        app.status = data.status;
+        return { ...app };
+      },
+    },
+    vacancyOfferDecision: {
+      upsert: async ({
+        where,
+        create,
+      }: {
+        where: {
+          candidateUserId_vacancyId: { candidateUserId: string; vacancyId: string };
+        };
+        create: { candidateUserId: string; vacancyId: string; decision: string };
+        update: { decision: string };
+      }) => {
+        const key = where.candidateUserId_vacancyId;
+        const existing = offerDecisions.find(
+          (item) =>
+            item.candidateUserId === key.candidateUserId &&
+            item.vacancyId === key.vacancyId,
+        );
+        if (existing) {
+          existing.decision = create.decision;
+          return existing;
+        }
+        const created = {
+          id: `offer_${offerDecisions.length + 1}`,
+          candidateUserId: create.candidateUserId,
+          vacancyId: create.vacancyId,
+          decision: create.decision,
+        };
+        offerDecisions.push(created);
+        return created;
+      },
+    },
     $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> =>
       fn(prisma),
     __decisions: decisions,
     __dialogs: dialogs,
     __messages: messages,
+    __applications: applications,
+    __offerDecisions: offerDecisions,
   };
 
   return prisma;
@@ -992,6 +1061,112 @@ test("POST /reports/:id/decisions/draft returns 502 when LLM throws", async () =
     assert.equal(response.status, 502);
     const body = await response.json();
     assert.equal(body.error, "Failed to generate letter");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+const linkedApplication = {
+  id: "app_1",
+  candidateUserId: "cd_1",
+  vacancyId: "v1",
+  interviewId: "i1",
+  status: "CONVERTED",
+};
+
+test("POST /reports/:id/decisions REJECT updates linked application to DECLINED_BY_HR", async () => {
+  const fakePrisma = makeFakePrisma({
+    reports: [sampleReport],
+    applications: [{ ...linkedApplication }],
+  });
+  const app = makeApp(fakePrisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "REJECT", letterBody: "На жаль, відмовляємо." }),
+    });
+    assert.equal(response.status, 201);
+    assert.equal(fakePrisma.__applications[0].status, "DECLINED_BY_HR");
+    assert.equal(fakePrisma.__offerDecisions[0].decision, "REJECTED");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /reports/:id/decisions ACCEPT updates linked application to ACCEPTED", async () => {
+  const fakePrisma = makeFakePrisma({
+    reports: [sampleReport],
+    applications: [{ ...linkedApplication }],
+  });
+  const app = makeApp(fakePrisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "ACCEPT", letterBody: "Вітаємо!" }),
+    });
+    assert.equal(response.status, 201);
+    assert.equal(fakePrisma.__applications[0].status, "ACCEPTED");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /reports/:id/decisions second decision overwrites application status", async () => {
+  const fakePrisma = makeFakePrisma({
+    reports: [sampleReport],
+    applications: [{ ...linkedApplication }],
+  });
+  const app = makeApp(fakePrisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const first = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "ACCEPT", letterBody: "Прийнято" }),
+    });
+    assert.equal(first.status, 201);
+    assert.equal(fakePrisma.__applications[0].status, "ACCEPTED");
+
+    const second = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "REJECT", letterBody: "Передумали" }),
+    });
+    assert.equal(second.status, 201);
+    assert.equal(fakePrisma.__applications[0].status, "DECLINED_BY_HR");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /reports/:id/decisions without linked application still 201", async () => {
+  const fakePrisma = makeFakePrisma([sampleReport]);
+  const app = makeApp(fakePrisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "ACCEPT", letterBody: "Ок" }),
+    });
+    assert.equal(response.status, 201);
+    assert.equal(fakePrisma.__applications.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

@@ -3,6 +3,10 @@ import type { PrismaClient } from "@prisma/client";
 import type { Server } from "socket.io";
 import { generateDecisionLetter } from "../agents/decision-letter-agent";
 import type { LlmProvider } from "../llm/types";
+import {
+  applicationStatusFromDecisionType,
+  applyTerminalApplicationStatus,
+} from "../services/application-hr-decision";
 import { emitDialogMessage } from "../socket/dialogs";
 
 const DECISION_TYPES = new Set(["ACCEPT", "REJECT", "ADDITIONAL_MEETING"]);
@@ -294,6 +298,18 @@ export function createReportsRouter(
         where: { id: dialog.id },
         data: { updatedAt: new Date(), candidateHiddenAt: null },
       });
+
+      const linked = await tx.vacancyApplication.findFirst({
+        where: { interviewId: report.interviewId },
+      });
+      if (linked) {
+        await applyTerminalApplicationStatus(tx, {
+          applicationId: linked.id,
+          candidateUserId: linked.candidateUserId,
+          vacancyId: linked.vacancyId,
+          status: applicationStatusFromDecisionType(type),
+        });
+      }
 
       return { decision, dialogId: dialog.id, message };
     });
