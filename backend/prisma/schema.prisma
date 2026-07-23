@@ -74,6 +74,8 @@ enum VacancyApplicationStatus {
   CONVERTED
   WITHDRAWN
   DECLINED_BY_HR
+  ACCEPTED
+  ADDITIONAL_MEETING
 }
 
 enum VacancyOfferDecisionType {
