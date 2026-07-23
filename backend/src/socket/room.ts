@@ -11,6 +11,7 @@ import type {
   RoomAgentRetryPayload,
   RoomJoinPayload,
   RoomMessagePayload,
+  RoomTypingPayload,
 } from "./types";
 
 const MAX_CONTENT_LENGTH = 4000;
@@ -184,6 +185,21 @@ export function registerRoomHandlers(
       }
     });
 
+    socket.on("room:typing", (payload: RoomTypingPayload) => {
+      const user = getSocketUser(socket);
+      if (!user) return;
+      const data = getSocketData(socket);
+      const interviewId =
+        typeof payload?.interviewId === "string" ? payload.interviewId.trim() : "";
+      if (!interviewId || data.interviewId !== interviewId || !data.roomRole) return;
+      if (typeof payload?.isTyping !== "boolean") return;
+
+      socket.to(roomName(interviewId)).emit("room:typing", {
+        role: data.roomRole,
+        isTyping: payload.isTyping,
+      });
+    });
+
     socket.on("room:agent-retry", async (payload: RoomAgentRetryPayload) => {
       try {
         const user = getSocketUser(socket);
@@ -220,6 +236,10 @@ export function registerRoomHandlers(
       if (!data.interviewId || !data.roomRole) return;
 
       const room = roomName(data.interviewId);
+      socket.to(room).emit("room:typing", {
+        role: data.roomRole,
+        isTyping: false,
+      });
       trackLeave(room, data.roomRole);
       void maybeTransitionToLive(io, getPrisma(), data.interviewId, getPresence(room));
     });

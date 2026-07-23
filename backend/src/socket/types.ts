@@ -28,6 +28,16 @@ export type RoomAgentRetryPayload = {
   interviewId?: unknown;
 };
 
+export type RoomTypingPayload = {
+  interviewId?: unknown;
+  isTyping?: unknown;
+};
+
+export type RoomTypingEvent = {
+  role: "HR" | "CANDIDATE";
+  isTyping: boolean;
+};
+
 export type RoomMessagesEvent = {
   messages: LiveMessageDto[];
 };
