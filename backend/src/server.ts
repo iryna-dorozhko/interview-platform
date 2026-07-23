@@ -54,7 +54,7 @@ app.use("/api/candidate", createCandidateInvitationsRouter(() => prisma));
 app.use("/api/candidate", createCandidateMatchesRouter(() => prisma, getLlmProvider));
 // Shared HR+candidate routes must be registered BEFORE any `/api` + requireHr stack.
 // Otherwise Express runs requireHr for every later `/api/*` path (including /dialogs).
-app.use("/api", requireAuth, createDialogsRouter(() => prisma));
+app.use("/api", requireAuth, createDialogsRouter(() => prisma, () => io));
 app.use("/api", requireAuth, requireHr, createLlmRouter(getLlmProvider));
 app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, getLlmProvider));
 app.use("/api", requireAuth, requireHr, createCompanyPrepRouter(() => prisma, getLlmProvider));

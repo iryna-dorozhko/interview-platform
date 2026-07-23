@@ -361,11 +361,23 @@ function withUser(user: AuthUser | undefined) {
   };
 }
 
-function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, user?: AuthUser) {
+function makeNoopIo() {
+  return {
+    to: () => ({
+      emit: () => {},
+    }),
+  };
+}
+
+function makeApp(
+  fakePrisma: ReturnType<typeof makeFakePrisma>,
+  user?: AuthUser,
+  getIo: () => unknown = () => makeNoopIo(),
+) {
   const app = express();
   app.use(express.json());
   app.use(withUser(user));
-  app.use("/api", createDialogsRouter(() => fakePrisma as never));
+  app.use("/api", createDialogsRouter(() => fakePrisma as never, getIo as never));
   return app;
 }
 
@@ -666,6 +678,14 @@ test("POST /dialogs returns 403 for candidate", async () => {
 });
 
 test("participant can GET thread with decision.type and POST USER message", async () => {
+  const emitted: Array<{ room: string; event: string; payload: unknown }> = [];
+  const recordingIo = {
+    to: (room: string) => ({
+      emit: (event: string, payload: unknown) => {
+        emitted.push({ room, event, payload });
+      },
+    }),
+  };
   const prisma = makeFakePrisma({
     users,
     dialogs: [baseDialog],
@@ -682,7 +702,7 @@ test("participant can GET thread with decision.type and POST USER message", asyn
       },
     ],
   });
-  const app = makeApp(prisma, candidateUser);
+  const app = makeApp(prisma, candidateUser, () => recordingIo);
   const server = app.listen(0);
   const port = (server.address() as { port: number }).port;
 
@@ -706,6 +726,12 @@ test("participant can GET thread with decision.type and POST USER message", asyn
     assert.equal(posted.message.body, "Thank you!");
     assert.equal(posted.message.senderUserId, "cand_1");
     assert.equal(prisma.__messages.length, 2);
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0]?.room, "dialog:dlg_1");
+    assert.equal(emitted[0]?.event, "dialog:message");
+    const broadcast = emitted[0]?.payload as { message: { body: string; kind: string } };
+    assert.equal(broadcast.message.body, "Thank you!");
+    assert.equal(broadcast.message.kind, "USER");
   } finally {
     server.close();
   }
