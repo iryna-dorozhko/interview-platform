@@ -11,6 +11,8 @@ import {
   type CandidateProfile,
 } from "../api/candidate-prep";
 import CandidatePrepChat from "../components/CandidatePrepChat.vue";
+import PrepChatPanel from "../components/PrepChatPanel.vue";
+import type { PrepChatMessage } from "../composables/usePrepChat";
 
 const router = useRouter();
 
@@ -49,6 +51,7 @@ const loadState = ref<LoadState>("loading");
 const loadError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
 const showPrepChat = ref(false);
+const viewingHistory = ref(false);
 const confirming = ref(false);
 const saving = ref(false);
 const starting = ref(false);
@@ -146,6 +149,7 @@ function formatConfirmedAt(iso: string | null | undefined): string {
 async function loadProfile(): Promise<void> {
   loadState.value = "loading";
   loadError.value = null;
+  viewingHistory.value = false;
   try {
     interview.value = await fetchCandidateQuestionnaire();
     if (interview.value) {
@@ -258,10 +262,23 @@ async function onRestartConfirmed(): Promise<void> {
   actionError.value = null;
   try {
     await deleteCandidatePrepChat(interview.value.id);
+    viewingHistory.value = false;
     showPrepChat.value = true;
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : "Не вдалося видалити чат";
   }
+}
+
+function backToChat(): void {
+  viewingHistory.value = true;
+}
+
+function backToProfile(): void {
+  viewingHistory.value = false;
+}
+
+function isPrepUserMessage(msg: PrepChatMessage): boolean {
+  return msg.authorType === "HUMAN_CANDIDATE";
 }
 
 function openMatches(): void {
@@ -310,6 +327,32 @@ onMounted(loadProfile);
           <button type="button" class="btn-primary" @click="startPrepChat">Продовжити анкету</button>
           <button type="button" class="btn-secondary" @click="onDeletePrep">Видалити анкету</button>
         </div>
+      </template>
+
+      <template v-else-if="viewingHistory && profile && prepState">
+        <PrepChatPanel
+          title="Чат з Candidate Agent"
+          load-state="ready"
+          :messages="prepState.messages"
+          :sending="false"
+          :is-closed="true"
+          input=""
+          :error-message="null"
+          :last-failed-action="null"
+          :is-user-message="isPrepUserMessage"
+          @update:input="() => undefined"
+          @send="() => undefined"
+          @retry="() => undefined"
+          @finish="() => undefined"
+          @delete="() => undefined"
+          @keydown="() => undefined"
+        >
+          <template #actions>
+            <button type="button" class="btn-secondary" @click="backToProfile">
+              Показати анкету
+            </button>
+          </template>
+        </PrepChatPanel>
       </template>
 
       <template v-else-if="profile && !isConfirmed && editableProfile">
@@ -369,6 +412,9 @@ onMounted(loadProfile);
           </article>
         </section>
         <div class="actions">
+          <button type="button" class="btn-secondary" @click="backToChat">
+            ← Назад до чату
+          </button>
           <button
             type="button"
             class="btn-secondary"
@@ -417,6 +463,9 @@ onMounted(loadProfile);
           </p>
         </section>
         <div class="actions">
+          <button type="button" class="btn-secondary" @click="backToChat">
+            ← Назад до чату
+          </button>
           <button type="button" class="btn-primary" @click="openMatches">
             Підібрати вакансію
           </button>
