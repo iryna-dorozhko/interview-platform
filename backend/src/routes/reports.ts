@@ -289,7 +289,7 @@ export function createReportsRouter(
 
       await tx.dialog.update({
         where: { id: dialog.id },
-        data: { updatedAt: new Date() },
+        data: { updatedAt: new Date(), candidateHiddenAt: null },
       });
 
       return { decision, dialogId: dialog.id };

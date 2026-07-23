@@ -41,6 +41,8 @@ type FakeDialog = {
   candidateUserId: string;
   createdAt: Date;
   updatedAt: Date;
+  hrHiddenAt: Date | null;
+  candidateHiddenAt: Date | null;
 };
 
 type FakeDialogMessage = {
@@ -281,6 +283,8 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
           candidateUserId: data.candidateUserId,
           createdAt: now,
           updatedAt: now,
+          hrHiddenAt: null,
+          candidateHiddenAt: null,
         };
         dialogs.push(created);
         return created;
@@ -290,11 +294,19 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
         data,
       }: {
         where: { id: string };
-        data: { updatedAt?: Date };
+        data: {
+          updatedAt?: Date;
+          candidateHiddenAt?: Date | null;
+          hrHiddenAt?: Date | null;
+        };
       }) => {
         const dialog = dialogs.find((d) => d.id === where.id);
         if (!dialog) throw new Error("Dialog not found");
         if (data.updatedAt) dialog.updatedAt = data.updatedAt;
+        if (data.candidateHiddenAt !== undefined) {
+          dialog.candidateHiddenAt = data.candidateHiddenAt;
+        }
+        if (data.hrHiddenAt !== undefined) dialog.hrHiddenAt = data.hrHiddenAt;
         return dialog;
       },
     },
@@ -867,6 +879,41 @@ test("POST /reports/:id/decisions creates decision, dialog, and letter message; 
     assert.equal(fakePrisma.__decisions.length, 2);
     assert.equal(fakePrisma.__messages[1].kind, "DECISION_LETTER");
     assert.equal(fakePrisma.__messages[1].body, "Потрібна ще одна зустріч.");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /reports/:id/decisions clears candidateHiddenAt on existing dialog", async () => {
+  const hiddenAt = new Date("2026-07-20T10:00:00.000Z");
+  const fakePrisma = makeFakePrisma({
+    reports: [sampleReport],
+    dialogs: [
+      {
+        id: "dlg_existing",
+        hrUserId: "hr_1",
+        candidateUserId: "cand_1",
+        createdAt: new Date("2026-07-14T10:00:00.000Z"),
+        updatedAt: new Date("2026-07-14T12:00:00.000Z"),
+        hrHiddenAt: null,
+        candidateHiddenAt: hiddenAt,
+      },
+    ],
+  });
+  const app = makeApp(fakePrisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports/rep_1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "ACCEPT", letterBody: "Вітаємо!" }),
+    });
+    assert.equal(response.status, 201);
+    assert.equal(fakePrisma.__dialogs[0].candidateHiddenAt, null);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
