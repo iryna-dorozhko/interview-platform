@@ -28,6 +28,10 @@ export type RoomAgentRetryPayload = {
   interviewId?: unknown;
 };
 
+export type RoomAgentStopPayload = {
+  interviewId?: unknown;
+};
+
 export type RoomTypingPayload = {
   interviewId?: unknown;
   isTyping?: unknown;

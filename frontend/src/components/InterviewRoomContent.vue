@@ -26,6 +26,7 @@ const {
   arbiterProcessLog,
   peerTypingLabel,
   retryAgent,
+  stopAgents,
 } = useInterviewRoom(props.interviewId, props.currentRole);
 
 const ending = ref(false);
@@ -33,9 +34,18 @@ const endSuccess = ref<string | null>(null);
 const endError = ref<string | null>(null);
 const endedReportId = ref<string | null>(null);
 
-const showEndButton = computed(
+const showHrToolbar = computed(
   () => props.currentRole === "HR" && interviewStatus.value === "LIVE",
 );
+
+const canRetryAgent = computed(
+  () =>
+    Boolean(agentError.value) &&
+    connectionState.value === "connected" &&
+    !agentThinking.value?.active,
+);
+
+const canStopAgents = computed(() => connectionState.value === "connected");
 
 const activeReportId = computed(
   () => endedReportId.value ?? props.reportId ?? null,
@@ -77,7 +87,33 @@ async function onEndInterview(): Promise<void> {
 </script>
 
 <template>
-  <div v-if="showEndButton" class="room-toolbar">
+  <div v-if="showHrToolbar" class="room-toolbar">
+    <button
+      type="button"
+      class="btn-secondary"
+      :disabled="!canRetryAgent"
+      :title="
+        canRetryAgent
+          ? 'Повторити останній невдалий хід агента'
+          : 'Кнопка активна лише після помилки агента'
+      "
+      @click="retryAgent"
+    >
+      Спробувати ще раз
+    </button>
+    <button
+      type="button"
+      class="btn-secondary"
+      :disabled="!canStopAgents"
+      :title="
+        canStopAgents
+          ? 'Зупинити поточні процеси агентів'
+          : 'Немає зʼєднання з кімнатою'
+      "
+      @click="stopAgents"
+    >
+      Зупинити
+    </button>
     <button
       type="button"
       class="btn-danger"
@@ -99,15 +135,6 @@ async function onEndInterview(): Promise<void> {
   <p v-if="phaseBanner" class="phase-banner">{{ phaseBanner }}</p>
   <p v-if="agentError" class="agent-error-banner" role="alert">
     {{ agentError }}
-    <button
-      v-if="currentRole === 'HR'"
-      type="button"
-      class="btn-secondary"
-      :disabled="agentThinking?.active"
-      @click="retryAgent"
-    >
-      Спробувати ще раз
-    </button>
   </p>
   <div class="room-body" :class="{ 'room-body--with-sidebar': currentRole === 'HR' }">
     <LiveChatPanel
@@ -144,6 +171,8 @@ async function onEndInterview(): Promise<void> {
 .room-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
 .btn-danger {

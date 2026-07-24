@@ -9,6 +9,7 @@ import type { RoomOrchestrator } from "./orchestrator";
 import type {
   LiveMessageDto,
   RoomAgentRetryPayload,
+  RoomAgentStopPayload,
   RoomJoinPayload,
   RoomMessagePayload,
   RoomTypingPayload,
@@ -226,6 +227,36 @@ export function registerRoomHandlers(
         }
         const session = await ensureLiveSession(prisma, interviewId);
         orchestrator.onAgentRetry(io, interviewId, session.id);
+      } catch {
+        socket.emit("room:error", { error: "Внутрішня помилка кімнати" });
+      }
+    });
+
+    socket.on("room:agent-stop", async (payload: RoomAgentStopPayload) => {
+      try {
+        const user = getSocketUser(socket);
+        if (!user) {
+          socket.emit("room:error", { error: "Немає доступу" });
+          return;
+        }
+        const data = getSocketData(socket);
+        const interviewId =
+          typeof payload?.interviewId === "string" ? payload.interviewId.trim() : "";
+        if (!interviewId || data.interviewId !== interviewId) {
+          socket.emit("room:error", { error: "Невірний запит" });
+          return;
+        }
+        if (data.roomRole !== "HR") {
+          socket.emit("room:error", { error: "Немає доступу" });
+          return;
+        }
+        const prisma = getPrisma();
+        const interview = await loadInterview(prisma, interviewId);
+        if (!interview || interview.status === "ENDED") {
+          socket.emit("room:error", { error: "Співбесіда завершена" });
+          return;
+        }
+        orchestrator.onAgentStop(io, interviewId);
       } catch {
         socket.emit("room:error", { error: "Внутрішня помилка кімнати" });
       }

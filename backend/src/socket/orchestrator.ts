@@ -23,7 +23,8 @@ import type {
 } from "./types";
 
 export const AGENT_DEBOUNCE_MS = 1000;
-export const MAX_CONDUCTOR_STEPS = 6;
+/** One human nudge can cover a full autonomous interview (arbiter+agents per Q&A). */
+export const MAX_CONDUCTOR_STEPS = 100;
 
 type LastFailedTurn = {
   agentType: "AGENT_ARBITER" | "AGENT_COMPANY" | "AGENT_CANDIDATE";
@@ -84,6 +85,7 @@ export interface RoomOrchestrator {
   onHumanMessage(io: Server, interviewId: string, sessionId: string): void;
   onLiveStart(io: Server, interviewId: string, sessionId: string): void;
   onAgentRetry(io: Server, interviewId: string, sessionId: string): void;
+  onAgentStop(io: Server, interviewId: string): void;
   close(): void;
 }
 
@@ -298,8 +300,9 @@ export function createRoomOrchestrator(
     state.busy = true;
     try {
       while (stepsUsed < maxConductorSteps) {
+        // Superseded by a newer generation: leave thinking state alone — the
+        // active turn owns room:agent-thinking.
         if (state.generation !== capturedGeneration || closed) {
-          emitThinking(io, interviewId, { active: false });
           return;
         }
 
@@ -336,7 +339,6 @@ export function createRoomOrchestrator(
           }
 
           if (state.generation !== capturedGeneration) {
-            emitThinking(io, interviewId, { active: false });
             return;
           }
 
@@ -354,17 +356,12 @@ export function createRoomOrchestrator(
           }
 
           if (state.generation !== capturedGeneration) {
-            emitThinking(io, interviewId, { active: false });
             return;
           }
 
           applyPendingBeforeRoute(state, command.action);
 
           if (command.action === "WAIT" || command.action === "SUGGEST_END") {
-            break;
-          }
-
-          if (stepsUsed >= maxConductorSteps) {
             break;
           }
         } else {
@@ -394,7 +391,6 @@ export function createRoomOrchestrator(
             const reply = await runCompany(interviewId, sessionId, turnContext);
             stepsUsed += 1;
             if (state.generation !== capturedGeneration) {
-              emitThinking(io, interviewId, { active: false });
               return;
             }
             if (reply.post && reply.message) {
@@ -409,6 +405,8 @@ export function createRoomOrchestrator(
               companyPostedThisTurn = true;
               if (command.action !== "COMPANY_ANSWER") {
                 state.pendingQuestion = true;
+                // New open question — allow Candidate to ANSWER again this loop.
+                candidatePostedThisTurn = false;
               }
             }
           } catch (error) {
@@ -447,7 +445,6 @@ export function createRoomOrchestrator(
             const reply = await runCandidate(interviewId, sessionId, turnContext);
             stepsUsed += 1;
             if (state.generation !== capturedGeneration) {
-              emitThinking(io, interviewId, { active: false });
               return;
             }
             if (reply.post && reply.message) {
@@ -616,6 +613,23 @@ export function createRoomOrchestrator(
       state.generation += 1;
       const capturedGeneration = state.generation;
       void resumeFromFailedTurn(io, interviewId, sessionId, capturedGeneration, failed);
+    },
+
+    onAgentStop(io: Server, interviewId: string): void {
+      if (closed) return;
+      const state = getState(interviewId);
+      if (state.debounceTimer) {
+        clearTimeout(state.debounceTimer);
+        state.debounceTimer = null;
+      }
+      if (state.candidateRecoveryTimer) {
+        clearTimeout(state.candidateRecoveryTimer);
+        state.candidateRecoveryTimer = null;
+      }
+      state.generation += 1;
+      state.lastFailedTurn = null;
+      state.busy = false;
+      emitThinking(io, interviewId, { active: false });
     },
 
     close(): void {

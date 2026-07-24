@@ -362,6 +362,72 @@ test("orchestrator cancels in-flight conductor when new human message arrives", 
   assert.ok(processEvents.some((e) => (e.payload as { action: string }).action === "WAIT"));
 });
 
+test("superseded turn must not clear thinking while newer turn is still running", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Перше",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  let resolveFirst: (() => void) | null = null;
+  let resolveSecond: (() => void) | null = null;
+  let arbiterCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 15,
+    maxConductorSteps: 2,
+    runArbiterTurn: () => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        return new Promise((resolve) => {
+          resolveFirst = () =>
+            resolve(cmd({ action: "WAIT", summaryUk: "stale" }));
+        });
+      }
+      return new Promise((resolve) => {
+        resolveSecond = () =>
+          resolve(cmd({ action: "WAIT", summaryUk: "active" }));
+      });
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 30));
+
+  messages.push({
+    id: "m2",
+    sessionId: "session_1",
+    authorType: "HUMAN_HR",
+    content: "Друге",
+    createdAt: new Date(),
+  });
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 30));
+
+  // Newer turn is in-flight (arbiter #2 pending). Completing the stale turn
+  // must not emit thinking=false over the active turn.
+  resolveFirst?.();
+  await new Promise((r) => setTimeout(r, 20));
+
+  const thinkingAfterStaleSettled = [...emitted]
+    .reverse()
+    .find((e) => e.event === "room:agent-thinking");
+  assert.deepEqual(thinkingAfterStaleSettled?.payload, {
+    active: true,
+    agentType: "AGENT_ARBITER",
+  });
+
+  resolveSecond?.();
+  await new Promise((r) => setTimeout(r, 40));
+  orchestrator.close();
+});
+
 test("orchestrator does not run when interview is not LIVE", async () => {
   const messages: LiveMessage[] = [
     {
@@ -389,6 +455,92 @@ test("orchestrator does not run when interview is not LIVE", async () => {
   await new Promise((r) => setTimeout(r, 60));
 
   assert.equal(emitted.length, 0);
+});
+
+test("orchestrator does not stop after second Company question before Candidate can ANSWER", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Почнемо",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+  const callOrder: string[] = [];
+  let arbiterN = 0;
+
+  // START + 2×(ANSWER+Candidate) + NEXT needs >6 agent steps; default was 6 and
+  // stopped after the second Company question with silence (no error).
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 20,
+    maxConductorSteps: 8,
+    runArbiterTurn: async () => {
+      arbiterN += 1;
+      callOrder.push(`arbiter:${arbiterN}`);
+      if (arbiterN === 1) {
+        return cmd({
+          action: "START",
+          summaryUk: "Старт",
+          publicMessage: "Починаємо",
+        });
+      }
+      if (arbiterN === 2) {
+        return cmd({ action: "ANSWER", summaryUk: "Відповідь на перше" });
+      }
+      if (arbiterN === 3) {
+        return cmd({
+          action: "NEXT_QUESTION",
+          summaryUk: "Друге питання",
+          briefUk: "TypeScript",
+        });
+      }
+      if (arbiterN === 4) {
+        return cmd({ action: "ANSWER", summaryUk: "Відповідь на друге" });
+      }
+      return cmd({ action: "WAIT", summaryUk: "Стоп" });
+    },
+    runCompanyLiveTurn: async () => {
+      const n = callOrder.filter((c) => c === "company").length + 1;
+      callOrder.push("company");
+      return {
+        post: true,
+        message: n === 1 ? "Перше питання компанії." : "Друге питання про TypeScript.",
+      };
+    },
+    runCandidateLiveTurn: async () => {
+      callOrder.push("candidate");
+      return { post: true, message: "Відповідь кандидата." };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 200));
+
+  assert.ok(
+    callOrder.includes("candidate") &&
+      callOrder.filter((c) => c === "candidate").length >= 2,
+    `Candidate must answer both questions; got ${JSON.stringify(callOrder)}`,
+  );
+  const companyMsgs = emitted.filter(
+    (e) =>
+      e.event === "room:messages" &&
+      (e.payload as { messages: Array<{ authorType: string; content: string }> }).messages.some(
+        (m) => m.authorType === "AGENT_COMPANY" && m.content.includes("TypeScript"),
+      ),
+  );
+  assert.equal(companyMsgs.length, 1);
+  const candidateAfterSecond = emitted.filter(
+    (e) =>
+      e.event === "room:messages" &&
+      (e.payload as { messages: Array<{ authorType: string }> }).messages.some(
+        (m) => m.authorType === "AGENT_CANDIDATE",
+      ),
+  );
+  assert.ok(candidateAfterSecond.length >= 2, "two candidate posts expected");
+  orchestrator.close();
 });
 
 test("orchestrator conductor: NEXT_QUESTION then ANSWER in one loop", async () => {
@@ -880,4 +1032,68 @@ test("orchestrator stale failure after generation bump must not restore lastFail
     callsBeforeRetry,
     "stale failure must not restore lastFailedTurn for retry",
   );
+});
+
+test("MAX_CONDUCTOR_STEPS default is 100", async () => {
+  const { MAX_CONDUCTOR_STEPS } = await import("./orchestrator");
+  assert.equal(MAX_CONDUCTOR_STEPS, 100);
+});
+
+test("orchestrator onAgentStop cancels in-flight turn and clears thinking", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "HUMAN_HR",
+      content: "Почнемо",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages);
+  const { io, emitted } = makeIo();
+
+  let resolveArbiter: (() => void) | null = null;
+  let arbiterCalls = 0;
+  let companyCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 15,
+    maxConductorSteps: 100,
+    runArbiterTurn: () => {
+      arbiterCalls += 1;
+      return new Promise((resolve) => {
+        resolveArbiter = () =>
+          resolve(
+            cmd({
+              action: "START",
+              summaryUk: "late",
+              publicMessage: "не має зʼявитись",
+            }),
+          );
+      });
+    },
+    runCompanyLiveTurn: async () => {
+      companyCalls += 1;
+      return { post: true, message: "company" };
+    },
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(arbiterCalls, 1);
+
+  orchestrator.onAgentStop(io, "interview_1");
+  await new Promise((r) => setTimeout(r, 20));
+
+  resolveArbiter?.();
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(companyCalls, 0);
+  const agentMessages = emitted.filter((e) => e.event === "room:messages");
+  assert.equal(agentMessages.length, 0);
+
+  const lastThinking = [...emitted].reverse().find((e) => e.event === "room:agent-thinking");
+  assert.deepEqual(lastThinking?.payload, { active: false });
+
+  orchestrator.close();
 });

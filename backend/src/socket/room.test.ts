@@ -19,6 +19,7 @@ function makeNoopOrchestrator(
     onHumanMessage: () => {},
     onLiveStart: () => {},
     onAgentRetry: () => {},
+    onAgentStop: () => {},
     close: () => {},
     ...overrides,
   };
@@ -511,6 +512,83 @@ test("room:agent-retry rejects candidate and does not call onAgentRetry", async 
 
     assert.equal(payload.error, "Немає доступу");
     assert.equal(retryCalled, false);
+
+    candidateSocket.disconnect();
+  } finally {
+    await server.close();
+  }
+});
+
+test("room:agent-stop calls onAgentStop for HR in the joined room", async () => {
+  const interview: FakeInterview = {
+    id: "interview_1",
+    hrUserId: "hr_1",
+    candidateUserId: "cd_1",
+    status: "LIVE",
+  };
+  const sessions: FakeLiveSession[] = [{ id: "session_1", interviewId: "interview_1" }];
+  const prisma = makeFakePrisma(interview, sessions, []);
+
+  let resolveStop!: (value: { interviewId: string }) => void;
+  const stopPromise = new Promise<{ interviewId: string }>((resolve) => {
+    resolveStop = resolve;
+  });
+  const orchestrator = makeNoopOrchestrator({
+    onAgentStop: (_io, interviewId) => {
+      resolveStop({ interviewId });
+    },
+  });
+  const server = await startRoomServer(prisma, orchestrator);
+
+  try {
+    const hrSocket = await connectClient(server.port, hrToken);
+    hrSocket.emit("room:join", { interviewId: "interview_1" });
+    await waitForEvent(hrSocket, "room:messages");
+
+    hrSocket.emit("room:agent-stop", { interviewId: "interview_1" });
+    const called = await Promise.race([
+      stopPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout waiting for onAgentStop")), 5000),
+      ),
+    ]);
+
+    assert.equal(called.interviewId, "interview_1");
+    hrSocket.disconnect();
+  } finally {
+    await server.close();
+  }
+});
+
+test("room:agent-stop rejects candidate and does not call onAgentStop", async () => {
+  const interview: FakeInterview = {
+    id: "interview_1",
+    hrUserId: "hr_1",
+    candidateUserId: "cd_1",
+    status: "LIVE",
+  };
+  const sessions: FakeLiveSession[] = [{ id: "session_1", interviewId: "interview_1" }];
+  const prisma = makeFakePrisma(interview, sessions, []);
+
+  let stopCalled = false;
+  const orchestrator = makeNoopOrchestrator({
+    onAgentStop: () => {
+      stopCalled = true;
+    },
+  });
+  const server = await startRoomServer(prisma, orchestrator);
+
+  try {
+    const candidateSocket = await connectClient(server.port, candidateToken);
+    candidateSocket.emit("room:join", { interviewId: "interview_1" });
+    await waitForEvent(candidateSocket, "room:messages");
+
+    const errorPromise = waitForEvent<{ error: string }>(candidateSocket, "room:error");
+    candidateSocket.emit("room:agent-stop", { interviewId: "interview_1" });
+    const payload = await errorPromise;
+
+    assert.equal(payload.error, "Немає доступу");
+    assert.equal(stopCalled, false);
 
     candidateSocket.disconnect();
   } finally {
