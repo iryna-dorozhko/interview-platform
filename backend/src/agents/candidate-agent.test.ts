@@ -74,11 +74,12 @@ test("candidate system prompt READY gate requires all five profile topics", () =
   );
 });
 
-test("candidate system prompt explains next step with HR code and shared interview", () => {
-  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /код.*HR|HR.*код/i);
+test("candidate system prompt explains next steps: matches, join, live agent, dialogs", () => {
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /підібрати вакансі|подати заявку/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /код.*HR|запрошення/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /спільн.*співбесід|live-співбесід/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /представляє інтереси кандидата/i);
-  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /HR.*повідомить результати|повідомить результати.*HR/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /Діалоги|decision letter/i);
 });
 
 test("candidate prompt includes contact bootstrap rules", () => {
