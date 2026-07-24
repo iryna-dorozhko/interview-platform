@@ -1481,8 +1481,31 @@ test("DELETE /interviews/:id cascades and returns 204", async () => {
     candidateProfile: {
       deleteMany: (args: { where: { interviewId: string } }) => Promise<{ count: number }>;
     };
+    interviewDecision: {
+      findMany: (args: {
+        where: { interviewId: string };
+        select: { id: true };
+      }) => Promise<Array<{ id: string }>>;
+      updateMany: (args: {
+        where: { interviewId: string };
+        data: { dialogMessageId: null };
+      }) => Promise<{ count: number }>;
+      deleteMany: (args: { where: { interviewId: string } }) => Promise<{ count: number }>;
+    };
+    dialogMessage: {
+      updateMany: (args: {
+        where: { decisionId: { in: string[] } };
+        data: { decisionId: null };
+      }) => Promise<{ count: number }>;
+    };
     finalReport: {
       deleteMany: (args: { where: { interviewId: string } }) => Promise<{ count: number }>;
+    };
+    vacancyApplication: {
+      updateMany: (args: {
+        where: { interviewId: string };
+        data: { interviewId: null };
+      }) => Promise<{ count: number }>;
     };
   };
 
@@ -1533,9 +1556,35 @@ test("DELETE /interviews/:id cascades and returns 204", async () => {
       return { count: 1 };
     },
   };
+  fakePrisma.interviewDecision = {
+    findMany: async ({ where }) => {
+      cascadeCalls.push(`interviewDecision.findMany:${where.interviewId}`);
+      return [{ id: "dec_1" }];
+    },
+    updateMany: async ({ where }) => {
+      cascadeCalls.push(`interviewDecision.updateMany:${where.interviewId}`);
+      return { count: 1 };
+    },
+    deleteMany: async ({ where }) => {
+      cascadeCalls.push(`interviewDecision.deleteMany:${where.interviewId}`);
+      return { count: 1 };
+    },
+  };
+  fakePrisma.dialogMessage = {
+    updateMany: async ({ where }) => {
+      cascadeCalls.push(`dialogMessage.updateMany:${where.decisionId.in.join(",")}`);
+      return { count: 1 };
+    },
+  };
   fakePrisma.finalReport = {
     deleteMany: async ({ where }) => {
       cascadeCalls.push(`finalReport:${where.interviewId}`);
+      return { count: 1 };
+    },
+  };
+  fakePrisma.vacancyApplication = {
+    updateMany: async ({ where }) => {
+      cascadeCalls.push(`vacancyApplication:${where.interviewId}`);
       return { count: 1 };
     },
   };
@@ -1555,7 +1604,12 @@ test("DELETE /interviews/:id cascades and returns 204", async () => {
       "prepMessageCandidate:ps_1",
       "prepSessionCandidate:ps_1",
       "candidateProfile:int_1",
+      "interviewDecision.findMany:int_1",
+      "interviewDecision.updateMany:int_1",
+      "dialogMessage.updateMany:dec_1",
+      "interviewDecision.deleteMany:int_1",
       "finalReport:int_1",
+      "vacancyApplication:int_1",
     ]);
     assert.equal(interviews.length, 0);
   } finally {

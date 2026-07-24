@@ -206,13 +206,18 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
     }
 
     try {
-      const session = await prisma.prepSessionHr.findUnique({ where: { vacancyId: vacancy.id } });
-      if (session) {
-        await prisma.prepMessageHr.deleteMany({ where: { sessionId: session.id } });
-        await prisma.prepSessionHr.delete({ where: { id: session.id } });
-      }
-      await prisma.companyProfile.deleteMany({ where: { vacancyId: vacancy.id } });
-      await prisma.vacancy.delete({ where: { id: vacancy.id } });
+      await prisma.$transaction(async (tx) => {
+        const session = await tx.prepSessionHr.findUnique({ where: { vacancyId: vacancy.id } });
+        if (session) {
+          await tx.prepMessageHr.deleteMany({ where: { sessionId: session.id } });
+          await tx.prepSessionHr.delete({ where: { id: session.id } });
+        }
+        await tx.companyProfile.deleteMany({ where: { vacancyId: vacancy.id } });
+        await tx.vacancyApplication.deleteMany({ where: { vacancyId: vacancy.id } });
+        await tx.vacancyOfferDecision.deleteMany({ where: { vacancyId: vacancy.id } });
+        await tx.vacancyMatchScore.deleteMany({ where: { vacancyId: vacancy.id } });
+        await tx.vacancy.delete({ where: { id: vacancy.id } });
+      });
       res.status(200).json({ ok: true });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

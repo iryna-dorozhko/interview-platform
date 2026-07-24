@@ -27,6 +27,7 @@ type FakeVacancy = {
 
 function makeFakePrisma(vacancies: FakeVacancy[] = []) {
   let counter = 0;
+  const cascadeCalls: string[] = [];
   const interviews: { vacancyId: string; status: string }[] = vacancies.flatMap((v) => {
     if (v._interviewStatuses?.length) {
       return v._interviewStatuses.map((status) => ({ vacancyId: v.id, status }));
@@ -37,7 +38,7 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
     }));
   });
 
-  return {
+  const client = {
     vacancy: {
       findMany: async ({
         where,
@@ -99,6 +100,7 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
         return { ...vacancy, hiddenAt: vacancy.hiddenAt ?? null };
       },
       delete: async ({ where }: { where: { id: string } }) => {
+        cascadeCalls.push(`vacancy:${where.id}`);
         const index = vacancies.findIndex((v) => v.id === where.id);
         if (index === -1) throw new Error("not found");
         return vacancies.splice(index, 1)[0];
@@ -124,8 +126,48 @@ function makeFakePrisma(vacancies: FakeVacancy[] = []) {
     },
     companyProfile: {
       updateMany: async () => ({ count: 1 }),
+      deleteMany: async ({ where }: { where: { vacancyId: string } }) => {
+        cascadeCalls.push(`companyProfile:${where.vacancyId}`);
+        return { count: 1 };
+      },
     },
+    prepSessionHr: {
+      findUnique: async ({ where }: { where: { vacancyId: string } }) =>
+        vacancies.some((v) => v.id === where.vacancyId) ? { id: `ps_${where.vacancyId}` } : null,
+      delete: async ({ where }: { where: { id: string } }) => {
+        cascadeCalls.push(`prepSessionHr:${where.id}`);
+        return { id: where.id };
+      },
+    },
+    prepMessageHr: {
+      deleteMany: async ({ where }: { where: { sessionId: string } }) => {
+        cascadeCalls.push(`prepMessageHr:${where.sessionId}`);
+        return { count: 1 };
+      },
+    },
+    vacancyApplication: {
+      deleteMany: async ({ where }: { where: { vacancyId: string } }) => {
+        cascadeCalls.push(`vacancyApplication:${where.vacancyId}`);
+        return { count: 1 };
+      },
+    },
+    vacancyOfferDecision: {
+      deleteMany: async ({ where }: { where: { vacancyId: string } }) => {
+        cascadeCalls.push(`vacancyOfferDecision:${where.vacancyId}`);
+        return { count: 1 };
+      },
+    },
+    vacancyMatchScore: {
+      deleteMany: async ({ where }: { where: { vacancyId: string } }) => {
+        cascadeCalls.push(`vacancyMatchScore:${where.vacancyId}`);
+        return { count: 1 };
+      },
+    },
+    $transaction: async (fn: (tx: typeof client) => Promise<unknown>) => fn(client),
+    __cascadeCalls: cascadeCalls,
   };
+
+  return client;
 }
 
 function withUser(user: AuthUser) {
@@ -194,6 +236,35 @@ test("DELETE /vacancies/:id returns 409 when interviews exist", async () => {
     assert.equal(response.status, 409);
     const body = await response.json();
     assert.equal(body.interviewCount, 1);
+  });
+});
+
+test("DELETE /vacancies/:id cascades related rows and returns 200", async () => {
+  const fakePrisma = makeFakePrisma([
+    {
+      id: "v1",
+      hrUserId: "hr_1",
+      title: "Dev",
+      status: "CONFIRMED",
+      createdAt: new Date(),
+    },
+  ]);
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+
+  await withServer(app, async (port) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/vacancies/v1`, { method: "DELETE" });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body, { ok: true });
+    assert.deepEqual(fakePrisma.__cascadeCalls, [
+      "prepMessageHr:ps_v1",
+      "prepSessionHr:ps_v1",
+      "companyProfile:v1",
+      "vacancyApplication:v1",
+      "vacancyOfferDecision:v1",
+      "vacancyMatchScore:v1",
+      "vacancy:v1",
+    ]);
   });
 });
 

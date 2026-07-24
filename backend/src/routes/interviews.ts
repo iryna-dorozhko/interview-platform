@@ -481,7 +481,29 @@ export function createInterviewsRouter(
       }
 
       await tx.candidateProfile.deleteMany({ where: { interviewId: interview.id } });
+
+      const decisions = await tx.interviewDecision.findMany({
+        where: { interviewId: interview.id },
+        select: { id: true },
+      });
+      if (decisions.length > 0) {
+        const decisionIds = decisions.map((d) => d.id);
+        await tx.interviewDecision.updateMany({
+          where: { interviewId: interview.id },
+          data: { dialogMessageId: null },
+        });
+        await tx.dialogMessage.updateMany({
+          where: { decisionId: { in: decisionIds } },
+          data: { decisionId: null },
+        });
+        await tx.interviewDecision.deleteMany({ where: { interviewId: interview.id } });
+      }
+
       await tx.finalReport.deleteMany({ where: { interviewId: interview.id } });
+      await tx.vacancyApplication.updateMany({
+        where: { interviewId: interview.id },
+        data: { interviewId: null },
+      });
       await tx.interview.delete({ where: { id: interview.id } });
     });
 
