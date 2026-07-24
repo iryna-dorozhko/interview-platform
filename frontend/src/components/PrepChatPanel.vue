@@ -122,8 +122,9 @@ const emit = defineEmits<{
 }
 .chat-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 0.5rem;
-  flex-wrap: wrap;
 }
 .messages {
   max-height: 24rem;

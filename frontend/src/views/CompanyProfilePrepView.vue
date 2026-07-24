@@ -197,7 +197,7 @@ onMounted(() => {
   <main class="page">
     <header class="header">
       <h1>Профіль компанії</h1>
-      <button type="button" class="btn-secondary" @click="goHome">← До списку анкет</button>
+      <button type="button" class="btn-secondary" @click="goHome">До списку вакансій</button>
     </header>
 
     <p class="page-hint">
@@ -323,7 +323,6 @@ onMounted(() => {
 .page {
   width: 100%;
   min-width: 0;
-  margin-left: 2cm;
   font-size: 1.0625rem;
 }
 .header {
@@ -332,9 +331,6 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 1.5rem;
   gap: 0.5rem;
-}
-.header .btn-secondary {
-  margin-right: 4cm;
 }
 .header h1 {
   margin: 0;

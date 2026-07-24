@@ -47,7 +47,7 @@ async function onSubmit(): Promise<void> {
 
 <template>
   <main class="page">
-    <h1>Вхід HR</h1>
+    <h1>Вхід (компанія)</h1>
     <form class="form" @submit.prevent="onSubmit">
       <label>
         Email
