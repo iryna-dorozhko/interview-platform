@@ -78,6 +78,7 @@ type SessionState = {
   collecting: boolean;
   chunks: string[];
   cleanupPromise?: Promise<void>;
+  idleTimer?: ReturnType<typeof setTimeout>;
 };
 
 type ClientDependencies = {
@@ -203,6 +204,13 @@ export class CursorAcpClient {
         throw new AcpClientError("transport", "Cursor ACP session was lost");
       }
       session.collecting = true;
+      this.armPromptIdleWatchdog(
+        created.sessionId,
+        new AcpClientError(
+          "timeout",
+          `Cursor ACP prompt idle timed out after ${this.config.promptIdleTimeoutMs}ms`,
+        ),
+      );
       const result = parsePromptResult(
         await this.request("session/prompt", {
           sessionId: created.sessionId,
@@ -218,6 +226,7 @@ export class CursorAcpClient {
         }),
       );
       session.collecting = false;
+      this.clearPromptIdleWatchdog(created.sessionId);
       if (result.stopReason === "cancelled") {
         throw new AcpClientError(
           "cancelled",
@@ -232,7 +241,12 @@ export class CursorAcpClient {
       }
       return session.chunks.join("");
     } finally {
-      await this.releaseSession(created.sessionId);
+      this.clearPromptIdleWatchdog(created.sessionId);
+      try {
+        await this.releaseSession(created.sessionId);
+      } catch {
+        // Best-effort: hung close/cancel must not block the caller forever.
+      }
     }
   }
 
@@ -371,20 +385,33 @@ export class CursorAcpClient {
       stopCollectingSessionId?: string;
     },
   ): Promise<unknown> {
+    const effectiveTimeout = timeout ?? {
+      timeoutMs: this.config.requestTimeoutMs,
+      timeoutError: new AcpClientError(
+        "timeout",
+        `Cursor ACP ${method} timed out after ${this.config.requestTimeoutMs}ms`,
+      ),
+      onTimeout: () =>
+        this.abortCurrentProcess(
+          new AcpClientError(
+            "timeout",
+            `Cursor ACP ${method} timed out after ${this.config.requestTimeoutMs}ms`,
+          ),
+        ),
+    };
+
     const id = ++this.nextRequestId;
     return new Promise((resolve, reject) => {
       const pending: PendingRequest = { resolve, reject };
-      pending.stopCollectingSessionId = timeout?.stopCollectingSessionId;
-      if (timeout) {
-        pending.timer = setTimeout(() => {
-          if (!this.pending.delete(id)) return;
-          this.stopCollecting(pending);
-          reject(timeout.timeoutError);
-          void Promise.resolve(timeout.onTimeout()).catch((error) => {
-            this.failTransport(error);
-          });
-        }, timeout.timeoutMs);
-      }
+      pending.stopCollectingSessionId = effectiveTimeout.stopCollectingSessionId;
+      pending.timer = setTimeout(() => {
+        if (!this.pending.delete(id)) return;
+        this.stopCollecting(pending);
+        reject(effectiveTimeout.timeoutError);
+        void Promise.resolve(effectiveTimeout.onTimeout()).catch((error) => {
+          this.failTransport(error);
+        });
+      }, effectiveTimeout.timeoutMs);
       this.pending.set(id, pending);
       void this.write({
         jsonrpc: "2.0",
@@ -458,6 +485,7 @@ export class CursorAcpClient {
 
   private stopCollecting(pending: PendingRequest): void {
     if (!pending.stopCollectingSessionId) return;
+    this.clearPromptIdleWatchdog(pending.stopCollectingSessionId);
     const session = this.sessions.get(pending.stopCollectingSessionId);
     if (session) session.collecting = false;
   }
@@ -471,6 +499,50 @@ export class CursorAcpClient {
       update.content?.type === "text"
     ) {
       session.chunks.push(update.content.text ?? "");
+      this.bumpPromptIdleWatchdog(sessionId);
+    }
+  }
+
+  private armPromptIdleWatchdog(sessionId: string, timeoutError: AcpClientError): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    this.clearPromptIdleWatchdog(sessionId);
+    session.idleTimer = setTimeout(() => {
+      this.rejectCollectingPrompt(sessionId, timeoutError);
+    }, this.config.promptIdleTimeoutMs);
+  }
+
+  private bumpPromptIdleWatchdog(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session?.collecting || !session.idleTimer) return;
+    this.armPromptIdleWatchdog(
+      sessionId,
+      new AcpClientError(
+        "timeout",
+        `Cursor ACP prompt idle timed out after ${this.config.promptIdleTimeoutMs}ms`,
+      ),
+    );
+  }
+
+  private clearPromptIdleWatchdog(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session?.idleTimer) return;
+    clearTimeout(session.idleTimer);
+    session.idleTimer = undefined;
+  }
+
+  private rejectCollectingPrompt(sessionId: string, error: AcpClientError): void {
+    this.clearPromptIdleWatchdog(sessionId);
+    for (const [id, pending] of this.pending) {
+      if (pending.stopCollectingSessionId !== sessionId) continue;
+      if (pending.timer) clearTimeout(pending.timer);
+      this.pending.delete(id);
+      this.stopCollecting(pending);
+      pending.reject(error);
+      void this.cleanupSession(sessionId, true).catch((cleanupError) => {
+        this.failTransport(cleanupError);
+      });
+      return;
     }
   }
 
@@ -651,15 +723,23 @@ export class CursorAcpClient {
 
     session.collecting = false;
     session.cleanupPromise = (async () => {
-      if (cancel) {
-        await this.write({
-          jsonrpc: "2.0",
-          method: "session/cancel",
-          params: { sessionId },
-        });
-      }
-      if (this.supportsSessionClose()) {
-        await this.request("session/close", { sessionId });
+      try {
+        if (cancel) {
+          await this.write({
+            jsonrpc: "2.0",
+            method: "session/cancel",
+            params: { sessionId },
+          });
+        }
+        if (this.supportsSessionClose()) {
+          await this.request("session/close", { sessionId });
+        }
+      } catch (error) {
+        this.abortCurrentProcess(
+          error instanceof Error
+            ? error
+            : new AcpClientError("transport", String(error)),
+        );
       }
     })().finally(() => {
       this.sessions.delete(sessionId);
@@ -690,6 +770,10 @@ export class CursorAcpClient {
       pending.reject(normalized);
     }
     this.pending.clear();
+    for (const session of this.sessions.values()) {
+      if (session.idleTimer) clearTimeout(session.idleTimer);
+      session.idleTimer = undefined;
+    }
     this.sessions.clear();
 
     const child = this.child;

@@ -17,7 +17,11 @@ function defaultSleep(ms: number): Promise<void> {
 }
 
 export function isRetryableLlmError(error: unknown): boolean {
-  if (error instanceof LlmUnavailableError) return true;
+  if (error instanceof LlmUnavailableError) {
+    // Hard timeouts already recycled the provider; retrying burns minutes in live rooms.
+    if (/timed out/i.test(error.message)) return false;
+    return true;
+  }
   if (error instanceof LlmEmptyResponseError) return true;
   if (isGeminiRateLimitError(error)) return true;
   if (error instanceof Error) {
@@ -72,7 +76,7 @@ export async function withLlmRetry<T>(
 
   if (isGeminiRateLimitError(lastError)) {
     throw new LlmUnavailableError(
-      "Gemini API: перевищено ліміт запитів. Змініть LLM_PROVIDER у .env або зачекайте.",
+      "LLM API: перевищено ліміт запитів. Змініть LLM_PROVIDER у .env або зачекайте.",
     );
   }
 

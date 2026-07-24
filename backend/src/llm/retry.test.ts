@@ -26,9 +26,28 @@ test("isRetryableLlmError rejects context and generic errors", () => {
   assert.equal(isRetryableLlmError(new Error("boom")), false);
 });
 
+test("isRetryableLlmError rejects LLM timeout errors", () => {
+  assert.equal(
+    isRetryableLlmError(
+      new LlmUnavailableError("Cursor ACP prompt timed out after 120000ms"),
+    ),
+    false,
+  );
+  assert.equal(
+    isRetryableLlmError(
+      new LlmUnavailableError("Cursor ACP session/new timed out after 30000ms"),
+    ),
+    false,
+  );
+  assert.equal(
+    isRetryableLlmError(new LlmUnavailableError("Cursor ACP is unavailable: down")),
+    true,
+  );
+});
+
 test("toSafeLlmErrorMessage keeps rate-limit Ukrainian text", () => {
   const err = new LlmUnavailableError(
-    "Gemini API: перевищено ліміт запитів. Змініть LLM_PROVIDER у .env або зачекайте.",
+    "LLM API: перевищено ліміт запитів. Змініть LLM_PROVIDER у .env або зачекайте.",
   );
   assert.equal(toSafeLlmErrorMessage(err), err.message);
   assert.equal(toSafeLlmErrorMessage(new Error("ECONNRESET")), SAFE_LLM_ERROR_UK);

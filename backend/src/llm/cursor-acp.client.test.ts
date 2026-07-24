@@ -64,6 +64,8 @@ type HarnessOptions = {
   interleavePrompts?: boolean;
   silentInitialize?: boolean;
   hangPrompt?: boolean;
+  hangClose?: boolean;
+  hangSessionNew?: boolean;
   ignoreSigterm?: boolean;
   onPrompt?: (process: FakeAcpProcess, request: JsonObject) => void;
 };
@@ -77,6 +79,8 @@ function makeHarness(options: HarnessOptions = {}) {
     process: FakeAcpProcess;
   }> = [];
   let hangPrompt = options.hangPrompt ?? false;
+  let hangClose = options.hangClose ?? false;
+  let hangSessionNew = options.hangSessionNew ?? false;
 
   const spawn: SpawnAcp = () => {
     spawnCount += 1;
@@ -105,6 +109,7 @@ function makeHarness(options: HarnessOptions = {}) {
         return;
       }
       if (message.method === "session/new") {
+        if (hangSessionNew) return;
         nextSession += 1;
         const sessionId = options.duplicateSessionId
           ? "duplicate"
@@ -166,6 +171,7 @@ function makeHarness(options: HarnessOptions = {}) {
         return;
       }
       if (message.method === "session/close") {
+        if (hangClose) return;
         current.send({ jsonrpc: "2.0", id, result: {} });
         return;
       }
@@ -257,6 +263,12 @@ function makeHarness(options: HarnessOptions = {}) {
     },
     setHangPrompt(value: boolean): void {
       hangPrompt = value;
+    },
+    setHangClose(value: boolean): void {
+      hangClose = value;
+    },
+    setHangSessionNew(value: boolean): void {
+      hangSessionNew = value;
     },
     async waitForMethods(method: string, count: number): Promise<void> {
       const deadline = Date.now() + 1_000;
@@ -558,6 +570,146 @@ test("startup timeout terminates one uninitialized process and rejects all waite
     ),
   );
   assert.deepEqual(harness.process.signals, ["SIGTERM"]);
+});
+
+test("hung session/close after successful prompt still resolves and allows restart", async () => {
+  const harness = makeHarness({
+    closeCapability: true,
+    hangClose: true,
+  });
+  const client = new CursorAcpClient(
+    makeConfig({
+      requestTimeoutMs: 20,
+      terminateGraceMs: 5,
+    }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  const started = Date.now();
+  const text = await Promise.race([
+    client.completePrompt("ok"),
+    new Promise<string>((_, reject) =>
+      setTimeout(() => reject(new Error("completePrompt hung past deadline")), 500),
+    ),
+  ]);
+  const elapsed = Date.now() - started;
+
+  assert.equal(text, "SESSION-1");
+  assert.ok(elapsed < 2_000, `completePrompt hung for ${elapsed}ms`);
+  assert.equal(harness.methods("session/close").length, 1);
+
+  harness.setHangClose(false);
+  assert.equal(await client.completePrompt("again"), "SESSION-2");
+  assert.equal(harness.spawnCount, 2);
+  await client.close();
+});
+
+test("hung session/new times out without blocking forever", async () => {
+  const harness = makeHarness({ hangSessionNew: true });
+  const client = new CursorAcpClient(
+    makeConfig({
+      requestTimeoutMs: 20,
+      terminateGraceMs: 5,
+    }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  const started = Date.now();
+  await assert.rejects(
+    Promise.race([
+      client.completePrompt("stuck-new"),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("session/new hang past deadline")), 500),
+      ),
+    ]),
+    /timed out/,
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 2_000, `session/new hang lasted ${elapsed}ms`);
+
+  harness.setHangSessionNew(false);
+  assert.equal(await client.completePrompt("recovered"), "SESSION-1");
+  assert.equal(harness.spawnCount, 2);
+  await client.close();
+});
+
+test("prompt timeout still settles when session/close also hangs", async () => {
+  const harness = makeHarness({
+    closeCapability: true,
+    hangPrompt: true,
+    hangClose: true,
+  });
+  const client = new CursorAcpClient(
+    makeConfig({
+      promptTimeoutMs: 20,
+      requestTimeoutMs: 20,
+      terminateGraceMs: 5,
+    }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  const started = Date.now();
+  await assert.rejects(
+    Promise.race([
+      client.completePrompt("hang"),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("prompt+close hang past deadline")), 500),
+      ),
+    ]),
+    /prompt timed out/,
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 2_000, `prompt+close hang lasted ${elapsed}ms`);
+  assert.equal(harness.methods("session/cancel").length, 1);
+  assert.equal(harness.methods("session/close").length, 1);
+
+  harness.setHangPrompt(false);
+  harness.setHangClose(false);
+  assert.equal(await client.completePrompt("recovered"), "SESSION-2");
+  await client.close();
+});
+
+test("prompt idle timeout fires when no chunks arrive before hard prompt timeout", async () => {
+  const harness = makeHarness({ hangPrompt: true });
+  const client = new CursorAcpClient(
+    makeConfig({
+      promptTimeoutMs: 5_000,
+      promptIdleTimeoutMs: 30,
+      requestTimeoutMs: 20,
+      terminateGraceMs: 5,
+    }),
+    {
+      spawn: harness.spawn,
+      prepareRuntime: async () => undefined,
+    },
+  );
+
+  const started = Date.now();
+  await assert.rejects(
+    Promise.race([
+      client.completePrompt("silent"),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("idle hang past deadline")), 1_000),
+      ),
+    ]),
+    /idle timed out|prompt timed out/,
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 1_000, `idle hang lasted ${elapsed}ms`);
+  assert.ok(elapsed >= 25, `idle fired too early (${elapsed}ms)`);
+
+  harness.setHangPrompt(false);
+  assert.equal(await client.completePrompt("recovered"), "SESSION-2");
+  await client.close();
 });
 
 test("prompt timeout cancels and capability-closes only its session", async () => {

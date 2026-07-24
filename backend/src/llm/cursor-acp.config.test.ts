@@ -49,6 +49,8 @@ test("readCursorAcpConfig returns safe defaults and an allowlisted child env", (
   assert.equal(config.cwd, "/tmp/interview-platform-cursor-acp");
   assert.equal(config.startupTimeoutMs, 15_000);
   assert.equal(config.promptTimeoutMs, 120_000);
+  assert.equal(config.promptIdleTimeoutMs, 45_000);
+  assert.equal(config.requestTimeoutMs, 30_000);
   assert.equal(config.shutdownGraceMs, 5_000);
   assert.equal(config.terminateGraceMs, 2_000);
   assert.equal(config.maxSessions, 100);
@@ -76,6 +78,8 @@ test("readCursorAcpConfig reads explicit executable, cwd, and numeric values", (
     CURSOR_ACP_CWD: "/srv/cursor-acp",
     CURSOR_ACP_STARTUP_TIMEOUT_MS: "111",
     CURSOR_ACP_PROMPT_TIMEOUT_MS: "222",
+    CURSOR_ACP_PROMPT_IDLE_TIMEOUT_MS: "225",
+    CURSOR_ACP_REQUEST_TIMEOUT_MS: "250",
     CURSOR_ACP_SHUTDOWN_GRACE_MS: "333",
     CURSOR_ACP_TERMINATE_GRACE_MS: "444",
     CURSOR_ACP_MAX_SESSIONS: "5",
@@ -86,6 +90,8 @@ test("readCursorAcpConfig reads explicit executable, cwd, and numeric values", (
   assert.equal(config.cwd, "/srv/cursor-acp");
   assert.equal(config.startupTimeoutMs, 111);
   assert.equal(config.promptTimeoutMs, 222);
+  assert.equal(config.promptIdleTimeoutMs, 225);
+  assert.equal(config.requestTimeoutMs, 250);
   assert.equal(config.shutdownGraceMs, 333);
   assert.equal(config.terminateGraceMs, 444);
   assert.equal(config.maxSessions, 5);
@@ -96,6 +102,8 @@ test("readCursorAcpConfig rejects invalid numeric values", () => {
   const cases = [
     ["CURSOR_ACP_STARTUP_TIMEOUT_MS", "0"],
     ["CURSOR_ACP_PROMPT_TIMEOUT_MS", "-1"],
+    ["CURSOR_ACP_PROMPT_IDLE_TIMEOUT_MS", "0"],
+    ["CURSOR_ACP_REQUEST_TIMEOUT_MS", "0"],
     ["CURSOR_ACP_SHUTDOWN_GRACE_MS", "1.5"],
     ["CURSOR_ACP_TERMINATE_GRACE_MS", "NaN"],
     ["CURSOR_ACP_MAX_SESSIONS", "Infinity"],

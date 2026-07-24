@@ -13,6 +13,8 @@ export interface CursorAcpConfig {
   cwd: string;
   startupTimeoutMs: number;
   promptTimeoutMs: number;
+  promptIdleTimeoutMs: number;
+  requestTimeoutMs: number;
   shutdownGraceMs: number;
   terminateGraceMs: number;
   maxSessions: number;
@@ -99,6 +101,16 @@ export function readCursorAcpConfig(
       "CURSOR_ACP_PROMPT_TIMEOUT_MS",
       env.CURSOR_ACP_PROMPT_TIMEOUT_MS,
       120_000,
+    ),
+    promptIdleTimeoutMs: readPositiveInteger(
+      "CURSOR_ACP_PROMPT_IDLE_TIMEOUT_MS",
+      env.CURSOR_ACP_PROMPT_IDLE_TIMEOUT_MS,
+      45_000,
+    ),
+    requestTimeoutMs: readPositiveInteger(
+      "CURSOR_ACP_REQUEST_TIMEOUT_MS",
+      env.CURSOR_ACP_REQUEST_TIMEOUT_MS,
+      30_000,
     ),
     shutdownGraceMs: readPositiveInteger(
       "CURSOR_ACP_SHUTDOWN_GRACE_MS",
