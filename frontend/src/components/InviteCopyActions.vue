@@ -6,6 +6,7 @@ const props = defineProps<{
   joinCode: string;
   displayName: string;
   scheduledAt: string | null;
+  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null;
 }>();
 
 const copyError = ref<string | null>(null);
@@ -42,6 +43,7 @@ function copyMessage(): Promise<void> {
       joinCode: props.joinCode,
       origin,
       scheduledAt: props.scheduledAt,
+      interviewKind: props.interviewKind,
     }),
     "text",
   );

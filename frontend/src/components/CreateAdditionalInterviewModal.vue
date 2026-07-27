@@ -120,6 +120,7 @@ async function onSubmit(): Promise<void> {
           :join-code="createdInterview.joinCode"
           :display-name="createdInterview.displayName"
           :scheduled-at="createdInterview.scheduledAt"
+          interview-kind="ADDITIONAL_MEETING"
         />
         <p v-if="createdInterview.invitation" class="invitation-info">
           Запрошення: {{ createdInterview.invitation.email }} · очікує

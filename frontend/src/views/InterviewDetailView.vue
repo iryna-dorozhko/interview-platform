@@ -174,6 +174,7 @@ onMounted(loadInterview);
           :join-code="interview.joinCode"
           :display-name="interview.displayName"
           :scheduled-at="interview.scheduledAt"
+          :interview-kind="interview.kind"
         />
       </section>
 

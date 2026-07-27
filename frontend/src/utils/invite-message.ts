@@ -18,14 +18,23 @@ export function buildInviteMessage(input: {
   joinCode: string;
   origin: string;
   scheduledAt?: string | null;
+  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null;
 }): string {
   const link = buildInviteLink(input.origin, input.joinCode);
   const time = formatScheduledAtUk(input.scheduledAt ?? null);
+  const isAdditional = input.interviewKind === "ADDITIONAL_MEETING";
   const lines = [
-    `Вас запрошено на співбесіду «${input.displayName}».`,
+    isAdditional
+      ? `Вас запрошено на додаткову співбесіду «${input.displayName}».`
+      : `Вас запрошено на співбесіду «${input.displayName}».`,
     `Код: ${input.joinCode}`,
     `Посилання: ${link}`,
   ];
   if (time) lines.push(`Час: ${time}`);
+  if (isAdditional) {
+    lines.push(
+      "Зверніть увагу: на цій додатковій зустрічі AI-агент кандидата не бере участі — відповідаєте ви особисто.",
+    );
+  }
   return lines.join("\n");
 }
