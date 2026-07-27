@@ -9,6 +9,7 @@ import type {
 const props = defineProps<{
   agentThinking: AgentThinkingState | null;
   processLog?: ArbiterProcessEntry[];
+  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null;
 }>();
 
 type AgentKey = "AGENT_ARBITER" | "AGENT_COMPANY" | "AGENT_CANDIDATE";
@@ -18,6 +19,12 @@ const AGENTS: Array<{ key: AgentKey; label: string }> = [
   { key: "AGENT_COMPANY", label: "Компанія" },
   { key: "AGENT_CANDIDATE", label: "Кандидат (AI)" },
 ];
+
+const visibleAgents = computed(() =>
+  props.interviewKind === "ADDITIONAL_MEETING"
+    ? AGENTS.filter((a) => a.key !== "AGENT_CANDIDATE")
+    : AGENTS,
+);
 
 function statusFor(agentType: AgentKey): "thinking" | "idle" {
   if (props.agentThinking?.active && props.agentThinking.agentType === agentType) {
@@ -48,7 +55,7 @@ function formatTime(iso: string): string {
     <h2 class="panel-title">AI-процеси</h2>
     <ul class="agent-list">
       <li
-        v-for="agent in AGENTS"
+        v-for="agent in visibleAgents"
         :key="agent.key"
         class="agent-item"
         :class="statusFor(agent.key)"

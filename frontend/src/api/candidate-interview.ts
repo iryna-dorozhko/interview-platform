@@ -4,6 +4,7 @@ export type CandidateInterview = {
   id: string;
   displayName: string;
   status: string;
+  kind: "STANDARD" | "ADDITIONAL_MEETING";
 };
 
 type ErrorBody = { error?: string; detail?: string };

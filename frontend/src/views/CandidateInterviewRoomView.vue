@@ -5,6 +5,7 @@ import InterviewRoomContent from "../components/InterviewRoomContent.vue";
 import { fetchCandidateInterview } from "../api/candidate-interview";
 
 const interviewId = ref<string | null>(null);
+const interviewKind = ref<"STANDARD" | "ADDITIONAL_MEETING" | null>(null);
 const loadState = ref<"loading" | "ready" | "error">("loading");
 const loadError = ref<string | null>(null);
 
@@ -17,6 +18,7 @@ onMounted(async () => {
       return;
     }
     interviewId.value = interview.id;
+    interviewKind.value = interview.kind;
     loadState.value = "ready";
   } catch (error) {
     loadState.value = "error";
@@ -40,6 +42,7 @@ onMounted(async () => {
       v-else-if="interviewId"
       :interview-id="interviewId"
       current-role="CANDIDATE"
+      :interview-kind="interviewKind"
     />
   </main>
 </template>

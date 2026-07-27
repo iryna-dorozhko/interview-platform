@@ -2,12 +2,13 @@
 import { computed, onMounted, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import InterviewRoomContent from "../components/InterviewRoomContent.vue";
-import { fetchInterview } from "../api/interviews";
+import { fetchInterview, type InterviewKind } from "../api/interviews";
 
 const route = useRoute();
 const interviewId = computed(() => String(route.params.id));
 const joinCode = ref<string | null>(null);
 const reportId = ref<string | null>(null);
+const interviewKind = ref<InterviewKind | null>(null);
 const loadState = ref<"loading" | "ready" | "error">("loading");
 const loadError = ref<string | null>(null);
 
@@ -16,6 +17,7 @@ onMounted(async () => {
     const interview = await fetchInterview(interviewId.value);
     joinCode.value = interview.joinCode;
     reportId.value = interview.reportId;
+    interviewKind.value = interview.kind;
     loadState.value = "ready";
   } catch (error) {
     loadState.value = "error";
@@ -41,6 +43,7 @@ onMounted(async () => {
       current-role="HR"
       :join-code="joinCode"
       :report-id="reportId"
+      :interview-kind="interviewKind"
     />
   </main>
 </template>

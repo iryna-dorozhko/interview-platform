@@ -11,6 +11,7 @@ const props = defineProps<{
   currentRole: "HR" | "CANDIDATE";
   joinCode?: string | null;
   reportId?: string | null;
+  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null;
 }>();
 
 const {
@@ -152,6 +153,7 @@ async function onEndInterview(): Promise<void> {
       v-if="currentRole === 'HR'"
       :agent-thinking="agentThinking"
       :process-log="arbiterProcessLog"
+      :interview-kind="interviewKind"
     />
   </div>
 </template>

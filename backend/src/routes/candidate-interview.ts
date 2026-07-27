@@ -18,11 +18,13 @@ function interviewPayload(interview: {
   id: string;
   displayName: string;
   status: string;
+  kind?: string;
 }) {
   return {
     id: interview.id,
     displayName: interview.displayName,
     status: interview.status,
+    kind: interview.kind ?? "STANDARD",
   };
 }
 

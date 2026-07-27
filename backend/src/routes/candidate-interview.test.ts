@@ -14,6 +14,7 @@ type FakeInterview = {
   candidateUserId: string | null;
   status: string;
   createdAt: Date;
+  kind?: string;
   hrUserId?: string;
   vacancyId?: string;
 };
@@ -151,6 +152,7 @@ function makeFakePrisma(
           joinCode: data.joinCode,
           candidateUserId: data.candidateUserId,
           status: data.status,
+          kind: "STANDARD",
           createdAt: new Date(),
           hrUserId: data.hrUserId,
           vacancyId: data.vacancyId,
@@ -267,6 +269,7 @@ test("GET /candidate/interview returns linked interview for current candidate", 
     const body = await response.json();
     assert.equal(body.interview.id, "interview_1");
     assert.equal(body.interview.displayName, "Frontend Dev");
+    assert.equal(body.interview.kind, "STANDARD");
   } finally {
     server.close();
   }
