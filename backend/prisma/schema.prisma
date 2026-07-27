@@ -97,6 +97,11 @@ enum DialogMessageKind {
   DECISION_LETTER
 }
 
+enum InterviewKind {
+  STANDARD
+  ADDITIONAL_MEETING
+}
+
 model User {
   id                 String              @id @default(cuid())
   email              String              @unique
@@ -140,26 +145,29 @@ model Vacancy {
 }
 
 model Interview {
-  id               String               @id @default(cuid())
-  hrUserId         String
-  vacancyId        String
-  displayName      String
-  candidateUserId  String?
-  joinCode         String               @unique @db.Char(6)
-  status           InterviewStatus      @default(AWAITING_CANDIDATE)
-  scheduledAt      DateTime?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  hrUser           User                 @relation("HrInterviews", fields: [hrUserId], references: [id])
-  vacancy          Vacancy              @relation(fields: [vacancyId], references: [id])
-  candidateUser    User?                @relation("CandidateInterviews", fields: [candidateUserId], references: [id])
-  candidateProfile CandidateProfile?
-  prepSessionCd    PrepSessionCandidate?
-  liveSession      LiveSession?
-  finalReport        FinalReport?
-  invitations        Invitation[]
-  vacancyApplication VacancyApplication?
-  decisions InterviewDecision[]
+  id                         String               @id @default(cuid())
+  hrUserId                   String
+  vacancyId                  String
+  displayName                String
+  candidateUserId            String?
+  joinCode                   String               @unique @db.Char(6)
+  status                     InterviewStatus      @default(AWAITING_CANDIDATE)
+  kind                       InterviewKind        @default(STANDARD)
+  followUpFromFinalReportId  String?
+  scheduledAt                DateTime?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  hrUser                     User                 @relation("HrInterviews", fields: [hrUserId], references: [id])
+  vacancy                    Vacancy              @relation(fields: [vacancyId], references: [id])
+  candidateUser              User?                @relation("CandidateInterviews", fields: [candidateUserId], references: [id])
+  candidateProfile           CandidateProfile?
+  prepSessionCd              PrepSessionCandidate?
+  liveSession                LiveSession?
+  finalReport                FinalReport?
+  followUpFromFinalReport    FinalReport?         @relation("InterviewFollowUpSource", fields: [followUpFromFinalReportId], references: [id])
+  invitations                Invitation[]
+  vacancyApplication         VacancyApplication?
+  decisions                  InterviewDecision[]
 
   @@index([hrUserId, createdAt(sort: Desc)])
   @@index([candidateUserId])
@@ -328,6 +336,7 @@ model FinalReport {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   interview      Interview      @relation(fields: [interviewId], references: [id])
+  followUpInterviews Interview[] @relation("InterviewFollowUpSource")
   decisions InterviewDecision[]
 }
 
