@@ -84,10 +84,57 @@ test("buildCompanyLiveMessages appends turnContext nudge", () => {
   assert.match(messages.at(-1)!.content, /PostgreSQL/);
 });
 
+test("buildCompanyLiveMessages injects follow-up context for additional meeting", () => {
+  const messages = buildCompanyLiveMessages({
+    companyProfile,
+    history: [],
+    interview: {
+      kind: "ADDITIONAL_MEETING",
+      followUpFromFinalReport: {
+        risks: ["Немає Docker"],
+        reportMarkdown: "## Ризики\n- Немає Docker",
+      },
+    },
+  });
+
+  assert.match(messages[0]!.content, /FOLLOW-UP|FOLLOW_UP/);
+  assert.match(messages[0]!.content, /Немає Docker/);
+  assert.match(messages[0]!.content, /reportMarkdown/);
+});
+
+test("buildCompanyLiveMessages keeps empty follow-up for standard interview", () => {
+  const messages = buildCompanyLiveMessages({
+    companyProfile,
+    history: [],
+    interview: {
+      kind: "STANDARD",
+      followUpFromFinalReport: null,
+    },
+  });
+
+  assert.match(messages[0]!.content, /FOLLOW_UP_CONTEXT:\s*\nnone/);
+  assert.doesNotMatch(messages[0]!.content, /Немає Docker/);
+});
+
+test("buildCompanyLiveMessages uses none when follow-up report is missing", () => {
+  const messages = buildCompanyLiveMessages({
+    companyProfile,
+    history: [],
+    interview: {
+      kind: "ADDITIONAL_MEETING",
+      followUpFromFinalReport: null,
+    },
+  });
+
+  assert.match(messages[0]!.content, /FOLLOW_UP_CONTEXT:\s*\nnone/);
+});
+
 test("runCompanyLiveTurn loads profile, calls LLM, parses reply", async () => {
   const prisma = {
     interview: {
       findUnique: async () => ({
+        kind: "STANDARD",
+        followUpFromFinalReport: null,
         vacancy: {
           companyProfile: {
             role: companyProfile.role,
@@ -112,6 +159,7 @@ test("runCompanyLiveTurn loads profile, calls LLM, parses reply", async () => {
     name: "test",
     complete: async (messages) => {
       assert.match(messages.at(-1)!.content, /NEXT_QUESTION/);
+      assert.match(messages[0]!.content, /FOLLOW_UP_CONTEXT:\s*\nnone/);
       return '{ "post": true, "message": "Розкажіть про досвід з Node.js." }';
     },
   };
@@ -121,6 +169,49 @@ test("runCompanyLiveTurn loads profile, calls LLM, parses reply", async () => {
   });
   assert.equal(result.post, true);
   assert.equal(result.message, "Розкажіть про досвід з Node.js.");
+});
+
+test("runCompanyLiveTurn injects FinalReport follow-up into system prompt", async () => {
+  let capturedSystem = "";
+  const prisma = {
+    interview: {
+      findUnique: async () => ({
+        kind: "ADDITIONAL_MEETING",
+        followUpFromFinalReport: {
+          risks: ["Немає Docker"],
+          reportMarkdown: "## Ризики\n- Немає Docker",
+        },
+        vacancy: {
+          companyProfile: {
+            role: companyProfile.role,
+            requirements: companyProfile.requirements,
+            culture: companyProfile.culture,
+            expectations: companyProfile.expectations,
+            workConditions: [],
+            compensation: null,
+          },
+        },
+      }),
+    },
+    liveMessage: {
+      findMany: async () => [],
+    },
+  } as unknown as PrismaClient;
+
+  const provider: LlmProvider = {
+    name: "test",
+    complete: async (messages) => {
+      capturedSystem = messages[0]!.content;
+      return '{ "post": true, "message": "Розкажіть про Docker." }';
+    },
+  };
+
+  await runCompanyLiveTurn(prisma, "interview_1", "session_1", provider, {
+    action: "NEXT_QUESTION",
+  });
+
+  assert.match(capturedSystem, /FOLLOW-UP|FOLLOW_UP/);
+  assert.match(capturedSystem, /Немає Docker/);
 });
 
 test("runCompanyLiveTurn throws when company profile is missing without calling LLM", async () => {

@@ -32,6 +32,16 @@ export interface LiveHistoryItem {
   content: string;
 }
 
+export interface CompanyLiveFollowUpReport {
+  reportMarkdown: string;
+  risks: unknown;
+}
+
+export interface CompanyLiveInterviewContext {
+  kind: string;
+  followUpFromFinalReport?: CompanyLiveFollowUpReport | null;
+}
+
 export class CompanyLiveContextError extends Error {
   constructor(message: string) {
     super(message);
@@ -47,11 +57,34 @@ function formatProfileBlock(data: CompanyLiveProfileContext): string {
   return JSON.stringify(data, null, 2);
 }
 
-function buildSystemPrompt(companyProfile: CompanyLiveProfileContext): string {
+export function formatFollowUpContext(
+  interview?: CompanyLiveInterviewContext | null,
+): string {
+  if (
+    !interview ||
+    interview.kind !== "ADDITIONAL_MEETING" ||
+    !interview.followUpFromFinalReport
+  ) {
+    return "none";
+  }
+  return JSON.stringify(
+    {
+      risks: interview.followUpFromFinalReport.risks,
+      reportMarkdown: interview.followUpFromFinalReport.reportMarkdown,
+    },
+    null,
+    2,
+  );
+}
+
+function buildSystemPrompt(
+  companyProfile: CompanyLiveProfileContext,
+  interview?: CompanyLiveInterviewContext | null,
+): string {
   return COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK.replace(
     "{{COMPANY_PROFILE}}",
     formatProfileBlock(companyProfile),
-  );
+  ).replace("{{FOLLOW_UP_CONTEXT}}", formatFollowUpContext(interview));
 }
 
 function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
@@ -90,11 +123,12 @@ export function buildCompanyLiveMessages(input: {
   companyProfile: CompanyLiveProfileContext;
   history: LiveHistoryItem[];
   turnContext?: LiveAgentTurnContext;
+  interview?: CompanyLiveInterviewContext | null;
 }): ChatMessage[] {
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildSystemPrompt(input.companyProfile),
+      content: buildSystemPrompt(input.companyProfile, input.interview),
     },
     ...input.history.map(mapHistoryItem),
   ];
@@ -120,6 +154,7 @@ export async function runCompanyLiveTurn(
     where: { id: interviewId },
     include: {
       vacancy: { include: { companyProfile: true } },
+      followUpFromFinalReport: { select: { reportMarkdown: true, risks: true } },
     },
   });
 
@@ -146,6 +181,10 @@ export async function runCompanyLiveTurn(
     },
     history,
     turnContext,
+    interview: {
+      kind: interview.kind,
+      followUpFromFinalReport: interview.followUpFromFinalReport,
+    },
   });
 
   return withLlmRetry(async () => {

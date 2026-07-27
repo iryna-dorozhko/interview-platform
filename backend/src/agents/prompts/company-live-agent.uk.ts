@@ -19,6 +19,7 @@ export const COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK = `Ти — AI-представ
 - Ніколи не вигадуй факти поза профілем компанії.
 - Не відповідай замість кандидата.
 - post:false лише як аварійний вихід (незрозуміла команда).
+- Якщо FOLLOW_UP_CONTEXT не "none", у NEXT_QUESTION/CLARIFY пріоритет — закрити ризики й незакриті теми з попереднього звіту.
 
 Формат відповіді — лише JSON, без markdown:
 { "post": false }
@@ -26,4 +27,7 @@ export const COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK = `Ти — AI-представ
 { "post": true, "message": "Одне повідомлення українською..." }
 
 Профіль компанії:
-{{COMPANY_PROFILE}}`;
+{{COMPANY_PROFILE}}
+
+FOLLOW_UP_CONTEXT:
+{{FOLLOW_UP_CONTEXT}}`;
