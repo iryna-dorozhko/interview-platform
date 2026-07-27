@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
+import CreateAdditionalInterviewModal from "../components/CreateAdditionalInterviewModal.vue";
 import CreateInterviewModal from "../components/CreateInterviewModal.vue";
 import {
   deleteInterview,
@@ -26,6 +27,7 @@ const listState = ref<ListState>("loading");
 const listError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
 const showCreateModal = ref(false);
+const showAdditionalModal = ref(false);
 
 async function loadInterviews(): Promise<void> {
   listState.value = "loading";
@@ -65,6 +67,7 @@ function goToRoom(id: string): void {
 
 function onInterviewCreated(interview: CreatedInterview): void {
   showCreateModal.value = false;
+  showAdditionalModal.value = false;
   interviews.value.unshift({
     id: interview.id,
     vacancyId: interview.vacancyId,
@@ -75,10 +78,12 @@ function onInterviewCreated(interview: CreatedInterview): void {
     createdAt: interview.createdAt,
     scheduledAt: interview.scheduledAt,
     invitation: interview.invitation,
-    candidateLinked: false,
+    candidateLinked: interview.kind === "ADDITIONAL_MEETING",
     candidateUserId: null,
     reportId: null,
     reportSummary: null,
+    kind: interview.kind,
+    followUpFromFinalReportId: interview.followUpFromFinalReportId ?? null,
   });
 }
 
@@ -102,9 +107,14 @@ onMounted(loadInterviews);
   <div class="interview-list">
     <div class="list-header">
       <h1>Співбесіди</h1>
-      <button type="button" class="btn-primary" @click="showCreateModal = true">
-        Створити зустріч
-      </button>
+      <div class="header-actions">
+        <button type="button" class="btn-primary" @click="showCreateModal = true">
+          Створити зустріч
+        </button>
+        <button type="button" class="btn-secondary" @click="showAdditionalModal = true">
+          Створити додаткову зустріч
+        </button>
+      </div>
     </div>
 
     <p v-if="listState === 'loading'">Завантаження…</p>
@@ -167,6 +177,11 @@ onMounted(loadInterviews);
       @close="showCreateModal = false"
       @created="onInterviewCreated"
     />
+    <CreateAdditionalInterviewModal
+      :open="showAdditionalModal"
+      @close="showAdditionalModal = false"
+      @created="onInterviewCreated"
+    />
   </div>
 </template>
 
@@ -177,6 +192,11 @@ onMounted(loadInterviews);
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 .interview-list h1 {
   margin: 0;
@@ -224,6 +244,7 @@ onMounted(loadInterviews);
   gap: 0.5rem;
 }
 .btn-primary,
+.btn-secondary,
 .btn-danger {
   font-family: inherit;
   font-size: 0.875rem;
@@ -236,6 +257,11 @@ onMounted(loadInterviews);
 .btn-primary {
   background: var(--accent);
   color: #fff;
+}
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
 }
 .btn-danger {
   background: #fff;

@@ -91,6 +91,40 @@ export async function createInterview(
   return body.interview;
 }
 
+export type AdditionalMeetingCandidate = {
+  candidateUserId: string;
+  candidateEmail: string;
+  vacancyId: string;
+  vacancyTitle: string;
+};
+
+export async function fetchAdditionalMeetingCandidates(): Promise<AdditionalMeetingCandidate[]> {
+  const response = await fetchWithAuth("/api/hr/additional-meeting-candidates");
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося завантажити кандидатів для додаткової зустрічі");
+  }
+  const body = (await response.json()) as { candidates: AdditionalMeetingCandidate[] };
+  return body.candidates;
+}
+
+export async function createAdditionalInterview(input: {
+  candidateUserId: string;
+  scheduledAt?: string | null;
+}): Promise<CreatedInterview> {
+  const response = await fetchWithAuth("/api/hr/interviews/additional", {
+    method: "POST",
+    body: JSON.stringify({
+      candidateUserId: input.candidateUserId,
+      ...(input.scheduledAt !== undefined ? { scheduledAt: input.scheduledAt } : {}),
+    }),
+  });
+  if (!response.ok) {
+    throw await parseError(response, "Не вдалося створити додаткову зустріч");
+  }
+  const body = (await response.json()) as { interview: CreatedInterview };
+  return body.interview;
+}
+
 export async function updateInterviewSchedule(
   id: string,
   scheduledAt: string | null,
