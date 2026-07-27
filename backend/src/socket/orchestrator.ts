@@ -299,6 +299,12 @@ export function createRoomOrchestrator(
 
     state.busy = true;
     try {
+      const interviewMeta = await prisma.interview.findUnique({
+        where: { id: interviewId },
+        select: { kind: true },
+      });
+      const isAdditionalMeeting = interviewMeta?.kind === "ADDITIONAL_MEETING";
+
       while (stepsUsed < maxConductorSteps) {
         // Superseded by a newer generation: leave thinking state alone — the
         // active turn owns room:agent-thinking.
@@ -432,6 +438,14 @@ export function createRoomOrchestrator(
         }
 
         if (runCandidateActions) {
+          // ADDITIONAL_MEETING: live human answers — never run Candidate Agent.
+          if (isAdditionalMeeting) {
+            if (command.action === "ANSWER") {
+              state.pendingQuestion = true;
+            }
+            break;
+          }
+
           // Guardrail: never spam ANSWER after Candidate already spoke this turn
           if (candidatePostedThisTurn && command.action === "ANSWER") {
             break;

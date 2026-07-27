@@ -19,11 +19,25 @@ function makeIo(): { io: Server; emitted: Emitted[] } {
   return { io, emitted };
 }
 
-function makePrisma(messages: LiveMessage[], interviewStatus: "LIVE" | "READY" = "LIVE") {
+type MakePrismaOptions = {
+  interviewStatus?: "LIVE" | "READY";
+  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING";
+};
+
+function makePrisma(
+  messages: LiveMessage[],
+  statusOrOptions: "LIVE" | "READY" | MakePrismaOptions = "LIVE",
+) {
+  const options: MakePrismaOptions =
+    typeof statusOrOptions === "string"
+      ? { interviewStatus: statusOrOptions }
+      : statusOrOptions;
+  const interviewStatus = options.interviewStatus ?? "LIVE";
+  const interviewKind = options.interviewKind ?? "STANDARD";
   let createCount = 0;
   return {
     interview: {
-      findUnique: async () => ({ status: interviewStatus }),
+      findUnique: async () => ({ status: interviewStatus, kind: interviewKind }),
     },
     liveMessage: {
       create: async ({
@@ -252,6 +266,59 @@ test("orchestrator ANSWER runs only candidate", async () => {
       .authorType,
     "AGENT_CANDIDATE",
   );
+});
+
+test("orchestrator skips Candidate Agent for ADDITIONAL_MEETING on ANSWER", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "AGENT_COMPANY",
+      content: "Розкажіть детальніше про Docker.",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages, { interviewKind: "ADDITIONAL_MEETING" });
+  const { io, emitted } = makeIo();
+  let candidateCalls = 0;
+  let arbiterCalls = 0;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 3,
+    runArbiterTurn: async () => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        return cmd({ action: "ANSWER", summaryUk: "Чекаємо кандидата", briefUk: "Docker" });
+      }
+      return cmd({ action: "WAIT", summaryUk: "Чекаємо людину" });
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return { post: true, message: "Не має з'явитись", needsHuman: false };
+    },
+    runCompanyLiveTurn: async () => ({ post: false }),
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.equal(candidateCalls, 0);
+  const candidateMessages = emitted.filter((e) => {
+    if (e.event !== "room:messages") return false;
+    const msgs = (e.payload as { messages: Array<{ authorType: string }> }).messages;
+    return msgs.some((m) => m.authorType === "AGENT_CANDIDATE");
+  });
+  assert.equal(candidateMessages.length, 0);
+  const candidateThinking = emitted.filter(
+    (e) =>
+      e.event === "room:agent-thinking" &&
+      (e.payload as { agentType?: string; active?: boolean }).agentType === "AGENT_CANDIDATE" &&
+      (e.payload as { active?: boolean }).active === true,
+  );
+  assert.equal(candidateThinking.length, 0);
+  // Skip uses WAIT semantics: stop conductor, do not re-enter arbiter this turn.
+  assert.equal(arbiterCalls, 1);
 });
 
 test("orchestrator WAIT runs nobody else and emits process", async () => {
