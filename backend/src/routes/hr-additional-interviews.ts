@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import { maybeTransitionToReady } from "../utils/interview-readiness";
 import {
   createInterviewWithJoinCode,
   parseOptionalScheduledAt,
@@ -143,18 +144,21 @@ export function createHrAdditionalInterviewsRouter(
       return;
     }
 
+    const interview =
+      (await maybeTransitionToReady(prisma, result.interview.id)) ?? result.interview;
+
     res.status(201).json({
       interview: {
-        id: result.interview.id,
-        vacancyId: result.interview.vacancyId,
-        displayName: result.interview.displayName,
-        joinCode: result.interview.joinCode,
-        status: result.interview.status,
-        kind: result.interview.kind,
-        followUpFromFinalReportId: result.interview.followUpFromFinalReportId ?? null,
-        createdAt: result.interview.createdAt.toISOString(),
-        scheduledAt: result.interview.scheduledAt?.toISOString() ?? null,
-        candidateUserId: result.interview.candidateUserId ?? null,
+        id: interview.id,
+        vacancyId: interview.vacancyId,
+        displayName: interview.displayName,
+        joinCode: interview.joinCode,
+        status: interview.status,
+        kind: interview.kind,
+        followUpFromFinalReportId: interview.followUpFromFinalReportId ?? null,
+        createdAt: interview.createdAt.toISOString(),
+        scheduledAt: interview.scheduledAt?.toISOString() ?? null,
+        candidateUserId: interview.candidateUserId ?? null,
         invitation: serializeInvitation(result.invitation),
       },
     });
