@@ -93,6 +93,7 @@ export function createReportsRouter(
         interview: {
           select: {
             vacancyId: true,
+            kind: true,
             candidateUser: { select: { email: true } },
             vacancy: { select: { id: true, title: true } },
           },
@@ -110,6 +111,7 @@ export function createReportsRouter(
         vacancyTitle: report.interview.vacancy.title,
         matchScore: report.matchScore,
         recommendation: report.recommendation,
+        interviewKind: report.interview.kind,
         createdAt: report.createdAt,
       })),
     });

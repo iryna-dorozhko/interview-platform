@@ -12,6 +12,7 @@ type FakeReport = {
   candidateEmail: string | null;
   vacancyId: string;
   vacancyTitle: string;
+  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING";
   reportMarkdown: string;
   recommendation: string;
   matchScore: number;
@@ -155,6 +156,7 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
           interview: {
             select: {
               vacancyId: true;
+              kind?: true;
               candidateUser: { select: { email: true } };
               vacancy: { select: { id: true; title: true } };
             };
@@ -197,6 +199,9 @@ function makeFakePrisma(seed: FakeReport[] | FakePrismaSeed = []) {
             ? {
                 interview: {
                   vacancyId: report.vacancyId,
+                  ...(include.interview.select.kind
+                    ? { kind: report.interviewKind ?? "STANDARD" }
+                    : {}),
                   candidateUser: report.candidateEmail
                     ? { email: report.candidateEmail }
                     : null,
@@ -616,8 +621,41 @@ test("GET /reports returns only current HR reports with summary fields", async (
     assert.equal(body.reports[0].matchScore, 82);
     assert.equal(body.reports[0].recommendation, "HIRE");
     assert.equal(body.reports[0].interviewId, "i1");
+    assert.equal(body.reports[0].interviewKind, "STANDARD");
     assert.equal(body.reports[0].createdAt, sampleReport.createdAt.toISOString());
     assert.equal(body.reports[0].reportMarkdown, undefined);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /reports includes interviewKind from interview.kind", async () => {
+  const additional: FakeReport = {
+    ...sampleReport,
+    id: "rep_add",
+    interviewId: "i_add",
+    interviewKind: "ADDITIONAL_MEETING",
+  };
+  const standard = { ...sampleReport, interviewKind: "STANDARD" as const };
+  const app = makeApp(makeFakePrisma([standard, additional]), {
+    id: "hr_1",
+    email: "hr@test.com",
+    role: "HR",
+  });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reports`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    const byId = Object.fromEntries(
+      body.reports.map((r: { id: string }) => [r.id, r]),
+    );
+    assert.equal(byId.rep_1.interviewKind, "STANDARD");
+    assert.equal(byId.rep_add.interviewKind, "ADDITIONAL_MEETING");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
