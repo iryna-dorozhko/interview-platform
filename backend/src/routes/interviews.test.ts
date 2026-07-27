@@ -45,6 +45,8 @@ type FakeInterview = {
   createdAt: Date;
   scheduledAt: Date | null;
   candidateUserId?: string | null;
+  kind?: "STANDARD" | "ADDITIONAL_MEETING";
+  followUpFromFinalReportId?: string | null;
 };
 type FakeFinalReport = {
   id: string;
@@ -629,9 +631,11 @@ test("GET /interviews/mine returns interviews for the current HR only, newest fi
       "candidateUserId",
       "createdAt",
       "displayName",
+      "followUpFromFinalReportId",
       "id",
       "invitation",
       "joinCode",
+      "kind",
       "reportId",
       "reportSummary",
       "scheduledAt",
@@ -639,6 +643,8 @@ test("GET /interviews/mine returns interviews for the current HR only, newest fi
       "vacancyId",
       "vacancyTitle",
     ]);
+    assert.equal(body.interviews[0].kind, "STANDARD");
+    assert.equal(body.interviews[0].followUpFromFinalReportId, null);
     assert.equal(body.interviews[0].vacancyId, "v1");
     assert.equal(body.interviews[0].vacancyTitle, "Frontend Dev");
     assert.equal(body.interviews[0].displayName, "Frontend Dev");
@@ -720,6 +726,74 @@ test("GET /interviews/mine returns reportId from finalReport when present", asyn
     const body = await response.json();
     assert.equal(body.interviews[0].reportId, "rep_1");
     assert.equal(body.interviews[0].reportSummary, "HIRE");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /interviews/mine includes kind and followUpFromFinalReportId", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Follow-up",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+        kind: "ADDITIONAL_MEETING",
+        followUpFromFinalReportId: "rep_1",
+      },
+    ],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/mine`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interviews[0].kind, "ADDITIONAL_MEETING");
+    assert.equal(body.interviews[0].followUpFromFinalReportId, "rep_1");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("GET /interviews/:id includes kind and followUpFromFinalReportId", async () => {
+  const fakePrisma = makeFakePrisma(
+    [
+      {
+        id: "i1",
+        hrUserId: "hr_1",
+        vacancyId: "v1",
+        displayName: "Follow-up",
+        joinCode: "AAAAAA",
+        status: "AWAITING_CANDIDATE",
+        createdAt: new Date(1),
+        kind: "ADDITIONAL_MEETING",
+        followUpFromFinalReportId: "rep_1",
+      },
+    ],
+    [confirmedVacancy],
+  );
+  const app = makeApp(fakePrisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/interviews/i1`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.interview.kind, "ADDITIONAL_MEETING");
+    assert.equal(body.interview.followUpFromFinalReportId, "rep_1");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),

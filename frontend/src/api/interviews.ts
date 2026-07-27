@@ -6,6 +6,8 @@ export type InterviewInvitation = {
   status: string;
 };
 
+export type InterviewKind = "STANDARD" | "ADDITIONAL_MEETING";
+
 export type InterviewSummary = {
   id: string;
   vacancyId: string;
@@ -20,6 +22,8 @@ export type InterviewSummary = {
   candidateUserId: string | null;
   reportId: string | null;
   reportSummary: string | null;
+  kind: InterviewKind;
+  followUpFromFinalReportId: string | null;
 };
 
 export type InterviewDetail = InterviewSummary;
@@ -30,6 +34,8 @@ export type CreatedInterview = {
   displayName: string;
   joinCode: string;
   status: string;
+  kind: InterviewKind;
+  followUpFromFinalReportId: string | null;
   createdAt: string;
   scheduledAt: string | null;
   invitation: InterviewInvitation | null;

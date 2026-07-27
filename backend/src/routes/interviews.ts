@@ -177,6 +177,8 @@ type InterviewWithRelations = {
   createdAt: Date;
   scheduledAt: Date | null;
   candidateUserId?: string | null;
+  kind?: "STANDARD" | "ADDITIONAL_MEETING";
+  followUpFromFinalReportId?: string | null;
   vacancy: { title: string };
   finalReport?: { id: string; recommendation: string } | null;
   invitations?: { id: string; email: string; status: string }[];
@@ -198,6 +200,8 @@ function mapInterviewListItem(item: InterviewWithRelations) {
     candidateUserId: item.candidateUserId ?? null,
     reportSummary: item.finalReport?.recommendation ?? null,
     reportId: item.finalReport?.id ?? null,
+    kind: item.kind ?? "STANDARD",
+    followUpFromFinalReportId: item.followUpFromFinalReportId ?? null,
   };
 }
 
@@ -217,6 +221,8 @@ function mapInterviewDetail(item: InterviewWithRelations) {
     candidateUserId: item.candidateUserId ?? null,
     reportSummary: item.finalReport?.recommendation ?? null,
     reportId: item.finalReport?.id ?? null,
+    kind: item.kind ?? "STANDARD",
+    followUpFromFinalReportId: item.followUpFromFinalReportId ?? null,
   };
 }
 
@@ -342,6 +348,8 @@ export function createInterviewsRouter(
           displayName: result.interview.displayName,
           joinCode: result.interview.joinCode,
           status: result.interview.status,
+          kind: result.interview.kind ?? "STANDARD",
+          followUpFromFinalReportId: result.interview.followUpFromFinalReportId ?? null,
           createdAt: result.interview.createdAt,
           scheduledAt: result.interview.scheduledAt?.toISOString() ?? null,
           invitation: serializeInvitation(result.invitation),
