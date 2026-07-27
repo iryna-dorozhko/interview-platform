@@ -321,6 +321,63 @@ test("orchestrator skips Candidate Agent for ADDITIONAL_MEETING on ANSWER", asyn
   assert.equal(arbiterCalls, 1);
 });
 
+test("orchestrator skips Candidate Agent for ADDITIONAL_MEETING on CANDIDATE_QUESTIONS and keeps pending", async () => {
+  const messages: LiveMessage[] = [
+    {
+      id: "m1",
+      sessionId: "session_1",
+      authorType: "AGENT_COMPANY",
+      content: "Уточніть досвід з NestJS.",
+      createdAt: new Date(),
+    },
+  ];
+  const prisma = makePrisma(messages, { interviewKind: "ADDITIONAL_MEETING" });
+  const { io } = makeIo();
+  let candidateCalls = 0;
+  let arbiterCalls = 0;
+  let secondPending: boolean | undefined;
+
+  const orchestrator = createRoomOrchestrator(() => prisma, {
+    debounceMs: 30,
+    maxConductorSteps: 3,
+    runArbiterTurn: async (_i, _s, pendingQuestion) => {
+      arbiterCalls += 1;
+      if (arbiterCalls === 1) {
+        return cmd({
+          action: "CANDIDATE_QUESTIONS",
+          summaryUk: "Питання кандидата (не має виконуватись)",
+        });
+      }
+      secondPending = pendingQuestion;
+      return cmd({ action: "WAIT", summaryUk: "Чекаємо людину" });
+    },
+    runCandidateLiveTurn: async () => {
+      candidateCalls += 1;
+      return { post: true, message: "Не має з'явитись", needsHuman: false };
+    },
+    runCompanyLiveTurn: async () => ({ post: false }),
+  });
+
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(candidateCalls, 0);
+  assert.equal(arbiterCalls, 1);
+
+  messages.push({
+    id: "m2",
+    sessionId: "session_1",
+    authorType: "HUMAN_CANDIDATE",
+    content: "Працював з Nest два роки.",
+    createdAt: new Date(),
+  });
+  orchestrator.onHumanMessage(io, "interview_1", "session_1");
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.equal(candidateCalls, 0);
+  assert.equal(arbiterCalls, 2);
+  assert.equal(secondPending, true);
+});
+
 test("orchestrator WAIT runs nobody else and emits process", async () => {
   const messages: LiveMessage[] = [
     {

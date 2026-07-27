@@ -439,10 +439,10 @@ export function createRoomOrchestrator(
 
         if (runCandidateActions) {
           // ADDITIONAL_MEETING: live human answers — never run Candidate Agent.
+          // Always keep pending open: applyPendingBeforeRoute clears it for
+          // CANDIDATE_QUESTIONS, which would desync the next turn.
           if (isAdditionalMeeting) {
-            if (command.action === "ANSWER") {
-              state.pendingQuestion = true;
-            }
+            state.pendingQuestion = true;
             break;
           }
 
