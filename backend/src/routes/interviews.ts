@@ -69,6 +69,18 @@ export async function createInterviewWithJoinCode(
     ) => Promise<void>;
   },
 ): Promise<{ interview: Interview; invitation: Invitation | null }> {
+  if (params.kind === "ADDITIONAL_MEETING") {
+    const followUpId =
+      typeof params.followUpFromFinalReportId === "string"
+        ? params.followUpFromFinalReportId.trim()
+        : "";
+    if (!followUpId) {
+      throw new Error(
+        "followUpFromFinalReportId is required for ADDITIONAL_MEETING interviews",
+      );
+    }
+  }
+
   for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt++) {
     const joinCode = generateJoinCode();
     try {

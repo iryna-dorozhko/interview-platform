@@ -93,7 +93,7 @@ export function createHrAdditionalInterviewsRouter(
       include: {
         interview: {
           include: {
-            vacancy: { select: { id: true, title: true } },
+            vacancy: { select: { id: true, title: true, status: true, hiddenAt: true } },
             candidateUser: { select: { email: true } },
           },
         },
@@ -102,6 +102,16 @@ export function createHrAdditionalInterviewsRouter(
 
     if (!decision || !decision.interview.candidateUserId) {
       res.status(404).json({ error: "Рішення про додаткову зустріч не знайдено" });
+      return;
+    }
+
+    const vacancy = decision.interview.vacancy;
+    if (vacancy.status !== "CONFIRMED") {
+      res.status(400).json({ error: "Vacancy is not confirmed" });
+      return;
+    }
+    if (vacancy.hiddenAt != null) {
+      res.status(409).json({ error: "VACANCY_HIDDEN" });
       return;
     }
 

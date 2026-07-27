@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AuthUser } from "../auth/middleware";
 import { createHrAdditionalInterviewsRouter } from "./hr-additional-interviews";
+import { createInterviewWithJoinCode } from "./interviews";
 
 type FakeUser = { id: string; email: string; role: string };
 
@@ -10,6 +11,8 @@ type FakeVacancy = {
   id: string;
   hrUserId: string;
   title: string;
+  status?: string;
+  hiddenAt?: Date | null;
 };
 
 type FakeInterview = {
@@ -43,7 +46,11 @@ function makeFakePrisma(seed: {
   decisions?: FakeDecision[];
 }) {
   const users = (seed.users ?? []).map((item) => ({ ...item }));
-  const vacancies = (seed.vacancies ?? []).map((item) => ({ ...item }));
+  const vacancies = (seed.vacancies ?? []).map((item) => ({
+    ...item,
+    status: item.status ?? "CONFIRMED",
+    hiddenAt: item.hiddenAt ?? null,
+  }));
   const interviews = (seed.interviews ?? []).map((item) => ({ ...item }));
   const decisions = (seed.decisions ?? []).map((item) => ({ ...item }));
   let interviewSeq = interviews.length;
@@ -66,7 +73,14 @@ function makeFakePrisma(seed: {
       ...decision,
       interview: {
         ...interview,
-        vacancy,
+        vacancy: vacancy
+          ? {
+              id: vacancy.id,
+              title: vacancy.title,
+              status: vacancy.status,
+              hiddenAt: vacancy.hiddenAt,
+            }
+          : null,
         candidateUser: candidateUser
           ? { id: candidateUser.id, email: candidateUser.email }
           : null,
@@ -563,4 +577,166 @@ test("POST /hr/interviews/additional returns 404 for another HR decision", async
       server.close((err) => (err ? reject(err) : resolve())),
     );
   }
+});
+
+test("POST /hr/interviews/additional returns 400 when vacancy is not confirmed", async () => {
+  const { prisma, interviews } = makeFakePrisma({
+    users: [{ id: "cd_1", email: "c1@example.com", role: "CANDIDATE" }],
+    vacancies: [
+      { id: "vac_1", hrUserId: "hr_1", title: "Backend", status: "DRAFT" },
+    ],
+    interviews: [
+      {
+        id: "int_src",
+        hrUserId: "hr_1",
+        vacancyId: "vac_1",
+        displayName: "Backend",
+        joinCode: "AAAAAA",
+        status: "COMPLETED",
+        kind: "STANDARD",
+        followUpFromFinalReportId: null,
+        scheduledAt: null,
+        candidateUserId: "cd_1",
+        createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      },
+    ],
+    decisions: [
+      {
+        id: "dec_1",
+        interviewId: "int_src",
+        finalReportId: "report_1",
+        decidedByUserId: "hr_1",
+        type: "ADDITIONAL_MEETING",
+        letterBody: "need more",
+        createdAt: new Date("2026-07-02T00:00:00.000Z"),
+      },
+    ],
+  });
+
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/interviews/additional`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidateUserId: "cd_1" }),
+    });
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { error: string };
+    assert.equal(body.error, "Vacancy is not confirmed");
+    assert.equal(
+      interviews.filter((item) => item.kind === "ADDITIONAL_MEETING").length,
+      0,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("POST /hr/interviews/additional returns 409 VACANCY_HIDDEN when vacancy is hidden", async () => {
+  const { prisma, interviews } = makeFakePrisma({
+    users: [{ id: "cd_1", email: "c1@example.com", role: "CANDIDATE" }],
+    vacancies: [
+      {
+        id: "vac_1",
+        hrUserId: "hr_1",
+        title: "Backend",
+        status: "CONFIRMED",
+        hiddenAt: new Date("2026-07-15T00:00:00.000Z"),
+      },
+    ],
+    interviews: [
+      {
+        id: "int_src",
+        hrUserId: "hr_1",
+        vacancyId: "vac_1",
+        displayName: "Backend",
+        joinCode: "AAAAAA",
+        status: "COMPLETED",
+        kind: "STANDARD",
+        followUpFromFinalReportId: null,
+        scheduledAt: null,
+        candidateUserId: "cd_1",
+        createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      },
+    ],
+    decisions: [
+      {
+        id: "dec_1",
+        interviewId: "int_src",
+        finalReportId: "report_1",
+        decidedByUserId: "hr_1",
+        type: "ADDITIONAL_MEETING",
+        letterBody: "need more",
+        createdAt: new Date("2026-07-02T00:00:00.000Z"),
+      },
+    ],
+  });
+
+  const app = makeApp(prisma, hrUser);
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/interviews/additional`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidateUserId: "cd_1" }),
+    });
+    assert.equal(response.status, 409);
+    const body = (await response.json()) as { error: string };
+    assert.equal(body.error, "VACANCY_HIDDEN");
+    assert.equal(
+      interviews.filter((item) => item.kind === "ADDITIONAL_MEETING").length,
+      0,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("createInterviewWithJoinCode requires followUpFromFinalReportId for ADDITIONAL_MEETING", async () => {
+  await assert.rejects(
+    () =>
+      createInterviewWithJoinCode({} as never, {
+        hrUserId: "hr_1",
+        vacancyId: "vac_1",
+        displayName: "Backend",
+        scheduledAt: null,
+        kind: "ADDITIONAL_MEETING",
+      }),
+    /followUpFromFinalReportId is required for ADDITIONAL_MEETING interviews/,
+  );
+
+  await assert.rejects(
+    () =>
+      createInterviewWithJoinCode({} as never, {
+        hrUserId: "hr_1",
+        vacancyId: "vac_1",
+        displayName: "Backend",
+        scheduledAt: null,
+        kind: "ADDITIONAL_MEETING",
+        followUpFromFinalReportId: "   ",
+      }),
+    /followUpFromFinalReportId is required for ADDITIONAL_MEETING interviews/,
+  );
+
+  await assert.rejects(
+    () =>
+      createInterviewWithJoinCode({} as never, {
+        hrUserId: "hr_1",
+        vacancyId: "vac_1",
+        displayName: "Backend",
+        scheduledAt: null,
+        kind: "ADDITIONAL_MEETING",
+        followUpFromFinalReportId: null,
+      }),
+    /followUpFromFinalReportId is required for ADDITIONAL_MEETING interviews/,
+  );
 });
