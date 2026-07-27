@@ -136,10 +136,14 @@ onMounted(loadInterviews);
         </thead>
         <tbody>
           <tr v-for="interview in interviews" :key="interview.id">
-            <td>
+            <td class="primary-cell">
               <button type="button" class="name-link" @click="goToRoom(interview.id)">
                 {{ interview.displayName }}
               </button>
+              <span
+                v-if="interview.kind === 'ADDITIONAL_MEETING'"
+                class="kind-badge"
+              >Додаткова</span>
             </td>
             <td>
               <RouterLink
@@ -224,6 +228,21 @@ onMounted(loadInterviews);
   color: #555;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+.primary-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.kind-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e5e7eb;
+  color: #374151;
 }
 .name-link {
   font-family: inherit;

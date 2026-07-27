@@ -50,6 +50,7 @@ export type ReportSummary = {
   vacancyTitle: string;
   matchScore: number;
   recommendation: "HIRE" | "MAYBE" | "REJECT";
+  interviewKind: "STANDARD" | "ADDITIONAL_MEETING";
   createdAt: string;
 };
 

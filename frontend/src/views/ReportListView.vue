@@ -177,7 +177,7 @@ onMounted(async () => {
       </thead>
       <tbody>
         <tr v-for="report in reports" :key="report.id">
-          <td>
+          <td class="primary-cell">
             <RouterLink
               v-if="report.candidateEmail"
               :to="{ name: 'report', params: { id: report.id } }"
@@ -192,6 +192,10 @@ onMounted(async () => {
             >
               —
             </RouterLink>
+            <span
+              v-if="report.interviewKind === 'ADDITIONAL_MEETING'"
+              class="kind-badge"
+            >Додаткова</span>
           </td>
           <td>{{ report.vacancyTitle }}</td>
           <td>{{ report.matchScore }}%</td>
@@ -277,6 +281,21 @@ onMounted(async () => {
   padding: 0.6rem 0.5rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+}
+.primary-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.kind-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e5e7eb;
+  color: #374151;
 }
 .reports-table th {
   font-size: 0.8rem;
