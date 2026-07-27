@@ -4,6 +4,7 @@ import type { LiveAuthorType, PrismaClient } from "@prisma/client";
 import { LlmUnavailableError } from "../llm/errors";
 import type { LlmProvider } from "../llm/types";
 import {
+  ADDITIONAL_MEETING_ARBITER_NUDGE_UK,
   ArbiterContextError,
   ArbiterReplyParseError,
   NO_PENDING_QUESTION_NUDGE_UK,
@@ -150,6 +151,83 @@ test("buildArbiterMessages includes pendingQuestion nudge", () => {
   assert.match(withoutPending[0].content, /Backend Developer/);
 });
 
+test("buildArbiterMessages includes additional-meeting nudge when kind is ADDITIONAL_MEETING", () => {
+  const messages = buildArbiterMessages({
+    companyProfile,
+    history: [],
+    pendingQuestion: false,
+    interviewKind: "ADDITIONAL_MEETING",
+  });
+  const joined = messages.map((m) => m.content).join("\n");
+  assert.equal(messages.at(-1)?.content, ADDITIONAL_MEETING_ARBITER_NUDGE_UK);
+  assert.match(joined, /додатков|Candidate Agent відсутній|без Candidate Agent|WAIT/i);
+  assert.match(joined, /НЕ використовуй ANSWER і CANDIDATE_QUESTIONS/i);
+  assert.ok(joined.includes(NO_PENDING_QUESTION_NUDGE_UK));
+});
+
+test("buildArbiterMessages omits additional-meeting nudge for STANDARD", () => {
+  const messages = buildArbiterMessages({
+    companyProfile,
+    history: [],
+    pendingQuestion: false,
+    interviewKind: "STANDARD",
+  });
+  const last = messages.at(-1)?.content ?? "";
+  assert.equal(last, NO_PENDING_QUESTION_NUDGE_UK);
+  assert.doesNotMatch(
+    messages.map((m) => m.content).join("\n"),
+    /Candidate Agent відсутній/,
+  );
+});
+
+test("buildArbiterMessages appends additional nudge after pending nudge", () => {
+  const messages = buildArbiterMessages({
+    companyProfile,
+    history: [],
+    pendingQuestion: true,
+    interviewKind: "ADDITIONAL_MEETING",
+  });
+  assert.equal(messages.at(-2)?.content, PENDING_QUESTION_NUDGE_UK);
+  assert.equal(messages.at(-1)?.content, ADDITIONAL_MEETING_ARBITER_NUDGE_UK);
+});
+
+test("runArbiterTurn passes ADDITIONAL_MEETING kind into messages", async () => {
+  let capturedContents: string[] = [];
+  const fakeProvider: LlmProvider = {
+    name: "fake",
+    async complete(messages) {
+      capturedContents = messages.map((m) => m.content);
+      return '{ "action": "WAIT", "summaryUk": "Очікуємо" }';
+    },
+  };
+
+  const fakePrisma = {
+    interview: {
+      findUnique: async () => ({
+        kind: "ADDITIONAL_MEETING",
+        vacancy: {
+          companyProfile: {
+            role: "Backend Developer",
+            requirements: ["Node.js"],
+            culture: ["remote"],
+            expectations: ["ship features"],
+            workConditions: [],
+            compensation: null,
+          },
+        },
+      }),
+    },
+    liveMessage: {
+      findMany: async () => [{ authorType: "HUMAN_HR", content: "Привіт" }],
+    },
+  } as unknown as PrismaClient;
+
+  await runArbiterTurn(fakePrisma, "interview_1", "session_1", fakeProvider);
+
+  assert.ok(capturedContents.includes(ADDITIONAL_MEETING_ARBITER_NUDGE_UK));
+  assert.ok(capturedContents.includes(NO_PENDING_QUESTION_NUDGE_UK));
+});
+
 test("runArbiterTurn loads context, calls LLM, and parses command", async () => {
   let llmCalled = false;
   const fakeProvider: LlmProvider = {
@@ -167,6 +245,7 @@ test("runArbiterTurn loads context, calls LLM, and parses command", async () => 
   const fakePrisma = {
     interview: {
       findUnique: async () => ({
+        kind: "STANDARD",
         vacancy: {
           companyProfile: {
             role: "Backend Developer",
@@ -204,7 +283,7 @@ test("runArbiterTurn throws when company profile is missing", async () => {
   let completeCalls = 0;
   const fakePrisma = {
     interview: {
-      findUnique: async () => ({ vacancy: { companyProfile: null } }),
+      findUnique: async () => ({ kind: "STANDARD", vacancy: { companyProfile: null } }),
     },
   } as unknown as PrismaClient;
 
@@ -232,6 +311,7 @@ test("runArbiterTurn retries transient LLM failure then succeeds", async () => {
   const fakePrisma = {
     interview: {
       findUnique: async () => ({
+        kind: "STANDARD",
         vacancy: {
           companyProfile: {
             role: "Backend Developer",
@@ -276,6 +356,7 @@ test("runArbiterTurn retries parse failure then succeeds", async () => {
   const fakePrisma = {
     interview: {
       findUnique: async () => ({
+        kind: "STANDARD",
         vacancy: {
           companyProfile: {
             role: "Backend Developer",

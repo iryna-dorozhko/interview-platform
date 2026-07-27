@@ -175,10 +175,19 @@ export const PENDING_QUESTION_NUDGE_UK =
 export const NO_PENDING_QUESTION_NUDGE_UK =
   "[Система] Відкритого питання немає. START лише після явного повідомлення HR про початок роботи; інакше WAIT. Якщо HUMAN_CANDIDATE звертається до Candidate Agent — ANSWER. Далі — NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.";
 
+export const ADDITIONAL_MEETING_ARBITER_NUDGE_UK =
+  "[Система] Режим додаткової зустрічі: Candidate Agent ВІДСУТНІЙ. " +
+  "НЕ використовуй ANSWER і CANDIDATE_QUESTIONS. " +
+  "Після питання Company / відкритого питання — WAIT (відповідає HUMAN_CANDIDATE або HR). " +
+  "Дозволені: START, NEXT_QUESTION, CLARIFY, COMPANY_ANSWER, WAIT, SUGGEST_END.";
+
+export type ArbiterInterviewKind = "STANDARD" | "ADDITIONAL_MEETING";
+
 export function buildArbiterMessages(input: {
   companyProfile: ArbiterCompanyProfileContext;
   history: LiveHistoryItem[];
   pendingQuestion: boolean;
+  interviewKind?: ArbiterInterviewKind;
 }): ChatMessage[] {
   const messages: ChatMessage[] = [
     {
@@ -192,6 +201,13 @@ export function buildArbiterMessages(input: {
     role: "user",
     content: input.pendingQuestion ? PENDING_QUESTION_NUDGE_UK : NO_PENDING_QUESTION_NUDGE_UK,
   });
+
+  if (input.interviewKind === "ADDITIONAL_MEETING") {
+    messages.push({
+      role: "user",
+      content: ADDITIONAL_MEETING_ARBITER_NUDGE_UK,
+    });
+  }
 
   return messages;
 }
@@ -222,6 +238,9 @@ export async function runArbiterTurn(
     select: { authorType: true, content: true },
   });
 
+  const interviewKind: ArbiterInterviewKind =
+    interview?.kind === "ADDITIONAL_MEETING" ? "ADDITIONAL_MEETING" : "STANDARD";
+
   const llmMessages = buildArbiterMessages({
     companyProfile: {
       role: companyProfile.role,
@@ -233,6 +252,7 @@ export async function runArbiterTurn(
     },
     history,
     pendingQuestion: options.pendingQuestion,
+    interviewKind,
   });
 
   return withLlmRetry(async () => {
