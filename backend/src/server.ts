@@ -21,6 +21,7 @@ import { createCandidateInterviewRouter } from "./routes/candidate-interview";
 import { createCandidateInvitationsRouter } from "./routes/candidate-invitations";
 import { createCandidateMatchesRouter } from "./routes/candidate-matches";
 import { createHrApplicationsRouter } from "./routes/hr-applications";
+import { createHrAdditionalInterviewsRouter } from "./routes/hr-additional-interviews";
 import { createRoomOrchestrator } from "./socket/orchestrator";
 import { registerRoomHandlers } from "./socket/room";
 import { registerDialogHandlers } from "./socket/dialogs";
@@ -66,6 +67,7 @@ app.use(
   requireHr,
   createHrApplicationsRouter(() => prisma, getLlmProvider, () => io),
 );
+app.use("/api", requireAuth, createHrAdditionalInterviewsRouter(() => prisma));
 app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma, getLlmProvider, () => io));
 
 const httpServer = createServer(app);

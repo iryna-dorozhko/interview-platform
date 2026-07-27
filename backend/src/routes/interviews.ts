@@ -60,6 +60,8 @@ export async function createInterviewWithJoinCode(
     scheduledAt: Date | null;
     candidateUserId?: string | null;
     candidateEmail?: string | null;
+    kind?: "STANDARD" | "ADDITIONAL_MEETING";
+    followUpFromFinalReportId?: string | null;
     /** Runs in the same transaction as interview create (before commit). */
     afterCreate?: (
       tx: Prisma.TransactionClient,
@@ -79,6 +81,10 @@ export async function createInterviewWithJoinCode(
             joinCode,
             status: "AWAITING_CANDIDATE",
             scheduledAt: params.scheduledAt,
+            ...(params.kind ? { kind: params.kind } : {}),
+            ...(params.followUpFromFinalReportId
+              ? { followUpFromFinalReportId: params.followUpFromFinalReportId }
+              : {}),
             ...(params.candidateUserId
               ? { candidateUserId: params.candidateUserId }
               : {}),
