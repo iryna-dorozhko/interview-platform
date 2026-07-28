@@ -1,7 +1,16 @@
 import type { ChatMessage, LlmProvider } from "../llm/types";
+import {
+  formatSalaryDisplay,
+  parseWorkConditionsArray,
+} from "../utils/vacancy-work-conditions";
 import { DECISION_LETTER_SYSTEM_PROMPT_UK } from "./prompts/decision-letter.uk";
 
 export type DecisionLetterType = "ACCEPT" | "REJECT" | "ADDITIONAL_MEETING";
+
+export type VacancyOfferExtraction = {
+  offerAvailable: boolean;
+  offerLines: string[];
+};
 
 export type DecisionLetterContext = {
   type: DecisionLetterType;
@@ -14,6 +23,44 @@ export type DecisionLetterContext = {
   companyProfileJson: string;
   candidateProfileJson: string;
 };
+
+const NOT_SPECIFIED = "не вказано";
+
+function isUnspecifiedValue(value: string): boolean {
+  return value.trim().toLowerCase() === NOT_SPECIFIED;
+}
+
+function workConditionLineIsSpecified(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  const colon = trimmed.indexOf(":");
+  const value = colon >= 0 ? trimmed.slice(colon + 1).trim() : trimmed;
+  return !isUnspecifiedValue(value);
+}
+
+export function extractVacancyOffer(companyProfile: unknown): VacancyOfferExtraction {
+  if (typeof companyProfile !== "object" || companyProfile === null) {
+    return { offerAvailable: false, offerLines: [] };
+  }
+  const record = companyProfile as Record<string, unknown>;
+  const offerLines: string[] = [];
+
+  const salary = formatSalaryDisplay(record.compensation);
+  if (salary) {
+    offerLines.push(`Зарплата: ${salary}`);
+  }
+
+  for (const line of parseWorkConditionsArray(record.workConditions)) {
+    if (workConditionLineIsSpecified(line)) {
+      offerLines.push(line.trim());
+    }
+  }
+
+  return {
+    offerAvailable: offerLines.length > 0,
+    offerLines,
+  };
+}
 
 function stripCodeFences(text: string): string {
   const match = text.match(/^```(?:\w+)?\s*([\s\S]*?)\s*```$/);
