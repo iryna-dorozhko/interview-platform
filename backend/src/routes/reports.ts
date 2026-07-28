@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import type { Server } from "socket.io";
-import { generateDecisionLetter } from "../agents/decision-letter-agent";
+import { extractVacancyOffer, generateDecisionLetter } from "../agents/decision-letter-agent";
 import type { LlmProvider } from "../llm/types";
 import {
   applicationStatusFromDecisionType,
@@ -203,6 +203,7 @@ export function createReportsRouter(
     }
 
     try {
+      const offer = extractVacancyOffer(report.interview.vacancy.companyProfile);
       const body = await generateDecisionLetter(getLlmProvider(), {
         type,
         vacancyTitle: report.interview.vacancy.title,
@@ -213,6 +214,8 @@ export function createReportsRouter(
         risks: report.risks as string[],
         companyProfileJson: JSON.stringify(report.interview.vacancy.companyProfile ?? {}),
         candidateProfileJson: JSON.stringify(report.interview.candidateProfile ?? {}),
+        offerAvailable: offer.offerAvailable,
+        offerLines: offer.offerLines,
       });
       res.status(200).json({ type, body });
     } catch {
