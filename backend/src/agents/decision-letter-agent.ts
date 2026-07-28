@@ -22,6 +22,8 @@ export type DecisionLetterContext = {
   risks: string[];
   companyProfileJson: string;
   candidateProfileJson: string;
+  offerAvailable: boolean;
+  offerLines: string[];
 };
 
 const NOT_SPECIFIED = "не вказано";
@@ -94,6 +96,12 @@ export function buildDecisionLetterMessages(ctx: DecisionLetterContext): ChatMes
     "",
     `=== РИЗИКИ ===`,
     ctx.risks.map((item) => `- ${item}`).join("\n") || "(немає)",
+    "",
+    `=== ОФЕР (УМОВИ ВАКАНСІЇ) ===`,
+    `available: ${ctx.offerAvailable ? "true" : "false"}`,
+    ctx.offerAvailable
+      ? ctx.offerLines.map((item) => `- ${item}`).join("\n")
+      : "(умови не вказані — узгодити в діалозі)",
     "",
     `=== ЗВІТ (MARKDOWN) ===`,
     ctx.reportMarkdown,
