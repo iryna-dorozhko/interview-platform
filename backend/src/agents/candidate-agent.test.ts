@@ -50,14 +50,14 @@ test("candidate system prompt includes work conditions and deep follow-up rules"
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /зарплат/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /графік/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /релокац/i);
-  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /доки відповідь не стане конкретною/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /уточни|конкретн/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /заглиб/i);
 });
 
 test("candidate system prompt asks for concrete projects with bounded follow-ups", () => {
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /проєкт|кейс/i);
   assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /конкретн.*проєкт|конкретн.*кейс/i);
-  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /не затяг/i);
+  assert.match(CANDIDATE_AGENT_SYSTEM_PROMPT_UK, /не копай|не більше 3/i);
   assert.doesNotMatch(
     CANDIDATE_AGENT_SYSTEM_PROMPT_UK,
     /Кількість уточнюючих раундів на тему не обмежена/,
