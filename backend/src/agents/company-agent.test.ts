@@ -56,6 +56,13 @@ test("company agent system prompt includes work conditions block with seven subt
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /випробувальн/i);
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /обладнан/i);
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /чотир/i); // 4 themes
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /бонус/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /equity/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /сертиф/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /житл/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /перельот/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /OS/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /монітор/i);
 });
 
 test("company agent system prompt asks role first and seniority only neutrally if missing", () => {
