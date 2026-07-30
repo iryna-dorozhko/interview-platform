@@ -149,7 +149,7 @@ onMounted(() => {
             :disabled="actionBusy"
             @click="onAccept(item.vacancyId)"
           >
-            {{ actionBusy ? "Зачекайте…" : "Прийняти" }}
+            {{ actionBusy ? "Зачекайте…" : "Подати заявку" }}
           </button>
         </div>
       </article>

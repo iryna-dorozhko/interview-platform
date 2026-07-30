@@ -24,6 +24,14 @@ const emit = defineEmits<{
 
 const input = ref("");
 const messagesEl = ref<HTMLElement | null>(null);
+const composerInputEl = ref<HTMLTextAreaElement | null>(null);
+
+function resizeComposer(): void {
+  const el = composerInputEl.value;
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 const thinkingLabel = computed(() => {
   switch (props.agentThinking?.agentType) {
@@ -51,8 +59,10 @@ watch(
   },
 );
 
-watch(input, (value) => {
+watch(input, async (value) => {
   emit("typingInput", value);
+  await nextTick();
+  resizeComposer();
 });
 
 function sendMessage(): void {
@@ -117,11 +127,13 @@ function messageConfidenceBadge(message: LiveMessage) {
 
     <form class="composer" @submit.prevent="sendMessage">
       <textarea
+        ref="composerInputEl"
         v-model="input"
         class="composer-input"
-        rows="2"
+        rows="1"
         placeholder="Напишіть повідомлення…"
         :disabled="disabled || connectionState !== 'connected'"
+        @input="resizeComposer"
         @keydown="onKeydown"
       />
       <button
@@ -216,9 +228,12 @@ function messageConfidenceBadge(message: LiveMessage) {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 6px;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
   min-height: 2.5rem;
+  max-height: 12rem;
   background: var(--surface);
+  line-height: 1.4;
 }
 .composer-input:focus {
   outline: 2px solid var(--accent-focus);

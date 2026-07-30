@@ -155,6 +155,28 @@ export function createHrApplicationsRouter(
     });
   });
 
+  router.delete("/hr/applications/:id", async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const application = await prisma.vacancyApplication.findUnique({
+      where: { id: req.params.id },
+      include: {
+        vacancy: { select: { hrUserId: true } },
+      },
+    });
+
+    if (!application || application.vacancy.hrUserId !== req.user!.id) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+    if (application.interviewId) {
+      res.status(409).json({ error: "Cannot delete application linked to interview" });
+      return;
+    }
+
+    await prisma.vacancyApplication.delete({ where: { id: application.id } });
+    res.status(204).end();
+  });
+
   router.post("/hr/applications/:id/create-interview", async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const hrUserId = req.user!.id;

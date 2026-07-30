@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from "vue";
 import type { PrepChatMessage, PrepFailedAction } from "../composables/usePrepChat";
 
-defineProps<{
+const props = defineProps<{
   title: string;
   loadState: "loading" | "ready" | "error";
   messages: PrepChatMessage[];
@@ -24,6 +25,29 @@ const emit = defineEmits<{
   delete: [];
   keydown: [event: KeyboardEvent];
 }>();
+
+const composerInputEl = ref<HTMLTextAreaElement | null>(null);
+
+function resizeComposer(): void {
+  const el = composerInputEl.value;
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+function onComposerInput(event: Event): void {
+  emit("update:input", (event.target as HTMLTextAreaElement).value);
+  resizeComposer();
+}
+
+watch(
+  () => props.input,
+  async () => {
+    await nextTick();
+    resizeComposer();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -78,7 +102,7 @@ const emit = defineEmits<{
         <p v-if="sending" class="thinking">Думаю…</p>
       </div>
 
-      <p v-if="errorMessage" class="error-banner" role="alert">
+      <p v-if="errorMessage && lastFailedAction" class="error-banner" role="alert">
         {{ errorMessage }}
         <button
           type="button"
@@ -92,12 +116,13 @@ const emit = defineEmits<{
 
       <form v-if="!isClosed" class="composer" @submit.prevent="emit('send')">
         <textarea
+          ref="composerInputEl"
           class="composer-input"
           rows="2"
           placeholder="Напишіть відповідь…"
           :value="input"
           :disabled="sending"
-          @input="emit('update:input', ($event.target as HTMLTextAreaElement).value)"
+          @input="onComposerInput"
           @keydown="emit('keydown', $event)"
         />
         <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">
@@ -191,15 +216,19 @@ const emit = defineEmits<{
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  width: 100%;
 }
 .composer-input {
-  flex: 1;
+  flex: 1 1 24rem;
+  width: 100%;
+  min-width: 16rem;
   font-family: inherit;
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid #ccc;
   border-radius: 0.375rem;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   min-height: 2.5rem;
 }
 .btn-primary,

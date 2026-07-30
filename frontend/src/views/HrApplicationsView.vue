@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import {
   createInterviewFromApplication,
+  deleteHrApplication,
   draftApplicationDecline,
   fetchHrApplication,
   fetchHrApplications,
@@ -38,6 +39,7 @@ const detailError = ref<string | null>(null);
 
 const scheduledAtLocal = ref("");
 const creating = ref(false);
+const deleting = ref(false);
 const createError = ref<string | null>(null);
 const createdJoinCode = ref<string | null>(null);
 
@@ -49,7 +51,7 @@ const declineSentDialogId = ref<string | null>(null);
 const declining = ref(false);
 
 const canCreateInterview = computed(
-  () => detail.value?.status === "PENDING" && !creating.value && !declining.value,
+  () => detail.value?.status === "PENDING" && !creating.value && !declining.value && !deleting.value,
 );
 
 function isMatchBreakdown(value: unknown): value is MatchBreakdown {
@@ -198,6 +200,29 @@ async function onCreateInterview(): Promise<void> {
     // #endregion
   } finally {
     creating.value = false;
+  }
+}
+
+async function onDeleteApplication(): Promise<void> {
+  if (!detail.value || deleting.value) return;
+
+  deleting.value = true;
+  createError.value = null;
+  try {
+    await deleteHrApplication(detail.value.id);
+    const deletedId = detail.value.id;
+    applications.value = applications.value.filter((item) => item.id !== deletedId);
+    if (selectedId.value === deletedId) {
+      selectedId.value = applications.value[0]?.id ?? null;
+    }
+    if (!selectedId.value) {
+      detailState.value = "idle";
+      detail.value = null;
+    }
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : "Не вдалося видалити заявку";
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -421,6 +446,14 @@ onMounted(() => {
               >
                 Відхилити
               </button>
+              <button
+                type="button"
+                class="btn-danger"
+                :disabled="creating || declining || deleting"
+                @click="onDeleteApplication"
+              >
+                {{ deleting ? "Видалення…" : "Видалити заявку" }}
+              </button>
             </div>
           </form>
 
@@ -439,6 +472,15 @@ onMounted(() => {
               @click="goToInterview"
             >
               Відкрити співбесіду
+            </button>
+            <button
+              v-else
+              type="button"
+              class="btn-danger"
+              :disabled="deleting"
+              @click="onDeleteApplication"
+            >
+              {{ deleting ? "Видалення…" : "Видалити заявку" }}
             </button>
           </div>
         </template>
@@ -679,7 +721,8 @@ onMounted(() => {
   letter-spacing: 0.1em;
 }
 .btn-primary,
-.btn-secondary {
+.btn-secondary,
+.btn-danger {
   font-family: inherit;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;
@@ -702,6 +745,15 @@ onMounted(() => {
   border-color: #d1d5db;
 }
 .btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-danger {
+  background: var(--danger-soft, #fee2e2);
+  color: var(--danger, #b91c1c);
+  border-color: #fecaca;
+}
+.btn-danger:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

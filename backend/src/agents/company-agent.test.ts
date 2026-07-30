@@ -4,26 +4,40 @@ import {
   buildCompanyAgentMessages,
   buildProfileExtractionMessages,
   parseVacancyProfileExtraction,
+  type CompanyAgentHrProfileContext,
 } from "./company-agent";
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from "./prompts/company-agent.uk";
 import { VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from "./prompts/vacancy-profile-extraction.uk";
 
-test("buildCompanyAgentMessages prepends system prompt and maps author types", () => {
+const sampleHrProfile: CompanyAgentHrProfileContext = {
+  companyName: "Acme",
+  culture: ["відкритість"],
+  companyDirection: ["EdTech"],
+  policies: ["24 дні PTO", "health insurance"],
+  workFormat: ["remote", "core hours 10:00–16:00 Kyiv"],
+  onboardingApproach: ["Buddy 2 тижні"],
+};
+
+test("buildCompanyAgentMessages prepends system prompt with company profile and maps author types", () => {
   const history = [
     { authorType: "HUMAN_HR" as const, content: "Привіт" },
     { authorType: "AGENT_COMPANY" as const, content: "Яка це посада?" },
   ];
-  const messages = buildCompanyAgentMessages(history);
+  const messages = buildCompanyAgentMessages(history, sampleHrProfile);
 
-  assert.deepEqual(messages[0], { role: "system", content: COMPANY_AGENT_SYSTEM_PROMPT_UK });
+  assert.equal(messages[0].role, "system");
+  assert.match(messages[0].content, /24 дні PTO/);
+  assert.match(messages[0].content, /core hours 10:00–16:00 Kyiv/);
+  assert.doesNotMatch(messages[0].content, /\{\{COMPANY_PROFILE\}\}/);
   assert.deepEqual(messages[1], { role: "user", content: "Привіт" });
   assert.deepEqual(messages[2], { role: "assistant", content: "Яка це посада?" });
 });
 
 test("buildCompanyAgentMessages appends a placeholder user turn for empty history", () => {
-  const messages = buildCompanyAgentMessages([]);
+  const messages = buildCompanyAgentMessages([], sampleHrProfile);
   assert.equal(messages.length, 2);
-  assert.deepEqual(messages[0], { role: "system", content: COMPANY_AGENT_SYSTEM_PROMPT_UK });
+  assert.equal(messages[0].role, "system");
+  assert.match(messages[0].content, /Acme/);
   assert.deepEqual(messages[1], { role: "user", content: "(порожнє повідомлення)" });
 });
 
@@ -32,7 +46,7 @@ test("buildCompanyAgentMessages appends a placeholder user turn when history end
     { authorType: "HUMAN_HR" as const, content: "Привіт" },
     { authorType: "AGENT_COMPANY" as const, content: "Яка це посада?" },
   ];
-  const messages = buildCompanyAgentMessages(history);
+  const messages = buildCompanyAgentMessages(history, sampleHrProfile);
 
   assert.equal(messages.length, 4);
   assert.deepEqual(messages[3], { role: "user", content: "(порожнє повідомлення)" });
@@ -40,7 +54,7 @@ test("buildCompanyAgentMessages appends a placeholder user turn when history end
 
 test("buildCompanyAgentMessages does not append a placeholder when history already ends with the user", () => {
   const history = [{ authorType: "HUMAN_HR" as const, content: "Привіт" }];
-  const messages = buildCompanyAgentMessages(history);
+  const messages = buildCompanyAgentMessages(history, sampleHrProfile);
 
   assert.equal(messages.length, 2);
   assert.deepEqual(messages[1], { role: "user", content: "Привіт" });
@@ -63,6 +77,13 @@ test("company agent system prompt includes work conditions block with seven subt
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /перельот/i);
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /OS/i);
   assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /монітор/i);
+});
+
+test("company agent system prompt must not re-ask facts already in company profile", () => {
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /\{\{COMPANY_PROFILE\}\}/);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /не питай повторно|не перепитуй/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /профіл[юя] компан/i);
+  assert.match(COMPANY_AGENT_SYSTEM_PROMPT_UK, /PTO|відпустк/i);
 });
 
 test("company agent system prompt asks role first and seniority only neutrally if missing", () => {
@@ -244,10 +265,12 @@ test("buildProfileExtractionMessages prepends extraction system prompt and joins
     { authorType: "HUMAN_HR" as const, content: "Middle Backend Developer" },
     { authorType: "AGENT_COMPANY" as const, content: "Які вимоги?" },
   ];
-  const messages = buildProfileExtractionMessages(history);
+  const messages = buildProfileExtractionMessages(history, sampleHrProfile);
 
   assert.equal(messages.length, 2);
-  assert.deepEqual(messages[0], { role: "system", content: VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK });
+  assert.equal(messages[0].role, "system");
+  assert.match(messages[0].content, /24 дні PTO/);
+  assert.doesNotMatch(messages[0].content, /\{\{COMPANY_PROFILE\}\}/);
   assert.equal(messages[1].role, "user");
   assert.equal(
     messages[1].content,
@@ -256,8 +279,14 @@ test("buildProfileExtractionMessages prepends extraction system prompt and joins
 });
 
 test("buildProfileExtractionMessages handles empty history with a placeholder transcript", () => {
-  const messages = buildProfileExtractionMessages([]);
+  const messages = buildProfileExtractionMessages([], sampleHrProfile);
   assert.equal(messages.length, 2);
   assert.equal(messages[1].role, "user");
   assert.equal(messages[1].content, "(розмова порожня)");
+});
+
+test("extraction prompt can fill workConditions from company profile when chat omitted them", () => {
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /\{\{COMPANY_PROFILE\}\}/);
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /профіл[юя] компан/i);
+  assert.match(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, /не вказано/i);
 });

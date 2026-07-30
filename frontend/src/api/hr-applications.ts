@@ -108,6 +108,16 @@ export async function fetchHrApplication(id: string): Promise<HrApplicationDetai
   return body.application;
 }
 
+export async function deleteHrApplication(id: string): Promise<void> {
+  const response = await fetchWithAuth(`/api/hr/applications/${id}`, { method: "DELETE" });
+  if (!response.ok) {
+    if (response.status === 409) {
+      throw new Error("Неможливо видалити заявку, бо за нею вже створено співбесіду");
+    }
+    throw await parseError(response, "Не вдалося видалити заявку");
+  }
+}
+
 export async function createInterviewFromApplication(
   id: string,
   options?: { scheduledAt?: string | null },

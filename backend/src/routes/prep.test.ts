@@ -1368,6 +1368,50 @@ test("POST /prep/:vacancyId/message returns 409 when company profile is missing"
   }
 });
 
+test("POST /prep/:vacancyId/message injects HrCompanyProfile into company agent system prompt", async () => {
+  const hrProfile = makeConfirmedHrProfile();
+  hrProfile.policies = ["24 дні PTO на рік"];
+  hrProfile.workFormat = ["core hours 10:00–16:00 Kyiv"];
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
+    hrCompanyProfiles: [hrProfile],
+  });
+  let capturedSystem = "";
+  const fakeProvider: LlmProvider = {
+    name: "omlx",
+    async complete(messages) {
+      capturedSystem = messages[0]?.content ?? "";
+      return "Дякую. Яка зарплата для цієї ролі?\nREADY:false";
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
+  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Backend Developer" }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.match(capturedSystem, /24 дні PTO на рік/);
+    assert.match(capturedSystem, /core hours 10:00–16:00 Kyiv/);
+    assert.match(capturedSystem, /не питай повторно|не перепитуй/i);
+    assert.doesNotMatch(capturedSystem, /\{\{COMPANY_PROFILE\}\}/);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
+});
+
 test("POST /prep/:vacancyId/finish snapshots universal fields from HrCompanyProfile", async () => {
   const fakePrisma = makeFakePrisma({
     vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],

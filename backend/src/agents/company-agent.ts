@@ -16,14 +16,48 @@ export interface PrepHistoryItem {
   content: string;
 }
 
+export interface CompanyAgentHrProfileContext {
+  companyName?: string | null;
+  culture: unknown;
+  companyDirection: unknown;
+  policies: unknown;
+  workFormat: unknown;
+  onboardingApproach: unknown;
+}
+
 export { parseAgentReply, type ParsedAgentReply } from "./agent-reply";
 
 const EMPTY_TURN_PLACEHOLDER = "(порожнє повідомлення)";
 
-export function buildCompanyAgentMessages(history: PrepHistoryItem[]): ChatMessage[] {
+function formatHrProfileBlock(profile: CompanyAgentHrProfileContext): string {
+  return JSON.stringify(
+    {
+      companyName: profile.companyName ?? null,
+      culture: profile.culture,
+      companyDirection: profile.companyDirection,
+      policies: profile.policies,
+      workFormat: profile.workFormat,
+      onboardingApproach: profile.onboardingApproach,
+    },
+    null,
+    2,
+  );
+}
+
+function withCompanyProfile(
+  template: string,
+  profile: CompanyAgentHrProfileContext,
+): string {
+  return template.replace("{{COMPANY_PROFILE}}", formatHrProfileBlock(profile));
+}
+
+export function buildCompanyAgentMessages(
+  history: PrepHistoryItem[],
+  hrProfile: CompanyAgentHrProfileContext,
+): ChatMessage[] {
   const systemMessage: ChatMessage = {
     role: "system",
-    content: COMPANY_AGENT_SYSTEM_PROMPT_UK,
+    content: withCompanyProfile(COMPANY_AGENT_SYSTEM_PROMPT_UK, hrProfile),
   };
 
   const historyMessages: ChatMessage[] = history.map((item) => ({
@@ -113,13 +147,19 @@ export function parseVacancyProfileExtraction(rawText: string): ExtractedVacancy
   };
 }
 
-export function buildProfileExtractionMessages(history: PrepHistoryItem[]): ChatMessage[] {
+export function buildProfileExtractionMessages(
+  history: PrepHistoryItem[],
+  hrProfile: CompanyAgentHrProfileContext,
+): ChatMessage[] {
   const transcript = history
     .map((item) => `${item.authorType === "HUMAN_HR" ? "HR" : "Агент"}: ${item.content}`)
     .join("\n");
 
   return [
-    { role: "system", content: VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK },
+    {
+      role: "system",
+      content: withCompanyProfile(VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK, hrProfile),
+    },
     { role: "user", content: transcript || "(розмова порожня)" },
   ];
 }

@@ -270,7 +270,15 @@ export function createPrepRouter(
     });
 
     const llmMessages = buildProfileExtractionMessages(
-      history.map((item) => ({ authorType: item.authorType, content: item.content }))
+      history.map((item) => ({ authorType: item.authorType, content: item.content })),
+      {
+        companyName: hrProfile.companyName,
+        culture: hrProfile.culture,
+        companyDirection: hrProfile.companyDirection,
+        policies: hrProfile.policies,
+        workFormat: hrProfile.workFormat,
+        onboardingApproach: hrProfile.onboardingApproach,
+      },
     );
 
     let provider: LlmProvider;
@@ -502,7 +510,15 @@ export function createPrepRouter(
     });
 
     const llmMessages = buildCompanyAgentMessages(
-      history.map((item) => ({ authorType: item.authorType, content: item.content }))
+      history.map((item) => ({ authorType: item.authorType, content: item.content })),
+      {
+        companyName: hrProfile.companyName,
+        culture: hrProfile.culture,
+        companyDirection: hrProfile.companyDirection,
+        policies: hrProfile.policies,
+        workFormat: hrProfile.workFormat,
+        onboardingApproach: hrProfile.onboardingApproach,
+      },
     );
 
     let provider: LlmProvider;

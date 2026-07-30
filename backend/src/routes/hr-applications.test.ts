@@ -240,6 +240,12 @@ function makeFakePrisma(seed: {
         Object.assign(app, data);
         return { count: 1 };
       },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const index = applications.findIndex((item) => item.id === where.id);
+        if (index < 0) throw new Error("application not found");
+        const [removed] = applications.splice(index, 1);
+        return { ...removed };
+      },
     },
     hrNotification: {
       findMany: async ({
@@ -719,6 +725,107 @@ test("GET /hr/applications/:id includes matchBreakdown for owning HR", async () 
     assert.deepEqual(body.application.matchBreakdown, breakdown);
     assert.equal(body.application.candidate.id, "cd_1");
     assert.equal(body.application.candidate.email, "cd@test.com");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("DELETE /hr/applications/:id removes own non-converted application", async () => {
+  const { prisma, applications } = makeFakePrisma({
+    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`, {
+      method: "DELETE",
+    });
+    assert.equal(response.status, 204);
+    assert.equal(applications.length, 0);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("DELETE /hr/applications/:id returns 404 for other HR", async () => {
+  const { prisma, applications } = makeFakePrisma({
+    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Strong FE",
+        status: "PENDING",
+        interviewId: null,
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_2", email: "hr2@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`, {
+      method: "DELETE",
+    });
+    assert.equal(response.status, 404);
+    assert.equal(applications.length, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
+});
+
+test("DELETE /hr/applications/:id returns 409 when linked interview exists", async () => {
+  const { prisma, applications } = makeFakePrisma({
+    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    applications: [
+      {
+        id: "app_1",
+        candidateUserId: "cd_1",
+        vacancyId: "v1",
+        matchScore: 80,
+        candidateSummary: "Strong FE",
+        status: "CONVERTED",
+        interviewId: "int_1",
+        createdAt: new Date(),
+      },
+    ],
+  });
+  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
+  const server = app.listen(0);
+  const port = (server.address() as { port: number }).port;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`, {
+      method: "DELETE",
+    });
+    assert.equal(response.status, 409);
+    const body = (await response.json()) as { error: string };
+    assert.equal(body.error, "Cannot delete application linked to interview");
+    assert.equal(applications.length, 1);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
