@@ -9,11 +9,22 @@
     "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
     "mcp:browser": "playwright-mcp --port 8931",
     "build": "npm run --workspaces build",
-    "lint": "npm run --workspaces lint",
+    "lint:ox": "oxlint frontend backend",
+    "lint:eslint": "eslint frontend backend",
+    "typecheck": "npm run --workspaces typecheck",
+    "lint": "npm run lint:ox && npm run lint:eslint && npm run typecheck",
     "ci:bootstrap": "npm run lint && npm run build"
   },
   "devDependencies": {
+    "@7n/rules": "^1.66.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/mcp": "^0.0.78",
-    "playwright": "^1.61.1"
+    "eslint": "^10.8.1",
+    "eslint-plugin-vue": "^10.10.0",
+    "globals": "^17.9.0",
+    "oxlint": "^1.78.0",
+    "playwright": "^1.61.1",
+    "typescript-eslint": "^8.67.0",
+    "vue-eslint-parser": "^10.4.1"
   }
 }

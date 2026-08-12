@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "off"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/coverage/**",
+    "backend/prisma/**"
+  ],
+  "overrides": [
+    {
+      "files": ["frontend/**/*.{js,ts,vue}"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": ["backend/**/*.{js,ts}"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["**/*.{test,spec}.{js,ts}"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "eslint/no-unused-vars": "off",
+        "eslint/no-underscore-dangle": "off"
+      }
+    }
+  ]
+}

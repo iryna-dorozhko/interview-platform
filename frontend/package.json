@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "lint": "vue-tsc --noEmit -p tsconfig.app.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "preview": "vite preview",
     "test": "node --import tsx --test src/composables/usePrepChat.test.ts src/composables/useDialogUnread.test.ts src/utils/typing-indicator.test.ts src/components/HrSidebar.order.test.ts"
   },
