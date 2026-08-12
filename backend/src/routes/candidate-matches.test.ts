@@ -872,9 +872,10 @@ test("POST /candidate/matches/:vacancyId/accept stores matchBreakdown snapshot",
       headers: authHeaders(candidateUser),
     });
     assert.equal(response.status, 200);
-    assert.ok(fakePrisma.__applications[0]?.matchBreakdown);
+    const application = fakePrisma.__applications[0];
+    assert.ok(application?.matchBreakdown);
     assert.equal(
-      (fakePrisma.__applications[0]?.matchBreakdown as { matchScore: number }).matchScore,
+      (application.matchBreakdown as { matchScore: number }).matchScore,
       90,
     );
     const body = await response.json();

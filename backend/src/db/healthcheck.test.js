@@ -29,7 +29,7 @@ test("checkDatabaseHealth returns ok:false when query fails", async () => {
 test("checkDatabaseHealth returns ok:false when Prisma client initialization fails", async () => {
   const originalLoad = Module._load;
 
-  Module._load = function patchedLoad(request, parent, isMain) {
+  Module._load = function patchedLoad(request, _parent, _isMain) {
     if (request === "@prisma/client") {
       return {
         PrismaClient: class PrismaClient {

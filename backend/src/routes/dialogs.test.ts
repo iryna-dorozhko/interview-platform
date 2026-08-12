@@ -388,7 +388,7 @@ const candidateUser: AuthUser = {
   role: "CANDIDATE",
 };
 const otherHr: AuthUser = { id: "hr_2", email: "hr2@test.com", role: "HR" };
-const otherCandidate: AuthUser = {
+const _otherCandidate: AuthUser = {
   id: "cand_2",
   email: "cand2@test.com",
   role: "CANDIDATE",

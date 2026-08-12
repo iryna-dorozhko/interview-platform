@@ -60,7 +60,7 @@ export function createReportsRouter(
         return;
       }
       createdAt = {
-        ...(createdAt ?? {}),
+        ...createdAt,
         gte: new Date(`${dateFromRaw}T00:00:00.000Z`),
       };
     }
@@ -70,7 +70,7 @@ export function createReportsRouter(
         return;
       }
       createdAt = {
-        ...(createdAt ?? {}),
+        ...createdAt,
         lte: new Date(`${dateToRaw}T23:59:59.999Z`),
       };
     }

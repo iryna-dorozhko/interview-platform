@@ -124,9 +124,9 @@ export async function createInterviewFromApplication(
 ): Promise<CreateInterviewFromApplicationResult> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}/create-interview`, {
     method: "POST",
-    body: JSON.stringify({
-      ...(options?.scheduledAt !== undefined ? { scheduledAt: options.scheduledAt } : {}),
-    }),
+    body: JSON.stringify(
+      options?.scheduledAt !== undefined ? { scheduledAt: options.scheduledAt } : {},
+    ),
   });
   if (!response.ok) {
     if (response.status === 409) {

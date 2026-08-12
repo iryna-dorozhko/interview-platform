@@ -177,7 +177,7 @@ function makeFakePrisma(
   };
 }
 
-function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, user: AuthUser) {
+function makeApp(fakePrisma: ReturnType<typeof makeFakePrisma>, _user: AuthUser) {
   const app = express();
   app.use(express.json());
   app.use("/api/candidate", createCandidateInterviewRouter(() => fakePrisma as never));

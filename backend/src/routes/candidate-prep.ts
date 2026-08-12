@@ -548,7 +548,6 @@ export function createCandidatePrepRouter(
     }
 
     try {
-      const existingProfile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
       const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
       if (session) {
         await prisma.prepMessageCandidate.deleteMany({ where: { sessionId: session.id } });
