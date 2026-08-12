@@ -38,11 +38,13 @@
 ### Task 1: Backend — `canEditProfile` on GET prep
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 - Test: `backend/src/routes/prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: Prisma `interview.findFirst({ where: { vacancyId, status: { in: ["READY", "LIVE"] } } })`
 - Produces:
   - `export async function vacancyHasBlockingInterviews(prisma: PrismaClient, vacancyId: string): Promise<boolean>`
@@ -206,11 +208,13 @@ EOF
 ### Task 2: Backend — PATCH confirmed profile with READY/LIVE gate
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts` (PATCH handler)
 - Modify: `backend/src/routes/prep.test.ts`
 - Test: `backend/src/routes/prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: `vacancyHasBlockingInterviews` from Task 1
 - Produces: PATCH `/api/prep/:vacancyId/profile` allows confirmed edits when not blocked; bumps `confirmedAt`; returns 409 `{ error: "Vacancy has active interviews" }` when blocked
 
@@ -325,7 +329,7 @@ if (profile.confirmedAt) {
 }
 ```
 
-2. After loading `profile`, if `profile.confirmedAt` is set:
+1. After loading `profile`, if `profile.confirmedAt` is set:
 
 ```ts
 if (profile.confirmedAt) {
@@ -336,7 +340,7 @@ if (profile.confirmedAt) {
 }
 ```
 
-3. After `parseProfilePatch` succeeds, update with bump when already confirmed:
+1. After `parseProfilePatch` succeeds, update with bump when already confirmed:
 
 ```ts
 const wasConfirmed = profile.confirmedAt != null;
@@ -375,9 +379,11 @@ EOF
 ### Task 3: Frontend API — `canEditProfile` + error mapping
 
 **Files:**
+
 - Modify: `frontend/src/api/prep.ts`
 
 **Interfaces:**
+
 - Consumes: GET/PATCH responses from Tasks 1–2
 - Produces:
   - `PrepState` includes `canEditProfile: boolean`
@@ -449,9 +455,11 @@ EOF
 ### Task 4: Frontend — VacancyPrepView edit-after-confirm UX
 
 **Files:**
+
 - Modify: `frontend/src/views/VacancyPrepView.vue`
 
 **Interfaces:**
+
 - Consumes: `PrepState.canEditProfile`, `updatePrepProfile`, `confirmPrepProfile`
 - Produces: confirmed read-only view with «Змінити»; edit mode with «Зберегти зміни» / «Скасувати»; updated confirm dialog copy
 

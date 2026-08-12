@@ -15,6 +15,7 @@
 ### Task 1: Include `createdAt` in `GET /interviews/mine` response
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 
@@ -100,6 +101,7 @@ git commit -m "feat: include createdAt in GET /interviews/mine response"
 ### Task 2: Add `createdAt` to the frontend `InterviewSummary` type
 
 **Files:**
+
 - Modify: `frontend/src/api/interviews.ts`
 
 - [ ] **Step 1: Update the type**
@@ -144,6 +146,7 @@ git commit -m "feat: add createdAt field to InterviewSummary type"
 ### Task 3: Rewrite `HomeView.vue` as the HR dashboard
 
 **Files:**
+
 - Modify: `frontend/src/views/HomeView.vue`
 
 This task replaces the entire file: the system-status block (`fetchHealth`), `ChatPanel`, and the old "Анкета компанії" button/`goToCompanyPrep` are removed; a table of interviews is added, fed by `fetchMyInterviews()`, with the Day 8 create-interview button/banner logic kept (and extended to prepend the new interview into the local list).
@@ -419,6 +422,7 @@ Expected: no errors. (`fetchHealth`, `HealthResponse`, and `ChatPanel` are no lo
 - [ ] **Step 3: Manual check**
 
 Run `npm run dev` from the repo root, log in as `hr@test.com` / `123456`, and confirm:
+
 - The home page shows a table with at least the seed interview (`joinCode = TEST01`), columns **Код / Статус / Дата створення / Дія**.
 - The seed interview's status shows as a Ukrainian label (e.g. "Чернетка" if still `DRAFT`), not the raw enum value.
 - Clicking **«Створити співбесіду»** shows the green code banner AND immediately adds a new row to the table (status "Чернетка") without a page reload.
@@ -437,6 +441,7 @@ git commit -m "feat: replace HR home page with interviews dashboard"
 ### Task 4: README documentation
 
 **Files:**
+
 - Modify: `README.md` (Day 9 section)
 
 - [ ] **Step 1: Update the Day 9 Definition of Done checkboxes**

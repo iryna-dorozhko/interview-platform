@@ -127,10 +127,12 @@ export type RoomArbiterProcessEvent = {
 **RoomState** додати: `pendingQuestion: boolean` (поруч із `debounceTimer` / `generation`).
 
 **Логіка `pendingQuestion`:**
+
 - `true` після збереженого публічного повідомлення Company, або коли Arbiter обрав `ANSWER` / `CLARIFY`.
 - `false` на `NEXT_QUESTION` (перед питанням — скинемо після оцінки; після Company post знову `true`), `CANDIDATE_QUESTIONS`, `START`, `SUGGEST_END`, `WAIT` після закриття теми — конкретно: set `true` when Company message saved; set `false` when action is `NEXT_QUESTION` | `CANDIDATE_QUESTIONS` | `SUGGEST_END` | `START` **before** running Company (оцінка закрила попередню відповідь); after Company posts set `true` again; `CLARIFY` keeps expecting answer (`true` after Company posts).
 
 **`executeTurn` → loop:**
+
 1. `runArbiter(interviewId, sessionId)` — потрібно змінити injectable signature щоб передавати `pendingQuestion` **або** читати стан всередині обгортки orchestrator (обгортка передає pending у `defaultRunArbiterTurn` через новий параметр).
 2. Emit `room:arbiter-process`.
 3. Якщо `publicMessage` — save + emit `room:messages`.

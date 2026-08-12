@@ -1,56 +1,54 @@
 export interface ParsedPostReply {
-  post: boolean;
-  message?: string;
+  post: boolean
+  message?: string
   /** Candidate asks the live human to answer; conductor must stop and WAIT. */
-  needsHuman?: boolean;
+  needsHuman?: boolean
 }
 
 export class AgentPostReplyParseError extends Error {
   constructor(message: string) {
-    super(message);
-    this.name = "AgentPostReplyParseError";
+    super(message)
+    this.name = 'AgentPostReplyParseError'
   }
 }
 
-function stripCodeFences(text: string): string {
-  const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  return match ? match[1] : text;
-}
+import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 
+// Парсить PostReply з JSON-відповіді LLM.
 export function parsePostReply(rawText: string): ParsedPostReply {
-  const trimmed = stripCodeFences(rawText.trim());
+  const trimmed = stripLlmJsonCodeFences(rawText.trim())
 
-  let data: unknown;
+  let data: unknown
   try {
-    data = JSON.parse(trimmed);
+    data = JSON.parse(trimmed)
   } catch {
-    throw new AgentPostReplyParseError("LLM returned invalid JSON for agent reply");
+    throw new AgentPostReplyParseError('LLM returned invalid JSON for agent reply')
   }
 
-  if (typeof data !== "object" || data === null) {
-    throw new AgentPostReplyParseError("Agent reply is not a JSON object");
+  if (typeof data !== 'object' || data === null) {
+    throw new AgentPostReplyParseError('Agent reply is not a JSON object')
   }
 
-  const { post, message, needsHuman } = data as Record<string, unknown>;
+  const { post, message, needsHuman } = data as Record<string, unknown>
 
-  if (typeof post !== "boolean") {
-    throw new AgentPostReplyParseError("missing or invalid field: post");
+  if (typeof post !== 'boolean') {
+    throw new AgentPostReplyParseError('missing or invalid field: post')
   }
 
-  if (needsHuman !== undefined && typeof needsHuman !== "boolean") {
-    throw new AgentPostReplyParseError("invalid field: needsHuman");
+  if (needsHuman !== undefined && typeof needsHuman !== 'boolean') {
+    throw new AgentPostReplyParseError('invalid field: needsHuman')
   }
 
   if (post) {
-    if (typeof message !== "string" || !message.trim()) {
-      throw new AgentPostReplyParseError("missing or invalid field: message");
+    if (typeof message !== 'string' || !message.trim()) {
+      throw new AgentPostReplyParseError('missing or invalid field: message')
     }
     return {
       post: true,
       message: message.trim(),
-      needsHuman: needsHuman === true,
-    };
+      needsHuman: needsHuman === true
+    }
   }
 
-  return { post: false };
+  return { post: false }
 }

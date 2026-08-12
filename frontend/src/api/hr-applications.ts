@@ -1,180 +1,178 @@
-import { fetchWithAuth } from "./client";
-import type { CreatedInterview } from "./interviews";
+import { fetchWithAuth } from './client'
+import type { CreatedInterview } from './interviews'
 
 export type HrNotification = {
-  id: string;
-  type: string;
-  payload: unknown;
-  readAt: string | null;
-  createdAt: string;
-};
+  id: string
+  type: string
+  payload: unknown
+  readAt: string | null
+  createdAt: string
+}
 
 export type HrApplicationSummary = {
-  id: string;
-  vacancyId: string;
-  vacancyTitle: string;
-  matchScore: number;
-  candidateSummary: string;
-  status: string;
-  interviewId: string | null;
-  createdAt: string;
-};
+  id: string
+  vacancyId: string
+  vacancyTitle: string
+  matchScore: number
+  candidateSummary: string
+  status: string
+  interviewId: string | null
+  createdAt: string
+}
 
 export type RequirementAssessment = {
-  requirement: string;
-  priority: "critical" | "desired";
-  status: "met" | "unknown" | "unmet";
-  evidence: string;
-};
+  requirement: string
+  priority: 'critical' | 'desired'
+  status: 'met' | 'unknown' | 'unmet'
+  evidence: string
+}
 
 export type MatchBreakdown = {
-  assessments: RequirementAssessment[];
-  contextFit: number;
-  criticalFit: number | null;
-  desiredFit: number | null;
-  requirementsFit: number | null;
-  rawScore: number;
-  cappedByCriticalUnmet: boolean;
-  matchScore: number;
-};
+  assessments: RequirementAssessment[]
+  contextFit: number
+  criticalFit: number | null
+  desiredFit: number | null
+  requirementsFit: number | null
+  rawScore: number
+  cappedByCriticalUnmet: boolean
+  matchScore: number
+}
 
 export type HrApplicationDetail = HrApplicationSummary & {
   candidate: {
-    id: string;
-    fullName: string | null;
-    email: string | null;
-  };
+    id: string
+    fullName: string | null
+    email: string | null
+  }
   /** Full snapshot, `null`, or legacy empty `{}` from older applications. */
-  matchBreakdown: MatchBreakdown | Record<string, never> | null;
-};
+  matchBreakdown: MatchBreakdown | Record<string, never> | null
+}
 
 export type CreateInterviewFromApplicationResult = {
-  interview: CreatedInterview;
+  interview: CreatedInterview
   application: {
-    id: string;
-    status: string;
-    interviewId: string | null;
-  };
-};
+    id: string
+    status: string
+    interviewId: string | null
+  }
+}
 
-type ErrorBody = { error?: string; detail?: string };
+type ErrorBody = { error?: string; detail?: string }
 
 async function parseError(response: Response, fallback: string): Promise<Error> {
-  let body: ErrorBody = {};
+  let body: ErrorBody = {}
   try {
-    body = (await response.json()) as ErrorBody;
+    body = (await response.json()) as ErrorBody
   } catch {
     // ignore parse errors
   }
-  const detail = body.detail ?? body.error;
-  return new Error(detail ? `${fallback}: ${detail}` : fallback);
+  const detail = body.detail ?? body.error
+  return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
 
 export async function fetchHrNotifications(): Promise<HrNotification[]> {
-  const response = await fetchWithAuth("/api/hr/notifications");
+  const response = await fetchWithAuth('/api/hr/notifications')
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити сповіщення");
+    throw await parseError(response, 'Не вдалося завантажити сповіщення')
   }
-  const body = (await response.json()) as { notifications: HrNotification[] };
-  return body.notifications;
+  const body = (await response.json()) as { notifications: HrNotification[] }
+  return body.notifications
 }
 
 export async function markNotificationRead(id: string): Promise<HrNotification> {
   const response = await fetchWithAuth(`/api/hr/notifications/${id}/read`, {
-    method: "POST",
-  });
+    method: 'POST'
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося позначити сповіщення прочитаним");
+    throw await parseError(response, 'Не вдалося позначити сповіщення прочитаним')
   }
-  const body = (await response.json()) as { notification: HrNotification };
-  return body.notification;
+  const body = (await response.json()) as { notification: HrNotification }
+  return body.notification
 }
 
 export async function fetchHrApplications(): Promise<HrApplicationSummary[]> {
-  const response = await fetchWithAuth("/api/hr/applications");
+  const response = await fetchWithAuth('/api/hr/applications')
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити заявки");
+    throw await parseError(response, 'Не вдалося завантажити заявки')
   }
-  const body = (await response.json()) as { applications: HrApplicationSummary[] };
-  return body.applications;
+  const body = (await response.json()) as { applications: HrApplicationSummary[] }
+  return body.applications
 }
 
 export async function fetchHrApplication(id: string): Promise<HrApplicationDetail> {
-  const response = await fetchWithAuth(`/api/hr/applications/${id}`);
+  const response = await fetchWithAuth(`/api/hr/applications/${id}`)
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити заявку");
+    throw await parseError(response, 'Не вдалося завантажити заявку')
   }
-  const body = (await response.json()) as { application: HrApplicationDetail };
-  return body.application;
+  const body = (await response.json()) as { application: HrApplicationDetail }
+  return body.application
 }
 
 export async function deleteHrApplication(id: string): Promise<void> {
-  const response = await fetchWithAuth(`/api/hr/applications/${id}`, { method: "DELETE" });
+  const response = await fetchWithAuth(`/api/hr/applications/${id}`, { method: 'DELETE' })
   if (!response.ok) {
     if (response.status === 409) {
-      throw new Error("Неможливо видалити заявку, бо за нею вже створено співбесіду");
+      throw new Error('Неможливо видалити заявку, бо за нею вже створено співбесіду')
     }
-    throw await parseError(response, "Не вдалося видалити заявку");
+    throw await parseError(response, 'Не вдалося видалити заявку')
   }
 }
 
 export async function createInterviewFromApplication(
   id: string,
-  options?: { scheduledAt?: string | null },
+  options?: { scheduledAt?: string | null }
 ): Promise<CreateInterviewFromApplicationResult> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}/create-interview`, {
-    method: "POST",
-    body: JSON.stringify(
-      options?.scheduledAt !== undefined ? { scheduledAt: options.scheduledAt } : {},
-    ),
-  });
+    method: 'POST',
+    body: JSON.stringify(options?.scheduledAt === undefined ? {} : { scheduledAt: options.scheduledAt })
+  })
   if (!response.ok) {
     if (response.status === 409) {
-      let body: ErrorBody = {};
+      let body: ErrorBody = {}
       try {
-        body = (await response.json()) as ErrorBody;
+        body = (await response.json()) as ErrorBody
       } catch {
         // ignore parse errors
       }
-      if (body.error === "Candidate already has active interview") {
-        throw new Error("У кандидата вже є активна співбесіда");
+      if (body.error === 'Candidate already has active interview') {
+        throw new Error('У кандидата вже є активна співбесіда')
       }
-      if (body.error === "Application is not pending") {
-        throw new Error("Заявка вже оброблена");
+      if (body.error === 'Application is not pending') {
+        throw new Error('Заявка вже оброблена')
       }
     }
-    throw await parseError(response, "Не вдалося створити співбесіду з заявки");
+    throw await parseError(response, 'Не вдалося створити співбесіду з заявки')
   }
-  return (await response.json()) as CreateInterviewFromApplicationResult;
+  return (await response.json()) as CreateInterviewFromApplicationResult
 }
 
 export async function draftApplicationDecline(id: string): Promise<{ body: string }> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}/decline/draft`, {
-    method: "POST",
-    body: "{}",
-  });
+    method: 'POST',
+    body: '{}'
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося згенерувати лист-відмову");
+    throw await parseError(response, 'Не вдалося згенерувати лист-відмову')
   }
-  return (await response.json()) as { body: string };
+  return (await response.json()) as { body: string }
 }
 
 export async function sendApplicationDecline(
   id: string,
-  letterBody: string,
+  letterBody: string
 ): Promise<{ application: { id: string; status: string }; dialogId: string }> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}/decline`, {
-    method: "POST",
-    body: JSON.stringify({ letterBody }),
-  });
+    method: 'POST',
+    body: JSON.stringify({ letterBody })
+  })
   if (!response.ok) {
     if (response.status === 409) {
-      throw new Error("Заявка вже оброблена");
+      throw new Error('Заявка вже оброблена')
     }
-    throw await parseError(response, "Не вдалося надіслати відмову");
+    throw await parseError(response, 'Не вдалося надіслати відмову')
   }
   return (await response.json()) as {
-    application: { id: string; status: string };
-    dialogId: string;
-  };
+    application: { id: string; status: string }
+    dialogId: string
+  }
 }

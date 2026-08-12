@@ -32,6 +32,7 @@
 ### Task 1: `parseArbiterReply` — JSON-парсер
 
 **Files:**
+
 - Create: `backend/src/agents/arbiter-agent.ts`
 - Create: `backend/src/agents/arbiter-agent.test.ts`
 - Modify: `backend/package.json` (додати тест)
@@ -154,6 +155,7 @@ git commit -m "feat: add parseArbiterReply for Day 17 arbiter agent"
 ### Task 2: System prompt і `buildArbiterMessages`
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/arbiter-agent.uk.ts`
 - Modify: `backend/src/agents/arbiter-agent.ts`
 - Modify: `backend/src/agents/arbiter-agent.test.ts`
@@ -334,6 +336,7 @@ git commit -m "feat: add arbiter system prompt and buildArbiterMessages"
 ### Task 3: `runArbiterTurn` — завантаження контексту + LLM
 
 **Files:**
+
 - Modify: `backend/src/agents/arbiter-agent.ts`
 - Modify: `backend/src/agents/arbiter-agent.test.ts`
 
@@ -493,6 +496,7 @@ git commit -m "feat: add runArbiterTurn with profile and history loading"
 ### Task 4: Orchestrator — `runArbiterTurn` замість stub
 
 **Files:**
+
 - Modify: `backend/src/socket/orchestrator.ts`
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
@@ -634,6 +638,7 @@ git commit -m "feat: wire orchestrator to runArbiterTurn with optional silence"
 ### Task 5: Production wiring у `server.ts`
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 
 - [ ] **Step 1: Update server wiring**
@@ -669,6 +674,7 @@ git commit -m "feat: connect live orchestrator to LLM arbiter agent"
 ### Task 6: README — Day 17 documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update Day 17 section**
@@ -696,7 +702,7 @@ git commit -m "feat: connect live orchestrator to LLM arbiter agent"
 4. Швидко надіслати 3 повідомлення → Arbiter відповідає один раз (debounce).
 ```
 
-3. Оновити Day 16 pipeline-примітку: stub замінено на LLM (посилання на Day 17).
+1. Оновити Day 16 pipeline-примітку: stub замінено на LLM (посилання на Day 17).
 
 - [ ] **Step 2: Commit**
 

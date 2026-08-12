@@ -2,32 +2,36 @@
   "name": "backend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24",
+    "bun": ">=1.3"
+  },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "bun --env-file=.env --watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "bun --env-file=.env dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/db/healthcheck.test.js src/seed/hr-user.test.js src/db/seed-check.test.ts src/routes/health.test.ts src/llm/omlx.provider.test.ts src/llm/gemini.provider.test.ts src/llm/openai.provider.test.ts src/llm/cursor-acp.config.test.ts src/llm/cursor-acp.protocol.test.ts src/llm/cursor-acp.client.test.ts src/llm/cursor-acp.provider.test.ts src/llm/factory.test.ts src/llm/retry.test.ts src/routes/llm.test.ts src/auth/password.test.ts src/auth/jwt.test.ts src/auth/middleware.test.ts src/routes/auth.test.ts src/agents/company-agent.test.ts src/agents/company-profile-agent.test.ts src/agents/agent-reply.test.ts src/agents/agent-post-reply.test.ts src/agents/candidate-agent.test.ts src/agents/arbiter-agent.test.ts src/agents/company-live-agent.test.ts src/agents/candidate-live-agent.test.ts src/agents/stub-arbiter.test.ts src/agents/final-report-agent.test.ts src/agents/vacancy-match-agent.test.ts src/agents/decision-letter-agent.test.ts src/agents/application-decline-letter-agent.test.ts src/services/vacancy-match.test.ts src/services/application-hr-decision.test.ts src/services/match-score.test.ts src/routes/prep.test.ts src/routes/company-prep.test.ts src/routes/candidate-prep.test.ts src/routes/candidate-interview.test.ts src/routes/candidate-invitations.test.ts src/routes/candidate-matches.test.ts src/routes/hr-applications.test.ts src/routes/hr-additional-interviews.test.ts src/seed/hr-vacancy.test.js src/seed/hr-interview.test.js src/routes/interviews.test.ts src/routes/reports.test.ts src/routes/dialogs.test.ts src/routes/vacancies.test.ts src/utils/joinCode.test.ts src/utils/invitation.test.ts src/utils/interview-readiness.test.ts src/utils/vacancy-work-conditions.test.ts src/utils/vacancy-requirements.test.ts src/socket/room-access.test.ts src/socket/room-presence.test.ts src/socket/maybe-transition-live.test.ts src/socket/orchestrator.test.ts src/socket/room.test.ts src/socket/dialogs.test.ts src/server-lifecycle.test.ts",
-    "db:validate": "prisma validate",
-    "db:generate": "prisma generate",
-    "predb:migrate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "predb:seed": "prisma generate",
-    "db:seed": "prisma db seed",
-    "llm:test": "tsx scripts/llm-test.ts"
+    "test": "bun --env-file=.env vitest run src/",
+    "db:validate": "bun --env-file=.env prisma validate",
+    "db:generate": "bun --env-file=.env prisma generate",
+    "predb:migrate": "bun --env-file=.env prisma generate",
+    "db:migrate": "bun --env-file=.env prisma migrate dev",
+    "predb:seed": "bun --env-file=.env prisma generate",
+    "db:seed": "bun --env-file=.env prisma db seed",
+    "llm:test": "bun --env-file=.env scripts/llm-test.ts"
   },
   "prisma": {
-    "seed": "node prisma/seed.js"
+    "seed": "bun --env-file=.env prisma/seed.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@prisma/adapter-pg": "^7.8.0",
+    "@nitra/check-env": "^4.2.1",
     "@prisma/client": "^7.8.0",
+    "@qzsy/prisma-adapter-bun": "^0.6.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.22.0",
     "prisma": "^7.8.0",
     "socket.io": "^4.8.3"
   },
@@ -38,5 +42,6 @@
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
-  }
+  },
+  "license": "ISC"
 }

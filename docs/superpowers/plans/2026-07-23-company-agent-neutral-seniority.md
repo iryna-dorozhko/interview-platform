@@ -29,10 +29,12 @@
 ### Task 1: Prompt rules + tests
 
 **Files:**
+
 - Modify: `backend/src/agents/company-agent.test.ts` (після існуючого тесту `company agent system prompt includes work conditions block with seven subtopics`, ~рядки 49–59)
 - Modify: `backend/src/agents/prompts/company-agent.uk.ts` (рядки 6–7 і 21–27)
 
 **Interfaces:**
+
 - Consumes: `COMPANY_AGENT_SYSTEM_PROMPT_UK` (експорт без зміни сигнатури)
 - Produces: оновлений текст промпту; нові assert-и в тестах
 
@@ -74,11 +76,13 @@ Expected: FAIL — новий тест не проходить (`doesNotMatch` �
 У `backend/src/agents/prompts/company-agent.uk.ts` заміни рядок теми 1:
 
 Було:
+
 ```
 1. Посада (роль, рівень — junior/middle/senior, команда).
 ```
 
 Стало:
+
 ```
 1. Посада:
    a) Назва ролі / посади.

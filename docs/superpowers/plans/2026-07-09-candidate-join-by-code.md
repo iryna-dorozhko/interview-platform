@@ -35,6 +35,7 @@
 ### Task 1: `interview-readiness` unit tests (TDD)
 
 **Files:**
+
 - Create: `backend/src/utils/interview-readiness.test.ts`
 
 - [ ] **Step 1: Create failing unit test file**
@@ -276,6 +277,7 @@ git commit -m "test: add interview-readiness unit tests (red)"
 ### Task 2: Implement `interview-readiness` module
 
 **Files:**
+
 - Create: `backend/src/utils/interview-readiness.ts`
 - Modify: `backend/package.json`
 
@@ -385,6 +387,7 @@ git commit -m "feat: add interview readiness helpers for join and READY transiti
 ### Task 3: Wire join route + integration tests
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-interview.ts`
 - Modify: `backend/src/routes/candidate-interview.test.ts`
 
@@ -631,6 +634,7 @@ git commit -m "feat: validate candidate join and call maybeTransitionToReady"
 ### Task 4: Wire confirm route → READY
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-prep.ts`
 - Modify: `backend/src/routes/candidate-prep.test.ts`
 
@@ -847,6 +851,7 @@ git commit -m "feat: transition interview to READY on candidate profile confirm"
 ### Task 5: Frontend error mapping and status labels
 
 **Files:**
+
 - Modify: `frontend/src/api/candidate-interview.ts`
 - Modify: `frontend/src/views/CandidateHomeView.vue`
 - Modify: `frontend/src/views/CandidateInterviewView.vue`
@@ -885,6 +890,7 @@ READY: "Обидва готові",
 ```
 
 Files:
+
 - `frontend/src/views/CandidateHomeView.vue`
 - `frontend/src/views/CandidateInterviewView.vue`
 - `frontend/src/views/InterviewListView.vue`
@@ -912,6 +918,7 @@ git commit -m "feat: update join errors and READY status label to Обидва �
 ### Task 6: README Day 14 + verification
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update Day 14 section**

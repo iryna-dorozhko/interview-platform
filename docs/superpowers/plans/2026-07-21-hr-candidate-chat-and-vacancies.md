@@ -49,9 +49,11 @@
 ### Task 1: Full-width HR vacancy prep chat
 
 **Files:**
+
 - Modify: `frontend/src/views/VacancyPrepView.vue` (scoped styles only)
 
 **Interfaces:**
+
 - Consumes: existing candidate prep CSS pattern from `CandidatePrepView.vue` / `CompanyProfilePrepView.vue`
 - Produces: full-width vacancy prep chat matching candidate prep sizing
 
@@ -109,6 +111,7 @@ Write report to `.superpowers/sdd/task-1-report.md`. Do not commit.
 ### Task 2: Company name in profile and candidate matches
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_add_hr_company_name/migration.sql`
 - Modify: `backend/src/agents/company-profile-agent.ts`
@@ -127,6 +130,7 @@ Write report to `.superpowers/sdd/task-1-report.md`. Do not commit.
 - Modify: `frontend/src/views/CandidateMatchesView.vue` (company name display only; tab/title handled in Task 3)
 
 **Interfaces:**
+
 - Consumes: existing company-prep and vacancy-match flows
 - Produces:
   - `HrCompanyProfile.companyName: string | null`
@@ -140,12 +144,14 @@ Write report to `.superpowers/sdd/task-1-report.md`. Do not commit.
 In `company-profile-agent.test.ts`, assert extraction parses `companyName` and rejects missing/blank.
 
 In `company-prep.test.ts`:
+
 - DTO includes `companyName`
 - Confirm without name → 400
 - PATCH on confirmed profile succeeds (no longer 409)
 - Finish upsert persists `companyName`
 
 In `vacancy-match.test.ts` / `candidate-matches.test.ts`:
+
 - Offers include `companyName` from `hrUser.hrCompanyProfile`
 - Null profile name yields `companyName: null`
 - Update exact `Object.keys(offer)` assertions to include `companyName`
@@ -217,11 +223,13 @@ Write `.superpowers/sdd/task-2-report.md`. Do not commit.
 ### Task 3: Candidate tab «Доступні вакансії»
 
 **Files:**
+
 - Modify: `frontend/src/components/CandidateSidebar.vue`
 - Modify: `frontend/src/views/CandidateMatchesView.vue`
 - Modify: `frontend/src/api/candidate-matches.ts` (403 → typed/questionnaire error if needed)
 
 **Interfaces:**
+
 - Consumes: existing route `candidate-matches` (`/candidate/matches`) and Task 2 company-name UI if present
 - Produces: sidebar item + page title `Доступні вакансії`; actionable unconfirmed-questionnaire state
 
@@ -266,9 +274,11 @@ Write `.superpowers/sdd/task-3-report.md`. Do not commit.
 ### Task 4: Company Agent live-chat label
 
 **Files:**
+
 - Modify: `frontend/src/utils/live-message-styles.ts`
 
 **Interfaces:**
+
 - Consumes: `LiveChatPanel` → `labelFor(authorType)`
 - Produces: `AGENT_COMPANY` display label exactly `Компанія (АІ)`
 
@@ -295,9 +305,11 @@ Write `.superpowers/sdd/task-4-report.md`. Do not commit.
 ### Task 5: Taller shared live chat
 
 **Files:**
+
 - Modify: `frontend/src/components/LiveChatPanel.vue` (scoped `.messages` only)
 
 **Interfaces:**
+
 - Consumes: shared by HR and candidate interview rooms via `InterviewRoomContent`
 - Produces: taller message pane for both roles
 

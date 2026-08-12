@@ -1,46 +1,41 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { ApiError } from "../api/client";
-import { useAuthStore } from "../stores/auth";
 
-const auth = useAuthStore();
-const router = useRouter();
-const route = useRoute();
+import { ApiError } from '../api/client'
+import { useAuthStore } from '../stores/auth'
 
-const email = ref("hr@test.com");
-const password = ref("");
-const loading = ref(false);
-const errorMessage = ref<string | null>(null);
+const auth = useAuthStore()
+const router = useRouter()
+const route = useRoute()
+
+const email = ref('hr@test.com')
+const password = ref('')
+const loading = ref(false)
+const errorMessage = ref<string | null>(null)
 
 function sanitizeRedirect(value: unknown, fallback: string): string {
-  return typeof value === "string" &&
-    value.startsWith("/") &&
-    !value.startsWith("//")
-    ? value
-    : fallback;
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : fallback
 }
 
 async function onSubmit(): Promise<void> {
-  errorMessage.value = null;
-  loading.value = true;
+  errorMessage.value = null
+  loading.value = true
   try {
-    await auth.loginHr(email.value.trim(), password.value);
-    await router.push(sanitizeRedirect(route.query.redirect, "/"));
+    await auth.loginHr(email.value.trim(), password.value)
+    await router.push(sanitizeRedirect(route.query.redirect, '/'))
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 403) {
-        errorMessage.value = "Доступ лише для HR";
+        errorMessage.value = 'Доступ лише для HR'
       } else if (error.status === 401) {
-        errorMessage.value = "Невірний email або пароль";
+        errorMessage.value = 'Невірний email або пароль'
       } else {
-        errorMessage.value = error.message;
+        errorMessage.value = error.message
       }
     } else {
-      errorMessage.value = "Не вдалося підключитися до сервера";
+      errorMessage.value = 'Не вдалося підключитися до сервера'
     }
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 </script>
@@ -59,7 +54,7 @@ async function onSubmit(): Promise<void> {
       </label>
       <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
       <button type="submit" :disabled="loading">
-        {{ loading ? "Вхід…" : "Увійти" }}
+        {{ loading ? 'Вхід…' : 'Увійти' }}
       </button>
     </form>
     <p class="helper">
@@ -75,12 +70,12 @@ async function onSubmit(): Promise<void> {
   margin: 2rem auto;
   padding: 0 1rem;
 }
+
 h1 {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
   grid-template-rows: repeat(1, 1fr);
-  column-gap: 0;
-  row-gap: 0;
+  gap: 0;
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
@@ -90,23 +85,28 @@ h1 {
   font-family: var(--font);
   background-color: var(--bg);
 }
+
 .form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
+
 label {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
+
 input {
   padding: 0.5rem;
   font-size: 1rem;
 }
+
 .error {
   color: var(--danger);
 }
+
 button {
   padding: 0.5rem 1rem;
   font-size: 1rem;
@@ -116,10 +116,12 @@ button {
   border: 1px solid transparent;
   border-radius: 0.375rem;
 }
+
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .helper {
   margin-top: 1.5rem;
   font-size: 0.875rem;

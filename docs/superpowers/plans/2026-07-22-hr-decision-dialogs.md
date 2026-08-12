@@ -53,10 +53,12 @@
 ### Task 1: Prisma schema + migration
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_hr_decision_dialogs/migration.sql` (via `prisma migrate`)
 
 **Interfaces:**
+
 - Consumes: existing `User`, `Interview`, `FinalReport`
 - Produces: Prisma models/enums usable as `InterviewDecisionType`, `DialogMessageKind`, `prisma.dialog`, `prisma.dialogMessage`, `prisma.interviewDecision`
 
@@ -175,12 +177,14 @@ git commit -m "feat(db): add InterviewDecision, Dialog, DialogMessage"
 ### Task 2: Decision-letter LLM agent
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/decision-letter.uk.ts`
 - Create: `backend/src/agents/decision-letter-agent.ts`
 - Create: `backend/src/agents/decision-letter-agent.test.ts`
 - Modify: `backend/package.json` (`test` script — append `src/agents/decision-letter-agent.test.ts`)
 
 **Interfaces:**
+
 - Consumes: `LlmProvider.complete(messages, options?)`, report/vacancy/profile context
 - Produces:
   - `export type DecisionLetterType = "ACCEPT" | "REJECT" | "ADDITIONAL_MEETING"`
@@ -233,6 +237,7 @@ Expected: module not found / FAIL.
 - [ ] **Step 3: Implement prompt + agent**
 
 `decision-letter.uk.ts` — system prompt that:
+
 - writes a personal letter in Ukrainian for the given decision type;
 - uses only provided report/profile facts;
 - for `ADDITIONAL_MEETING`: explain need for clarification, do **not** invent a date/time, invite to agree details in the dialog;
@@ -261,11 +266,13 @@ git commit -m "feat: add decision-letter LLM agent"
 ### Task 3: Report decision endpoints + `latestDecision` on GET
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts`
 - Modify: `backend/src/routes/reports.test.ts`
 - Modify: `backend/src/server.ts` — `createReportsRouter(() => prisma, getLlmProvider)`
 
 **Interfaces:**
+
 - Consumes: `generateDecisionLetter`, Prisma models from Task 1
 - Produces HTTP:
   - `GET /api/reports/:id` → existing fields + `latestDecision: { id, type, createdAt } | null`
@@ -341,6 +348,7 @@ const latest = await prisma.interviewDecision.findFirst({
 ```
 
 **POST `/reports/:id/decisions/draft`:**
+
 1. Load report with `interview: { hrUserId, candidateUserId, vacancy, companyProfile via vacancy, candidateProfile }`
 2. Authz: same as GET (`403` if not owner, `404` if missing)
 3. If `!interview.candidateUserId` → `400 { error: "Candidate user required" }`
@@ -349,6 +357,7 @@ const latest = await prisma.interviewDecision.findFirst({
 6. `200 { type, body }`
 
 **POST `/reports/:id/decisions`:**
+
 1. Same load + authz + candidate check
 2. Validate `type` + non-empty trimmed `letterBody`
 3. Transaction:
@@ -407,7 +416,7 @@ const result = await prisma.$transaction(async (tx) => {
 });
 ```
 
-4. `201` with `{ decision: { id, type, createdAt }, dialogId }`
+1. `201` with `{ decision: { id, type, createdAt }, dialogId }`
 
 Do **not** create any `Interview` here.
 
@@ -435,12 +444,14 @@ git commit -m "feat: HR decision draft and send on reports"
 ### Task 4: Dialogs REST API
 
 **Files:**
+
 - Create: `backend/src/routes/dialogs.ts`
 - Create: `backend/src/routes/dialogs.test.ts`
 - Modify: `backend/src/server.ts`
 - Modify: `backend/package.json` (append `src/routes/dialogs.test.ts` to `test`)
 
 **Interfaces:**
+
 - Consumes: Prisma `Dialog` / `DialogMessage`; `req.user` with `id` + `role`
 - Produces:
   - `GET /api/dialogs` → `{ dialogs: Array<{ id, peer: { id, email }, lastMessage: { body, createdAt, kind } | null, updatedAt }> }`
@@ -543,10 +554,12 @@ git commit -m "feat: add HR/candidate dialogs REST API"
 ### Task 5: Frontend API clients
 
 **Files:**
+
 - Modify: `frontend/src/api/reports.ts`
 - Create: `frontend/src/api/dialogs.ts`
 
 **Interfaces:**
+
 - Produces functions matching Task 3–4 response shapes
 
 - [ ] **Step 1: Extend `reports.ts`**
@@ -643,9 +656,11 @@ git commit -m "feat(fe): API clients for decisions and dialogs"
 ### Task 6: ReportView decision UI
 
 **Files:**
+
 - Modify: `frontend/src/views/ReportView.vue`
 
 **Interfaces:**
+
 - Consumes: `draftDecisionLetter`, `sendDecision`, `report.latestDecision`
 - Produces: UX for three buttons → modal → send → link to dialog
 
@@ -733,6 +748,7 @@ git commit -m "feat(fe): decision letters on report page"
 ### Task 7: Dialogs tab (list + thread) for HR and Candidate
 
 **Files:**
+
 - Create: `frontend/src/views/DialogListView.vue`
 - Create: `frontend/src/views/DialogThreadView.vue`
 - Modify: `frontend/src/router/index.ts`
@@ -740,6 +756,7 @@ git commit -m "feat(fe): decision letters on report page"
 - Modify: `frontend/src/components/CandidateSidebar.vue`
 
 **Interfaces:**
+
 - Consumes: `fetchDialogs`, `createDialog`, `fetchDialog`, `sendDialogMessage`
 - For HR «Новий діалог»: load candidates from existing interviews API (`fetchInterviews` / whatever `InterviewListView` uses) — unique `candidateUserId` + email; call `createDialog` then navigate
 

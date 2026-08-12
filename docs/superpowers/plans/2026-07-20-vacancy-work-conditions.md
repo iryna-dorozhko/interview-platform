@@ -47,11 +47,13 @@
 ### Task 1: Prisma Schema & Shared Types
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma` (model `CompanyProfile`)
 - Create: `backend/src/utils/vacancy-work-conditions.ts`
 - Create: `backend/src/utils/vacancy-work-conditions.test.ts`
 
 **Interfaces:**
+
 - Consumes: —
 - Produces:
   - `VacancyCompensation` type
@@ -207,12 +209,14 @@ git commit -m "feat(db): add vacancy workConditions and compensation fields"
 ### Task 2: Vacancy Company Agent Prompt & Extraction Parser
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-agent.uk.ts`
 - Modify: `backend/src/agents/prompts/vacancy-profile-extraction.uk.ts`
 - Modify: `backend/src/agents/company-agent.ts`
 - Modify: `backend/src/agents/company-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `VacancyCompensation`, `parseVacancyCompensation`, `parseWorkConditionsArray` from Task 1
 - Produces:
   - Updated `COMPANY_AGENT_SYSTEM_PROMPT_UK`
@@ -347,9 +351,11 @@ git commit -m "feat(agents): collect vacancy work conditions in HR prep"
 ### Task 3: Prep API — Persist & Patch Work Conditions
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 
 **Interfaces:**
+
 - Consumes: `ExtractedVacancyProfile`, `parseVacancyCompensation`, `parseWorkConditionsArray`
 - Produces: `serializeVacancyProfile()` including `workConditions: string[]`, `compensation: VacancyCompensation | null`
 
@@ -417,10 +423,12 @@ git commit -m "feat(prep): persist vacancy workConditions and compensation"
 ### Task 4: HR VacancyPrepView — Editable Work Conditions
 
 **Files:**
+
 - Modify: `frontend/src/api/prep.ts`
 - Modify: `frontend/src/views/VacancyPrepView.vue`
 
 **Interfaces:**
+
 - Consumes: `serializeVacancyProfile()` shape from Task 3
 - Produces: UI для редагування `compensation.displayText` і `workConditions[]`
 
@@ -507,6 +515,7 @@ git commit -m "feat(ui): editable vacancy work conditions in HR prep"
 ### Task 5: Live AI — COMPANY_ANSWER & Extended Profile Context
 
 **Files:**
+
 - Modify: `backend/src/agents/live-agent-turn-context.ts`
 - Modify: `backend/src/agents/company-live-agent.ts`
 - Modify: `backend/src/agents/prompts/company-live-agent.uk.ts`
@@ -518,6 +527,7 @@ git commit -m "feat(ui): editable vacancy work conditions in HR prep"
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
 **Interfaces:**
+
 - Consumes: `workConditions`, `compensation` from `CompanyProfile`
 - Produces:
   - `ArbiterAction` includes `"COMPANY_ANSWER"`
@@ -668,6 +678,7 @@ git commit -m "feat(live): COMPANY_ANSWER lets company AI reply on work conditio
 ### Task 6: Match Offer Display Fields
 
 **Files:**
+
 - Modify: `backend/src/services/vacancy-match.ts`
 - Modify: `backend/src/services/vacancy-match.test.ts`
 - Modify: `backend/src/routes/candidate-matches.ts`
@@ -675,6 +686,7 @@ git commit -m "feat(live): COMPANY_ANSWER lets company AI reply on work conditio
 - Modify: `frontend/src/views/CandidateMatchesView.vue`
 
 **Interfaces:**
+
 - Consumes: `formatSalaryDisplay`, `formatWorkFormatDisplay` from Task 1
 - Produces: `CandidateMatchOffer` with `salaryDisplay: string | null`, `workFormatDisplay: string | null`
 
@@ -794,6 +806,7 @@ git commit -m "feat(match): show salary and work format on candidate offer cards
 ### Task 7: Manual Test Dialogues
 
 **Files:**
+
 - Modify: `docs/manual-test-dialogues.uk.md`
 
 - [ ] **Step 1: Add HR vacancy work conditions section**

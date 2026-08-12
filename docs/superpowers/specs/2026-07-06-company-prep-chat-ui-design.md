@@ -47,9 +47,11 @@ HomeView ──(GET /api/interviews/mine)──> перша співбесіда
 
 - Забирає всю історію сесії (`PrepMessageHr`, за зростанням `createdAt`).
 - Будує повідомлення для LLM через новий `buildProfileExtractionMessages(history)` (`backend/src/agents/company-agent.ts`) — системний промпт просить строгий JSON:
+
   ```json
   { "role": "string", "requirements": ["..."], "culture": ["..."], "expectations": ["..."] }
   ```
+
 - Парсить відповідь LLM через новий `parseProfileExtraction(rawReply)`:
   - Толерантний до markdown-код-блоків навколо JSON (` ```json ... ``` `), за аналогією з толерантністю `READY:`-маркера в Дні 4.
   - Якщо парсинг провалився або структура невалідна (немає одного з чотирьох полів) — кидає помилку; сесія **не** закривається, HR може спробувати ще раз.
@@ -87,16 +89,19 @@ HomeView ──(GET /api/interviews/mine)──> перша співбесіда
 ### Нова сторінка `frontend/src/views/CompanyPrepView.vue` (маршрут `/prep/:interviewId`)
 
 Стан завантаження:
+
 1. `GET /api/prep/:interviewId`.
 2. Якщо `isClosed && profile` → рендер **Profile View**.
 3. Інакше → рендер **Chat View**; якщо `messages.length === 0` → одразу викликати `POST /message` з `{}` (агент вітається першим).
 
 **Chat View:**
+
 - Хедер: заголовок + дві кнопки — «Видалити чат» (нейтральна, ліворуч) і «Завершити чат» (зелена, праворуч) — обидві завжди в хедері (layout A з брейнштормінгу).
 - Список повідомлень + інпут + «Надіслати» — той самий UX-паттерн, що вже є в `ChatPanel.vue` (День 2), підключений до `/api/prep/:interviewId/message` замість `/api/llm/complete`.
 - Локально зберігаємо останнє значення `readyForConfirmation` з відповіді агента.
 
 **Дії:**
+
 - **«Видалити чат»** → `window.confirm("Видалити всю історію чату? Цю дію не можна скасувати.")` → якщо ОК → `DELETE /api/prep/:interviewId` → очистити локальний стан → одразу заново тригернути привітання (`POST /message` з `{}`).
 - **«Завершити чат»**:
   - якщо останнє `readyForConfirmation === false` → `window.confirm("Даних може бути недостатньо. Все одно завершити й сформувати профіль?")`; якщо відмова — нічого не робити.
@@ -104,6 +109,7 @@ HomeView ──(GET /api/interviews/mine)──> перша співбесіда
   - при `502`/`503` — показати помилку в UI (banner), сесія лишається в чаті.
 
 **Profile View:**
+
 - Layout A — повністю заміняє чат-панель карткою профілю: `role`, `requirements`, `culture`, `expectations` (списки).
 - Кнопка «← Назад до чату» — перемикає локально на **read-only** перегляд історії повідомлень (без інпуту, без кнопок дій; сесія залишається закритою). Це лише перегляд, не реактивація чату.
 - Кнопка «Видалити чат» доступна і тут (для повного рестарту).
@@ -135,6 +141,7 @@ HomeView ──(GET /api/interviews/mine)──> перша співбесіда
 ## Тестування
 
 **Бекенд (автоматизовані, за існуючим паттерном з фейковим Prisma/LLM):**
+
 - `backend/src/agents/company-agent.test.ts` — додати тести на `buildProfileExtractionMessages` і `parseProfileExtraction` (валідний JSON, JSON у код-блоці, невалідний JSON, відсутнє поле).
 - `backend/src/routes/prep.test.ts` — додати сценарії для `GET`, `POST /finish` (успіх, 409 на закритій сесії, 502 на поганому JSON), `DELETE` (успіх, ідемпотентність).
 - Новий `backend/src/routes/interviews.test.ts` — `GET /api/interviews/mine` (порожній список, список власних, ізоляція між HR).

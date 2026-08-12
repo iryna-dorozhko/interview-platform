@@ -44,6 +44,7 @@
 ### Task 1: Extract `parseAgentReply` to shared module
 
 **Files:**
+
 - Create: `backend/src/agents/agent-reply.ts`
 - Create: `backend/src/agents/agent-reply.test.ts`
 - Modify: `backend/src/agents/company-agent.ts`
@@ -134,6 +135,7 @@ git commit -m "refactor: extract shared parseAgentReply to agent-reply module"
 ### Task 2: `requireCandidate` middleware
 
 **Files:**
+
 - Modify: `backend/src/auth/middleware.ts`
 - Modify: `backend/src/auth/middleware.test.ts`
 
@@ -235,6 +237,7 @@ git commit -m "feat: add requireCandidate auth middleware"
 ### Task 3: Candidate Agent prompt + `buildCandidateAgentMessages`
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/candidate-agent.uk.ts`
 - Create: `backend/src/agents/candidate-agent.ts`
 - Create: `backend/src/agents/candidate-agent.test.ts`
@@ -381,6 +384,7 @@ git commit -m "feat: add candidate agent prompt and message builder"
 ### Task 4: `candidate-prep` router + integration tests
 
 **Files:**
+
 - Create: `backend/src/routes/candidate-prep.ts`
 - Create: `backend/src/routes/candidate-prep.test.ts`
 - Modify: `backend/package.json`
@@ -798,6 +802,7 @@ Expected: FAIL — `createCandidatePrepRouter` not found
 - [ ] **Step 3: Implement `candidate-prep.ts`**
 
 Створи router за зразком `prep.ts`. Ключові відмінності:
+
 - `interviewId` замість `vacancyId`
 - `prepSessionCandidate` / `prepMessageCandidate` / `candidateProfile`
 - `buildCandidateAgentMessages` + `parseAgentReply` з `agent-reply`
@@ -1013,6 +1018,7 @@ git commit -m "feat: add candidate prep chat API with tests"
 ### Task 5: Mount router in `server.ts`
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 
 - [ ] **Step 1: Import and mount candidate-prep router**
@@ -1050,6 +1056,7 @@ git commit -m "feat: mount candidate prep router behind requireCandidate"
 ### Task 6: README — Day 11 documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update Day 11 section**
@@ -1139,6 +1146,7 @@ npm run dev
 - [ ] **Step 2: Run 3+ message exchanges via curl** (quick-start з README)
 
 Expected:
+
 - Агент відповідає українською про досвід/навички
 - `GET` повертає зростаючу історію в `PrepMessageCandidate`
 - HR-токен на `/api/candidate-prep/...` → `403`

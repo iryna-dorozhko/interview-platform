@@ -35,6 +35,7 @@
 ### Task 1: Stub Arbiter (TDD)
 
 **Files:**
+
 - Create: `backend/src/agents/stub-arbiter.ts`
 - Create: `backend/src/agents/stub-arbiter.test.ts`
 - Modify: `backend/package.json`
@@ -130,6 +131,7 @@ git commit -m "feat: add stub Arbiter agent for Day 16 orchestrator"
 ### Task 2: Extend socket types
 
 **Files:**
+
 - Modify: `backend/src/socket/types.ts`
 
 - [ ] **Step 1: Extend DTO and add thinking event type**
@@ -190,6 +192,7 @@ git commit -m "feat: extend socket types for agent messages and thinking indicat
 ### Task 3: Room orchestrator (TDD)
 
 **Files:**
+
 - Create: `backend/src/socket/orchestrator.ts`
 - Create: `backend/src/socket/orchestrator.test.ts`
 - Modify: `backend/package.json`
@@ -505,6 +508,7 @@ git commit -m "feat: add room orchestrator with debounce and agent cancellation"
 ### Task 4: Wire orchestrator into room handlers
 
 **Files:**
+
 - Modify: `backend/src/socket/room.ts`
 - Modify: `backend/src/server.ts`
 - Modify: `backend/src/socket/room.test.ts`
@@ -519,7 +523,7 @@ In `backend/src/socket/room.ts`:
 import type { RoomOrchestrator } from "./orchestrator";
 ```
 
-2. Replace `toDto` — remove throw on agent types:
+1. Replace `toDto` — remove throw on agent types:
 
 ```ts
 function toDto(message: LiveMessage): LiveMessageDto {
@@ -532,7 +536,7 @@ function toDto(message: LiveMessage): LiveMessageDto {
 }
 ```
 
-3. Update `registerRoomHandlers` signature:
+1. Update `registerRoomHandlers` signature:
 
 ```ts
 export function registerRoomHandlers(
@@ -542,7 +546,7 @@ export function registerRoomHandlers(
 ): void {
 ```
 
-4. After `liveMessage.create` in `room:message`, add orchestrator call:
+1. After `liveMessage.create` in `room:message`, add orchestrator call:
 
 ```ts
 if (saved.authorType === "HUMAN_HR" || saved.authorType === "HUMAN_CANDIDATE") {
@@ -599,6 +603,7 @@ git commit -m "feat: trigger agent orchestrator after human live messages"
 ### Task 5: Frontend — agent thinking state
 
 **Files:**
+
 - Modify: `frontend/src/composables/useInterviewRoom.ts`
 
 - [ ] **Step 1: Extend types and add `agentThinking`**
@@ -683,6 +688,7 @@ git commit -m "feat: track agent thinking state in useInterviewRoom"
 ### Task 6: Frontend — LiveChatPanel agent UI
 
 **Files:**
+
 - Modify: `frontend/src/components/LiveChatPanel.vue`
 - Modify: `frontend/src/components/InterviewRoomContent.vue`
 
@@ -790,6 +796,7 @@ git commit -m "feat: show agent messages and thinking indicator in live chat"
 ### Task 7: README Day 16 documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Add Day 16 Quick Start after Day 15 section**

@@ -1,54 +1,30 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { RouterLink, useRoute } from "vue-router";
-import {
-  formatUnreadBadge,
-  useDialogUnread,
-} from "../composables/useDialogUnread";
 
-const route = useRoute();
-const { unreadCount } = useDialogUnread();
-const dialogBadge = computed(() =>
-  unreadCount.value > 0 ? formatUnreadBadge(unreadCount.value) : null,
-);
+import { formatUnreadBadge, useDialogUnread } from '../composables/useDialogUnread'
+
+const route = useRoute()
+const { unreadCount } = useDialogUnread()
+const dialogBadge = computed(() => (unreadCount.value > 0 ? formatUnreadBadge(unreadCount.value) : null))
 
 function isActive(prefix: string): boolean {
-  return route.path === prefix || route.path.startsWith(`${prefix}/`);
+  return route.path === prefix || route.path.startsWith(`${prefix}/`)
 }
 
 function isHomeActive(): boolean {
-  return route.name === "home";
+  return route.name === 'home'
 }
 </script>
 
 <template>
   <nav class="sidebar" aria-label="HR navigation">
-    <RouterLink to="/" class="nav-item" :class="{ active: isHomeActive() }">
-      Головна
-    </RouterLink>
-    <RouterLink
-      to="/company-profile"
-      class="nav-item"
-      :class="{ active: isActive('/company-profile') }"
-    >
+    <RouterLink to="/" class="nav-item" :class="{ active: isHomeActive() }"> Головна </RouterLink>
+    <RouterLink to="/company-profile" class="nav-item" :class="{ active: isActive('/company-profile') }">
       Профіль компанії
     </RouterLink>
-    <RouterLink to="/vacancies" class="nav-item" :class="{ active: isActive('/vacancies') }">
-      Вакансії
-    </RouterLink>
-    <RouterLink
-      to="/applications"
-      class="nav-item"
-      :class="{ active: isActive('/applications') }"
-    >
-      Заявки
-    </RouterLink>
-    <RouterLink to="/interviews" class="nav-item" :class="{ active: isActive('/interviews') }">
-      Співбесіди
-    </RouterLink>
-    <RouterLink to="/reports" class="nav-item" :class="{ active: isActive('/reports') }">
-      Звіти
-    </RouterLink>
+    <RouterLink to="/vacancies" class="nav-item" :class="{ active: isActive('/vacancies') }"> Вакансії </RouterLink>
+    <RouterLink to="/applications" class="nav-item" :class="{ active: isActive('/applications') }"> Заявки </RouterLink>
+    <RouterLink to="/interviews" class="nav-item" :class="{ active: isActive('/interviews') }"> Співбесіди </RouterLink>
+    <RouterLink to="/reports" class="nav-item" :class="{ active: isActive('/reports') }"> Звіти </RouterLink>
     <RouterLink to="/dialogs" class="nav-item" :class="{ active: isActive('/dialogs') }">
       <span>Діалоги</span>
       <span v-if="dialogBadge" class="nav-badge">{{ dialogBadge }}</span>
@@ -67,6 +43,7 @@ function isHomeActive(): boolean {
   flex: 0 0 var(--sidebar-width);
   min-width: var(--sidebar-width);
 }
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -79,11 +56,13 @@ function isHomeActive(): boolean {
   font-size: 0.95rem;
   line-height: 1.35;
 }
+
 .nav-item.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
+
 .nav-badge {
   display: inline-flex;
   align-items: center;

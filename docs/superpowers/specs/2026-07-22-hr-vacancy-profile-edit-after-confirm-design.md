@@ -80,6 +80,7 @@
 ### `GET /prep/:vacancyId`
 
 Додати в відповідь **`canEditProfile: boolean`**:
+
 - `false` лише якщо існує інтерв’ю вакансії в `READY` або `LIVE`;
 - інакше `true` (включно з випадком без профілю / до confirm — UI і так керує edit через наявність форми).
 
@@ -100,12 +101,14 @@ Frontend використовує прапорець для кнопки «Зм�
 ## Тестування
 
 **Backend**
+
 - PATCH confirmed без `READY`/`LIVE` → 200; `confirmedAt` змінюється; vacancy лишається `CONFIRMED`.
 - PATCH confirmed з `READY` або `LIVE` → 409.
 - PATCH confirmed з лише `AWAITING_CANDIDATE` та/або `ENDED` → 200.
 - GET prep: `canEditProfile` коректний для обох випадків.
 
 **Frontend** (за наявним стилем тестів/ручної перевірки)
+
 - Після confirm видно «Змінити».
 - Edit → save повертає в read-only з оновленими даними.
 - При `canEditProfile: false` кнопка недоступна / пояснення видиме.

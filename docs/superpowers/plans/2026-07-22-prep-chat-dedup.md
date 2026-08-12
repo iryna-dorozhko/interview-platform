@@ -43,11 +43,13 @@
 ### Task 1: `usePrepChat` + unit tests
 
 **Files:**
+
 - Create: `frontend/src/composables/usePrepChat.ts`
 - Create: `frontend/src/composables/usePrepChat.test.ts`
 - Modify: `frontend/package.json` (add `test` script, `tsx`, `@types/node`)
 
 **Interfaces:**
+
 - Consumes: Vue `ref`, `nextTick`
 - Produces:
   - Types: `PrepFailedAction`, `PrepChatMessage`, `PrepChatLoadResult<TProfile>`, `PrepChatAdapters<TProfile>`, `UsePrepChatOptions<TProfile>`
@@ -563,10 +565,12 @@ EOF
 ### Task 2: `PrepChatPanel` + migrate `CandidatePrepChat`
 
 **Files:**
+
 - Create: `frontend/src/components/PrepChatPanel.vue`
 - Modify: `frontend/src/components/CandidatePrepChat.vue` (replace inline chat logic/UI)
 
 **Interfaces:**
+
 - Consumes: `usePrepChat` return shape; `PrepChatMessage`, `PrepFailedAction`
 - Produces: `PrepChatPanel` props/emits:
 
@@ -962,9 +966,11 @@ EOF
 ### Task 3: Migrate `CompanyProfilePrepView`
 
 **Files:**
+
 - Modify: `frontend/src/views/CompanyProfilePrepView.vue`
 
 **Interfaces:**
+
 - Consumes: `usePrepChat`, `PrepChatPanel`, `../api/company-prep`
 - Produces: same UX; chat section replaced; profile section unchanged
 
@@ -1070,9 +1076,11 @@ EOF
 ### Task 4: Migrate `VacancyPrepView`
 
 **Files:**
+
 - Modify: `frontend/src/views/VacancyPrepView.vue`
 
 **Interfaces:**
+
 - Consumes: `usePrepChat`, `PrepChatPanel`, `../api/prep`, `fetchVacancy`
 - Produces: same UX including `missingCompanyProfile` gate on auto-greet
 
@@ -1159,11 +1167,13 @@ EOF
 ### Task 5: Remove legacy `CandidatePrepView` + redirect + README
 
 **Files:**
+
 - Delete: `frontend/src/views/CandidatePrepView.vue`
 - Modify: `frontend/src/router/index.ts`
 - Modify: `README.md` (Day 12 quick start routes / scenario paths)
 
 **Interfaces:**
+
 - Consumes: existing `candidate-profile` route
 - Produces: `candidate-prep` path redirects to profile
 
@@ -1223,11 +1233,13 @@ EOF
 ### Task 6: Remove dead demo client + verify
 
 **Files:**
+
 - Delete: `frontend/src/components/ChatPanel.vue`
 - Delete: `frontend/src/api/llm.ts`
 - Delete: `frontend/src/api/health.ts`
 
 **Interfaces:**
+
 - Consumes: none (unused)
 - Produces: cleaner frontend tree; backend `/api/llm/complete` unchanged
 

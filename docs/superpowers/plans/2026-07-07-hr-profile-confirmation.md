@@ -15,6 +15,7 @@
 ### Task 1: Expose `confirmedAt` in existing profile responses
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts:52-68` (GET handler), `backend/src/routes/prep.ts:174-181` (finish handler)
 - Modify: `backend/src/routes/prep.test.ts` (fake prisma `FakeProfile` type + `upsert` default, two new assertions)
 
@@ -246,6 +247,7 @@ git commit -m "Expose confirmedAt in company profile responses"
 ### Task 2: `POST /prep/:interviewId/confirm` endpoint
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts` (add new route)
 - Modify: `backend/src/routes/prep.test.ts` (fake prisma: `FakeInterview.status`, `interview.update`, `companyProfile.update`, `__interviews`; new tests)
 
@@ -565,6 +567,7 @@ git commit -m "Add POST /prep/:interviewId/confirm endpoint"
 ### Task 3: Block `DELETE /prep/:interviewId` once confirmed
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts:276-306` (`delete` handler)
 - Modify: `backend/src/routes/prep.test.ts` (new test)
 
@@ -648,6 +651,7 @@ git commit -m "Block deleting a confirmed prep chat"
 ### Task 4: Frontend API client — `confirmPrepProfile`
 
 **Files:**
+
 - Modify: `frontend/src/api/prep.ts`
 
 There is no frontend test runner in this repo yet (verified: no `*.test.ts` under `frontend/src`, no test script in `frontend/package.json`). This task is verified via `npm run build` (which runs `vue-tsc -b`) and manual testing in Task 6.
@@ -699,6 +703,7 @@ git commit -m "Add confirmPrepProfile API client function"
 ### Task 5: Frontend UI — confirm button and confirmed state
 
 **Files:**
+
 - Modify: `frontend/src/views/CompanyPrepView.vue`
 
 - [ ] **Step 1: Import `confirmPrepProfile` and add a handler**
@@ -813,6 +818,7 @@ git commit -m "Add profile confirmation UI to CompanyPrepView"
 ### Task 6: Manual verification, README update, final commit
 
 **Files:**
+
 - Modify: `README.md` (Day 7 section, currently at `README.md:405-419`)
 
 - [ ] **Step 1: Run the full backend test suite**
@@ -844,6 +850,7 @@ Run frontend: `cd frontend && npm run dev` (background)
 - [ ] **Step 5: Update README Day 7 section**
 
 Replace the Day 7 section (`README.md:405-419`) with a filled-in version following the style of the Day 6 section above it (`README.md:389-401`) and the Day 4/5 curl-example style further up. Include:
+
 - The `POST /api/prep/:interviewId/confirm` curl example (with Bearer token) and its expected JSON response (`profile` with `confirmedAt`, `interviewStatus`).
 - A short note on error responses: `404 Profile not found` (finish not called yet), `409 Profile already confirmed`.
 - A short note that `DELETE /api/prep/:interviewId` now returns `409` once the profile is confirmed.

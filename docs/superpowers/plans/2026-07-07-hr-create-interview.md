@@ -15,6 +15,7 @@
 ### Task 1: Join code generator utility
 
 **Files:**
+
 - Create: `backend/src/utils/joinCode.ts`
 - Create: `backend/src/utils/joinCode.test.ts`
 - Modify: `backend/package.json:10` (`test` script — add the new test file)
@@ -96,6 +97,7 @@ git commit -m "feat: add join code generator utility"
 ### Task 2: `POST /api/interviews` endpoint
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts` (add `POST /interviews` handler)
 - Modify: `backend/src/routes/interviews.test.ts` (add `create` support to the fake Prisma double, add new tests)
 
@@ -389,6 +391,7 @@ git commit -m "feat: add POST /interviews endpoint for HR to create a new interv
 ### Task 3: Frontend API client for creating an interview
 
 **Files:**
+
 - Modify: `frontend/src/api/interviews.ts`
 
 - [ ] **Step 1: Replace the file contents**
@@ -462,6 +465,7 @@ git commit -m "feat: add createInterview API client function"
 ### Task 4: "Створити співбесіду" button and code banner on `HomeView.vue`
 
 **Files:**
+
 - Modify: `frontend/src/views/HomeView.vue`
 
 - [ ] **Step 1: Update the `<script setup>` block**
@@ -583,6 +587,7 @@ Expected: no errors.
 - [ ] **Step 5: Manual check**
 
 Run `npm run dev` from the repo root, log in as `hr@test.com` / `123456`, click **«Створити співбесіду»**, and confirm:
+
 - A green banner appears with a 6-character code (letters/digits only, no `0/O/1/I`).
 - Clicking **«Перейти до анкети →»** navigates to `/prep/:interviewId` for the new interview and the Company Agent greets as usual.
 - Clicking **«Створити співбесіду»** again produces a different code.
@@ -599,6 +604,7 @@ git commit -m "feat: add create-interview button and code banner to home page"
 ### Task 5: README documentation
 
 **Files:**
+
 - Modify: `README.md` (Day 8 section, lines 482–496 as of this plan)
 
 - [ ] **Step 1: Update the Day 8 Definition of Done checkboxes**

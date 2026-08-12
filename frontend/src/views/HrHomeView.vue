@@ -1,83 +1,81 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { RouterLink, useRouter } from "vue-router";
-import CreateVacancyModal from "../components/CreateVacancyModal.vue";
-import { fetchHrNotifications } from "../api/hr-applications";
-import { fetchMyInterviews, type InterviewSummary } from "../api/interviews";
-import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
 
-type LoadState = "loading" | "ready" | "error";
+import CreateVacancyModal from '../components/CreateVacancyModal.vue'
+import { fetchHrNotifications } from '../api/hr-applications'
+import { fetchMyInterviews, type InterviewSummary } from '../api/interviews'
+import { fetchMyVacancies, type VacancySummary } from '../api/vacancies'
+
+type LoadState = 'loading' | 'ready' | 'error'
 
 type ActivityItem = {
-  id: string;
-  kind: "vacancy" | "interview";
-  label: string;
-  createdAt: string;
-};
+  id: string
+  kind: 'vacancy' | 'interview'
+  label: string
+  createdAt: string
+}
 
-const router = useRouter();
+const router = useRouter()
 
-const vacancies = ref<VacancySummary[]>([]);
-const interviews = ref<InterviewSummary[]>([]);
-const unreadNotifications = ref(0);
-const loadState = ref<LoadState>("loading");
-const loadError = ref<string | null>(null);
+const vacancies = ref<VacancySummary[]>([])
+const interviews = ref<InterviewSummary[]>([])
+const unreadNotifications = ref(0)
+const loadState = ref<LoadState>('loading')
+const loadError = ref<string | null>(null)
 
-const showVacancyModal = ref(false);
+const showVacancyModal = ref(false)
 
 const recentActivity = computed<ActivityItem[]>(() => {
-  const vacancyItems: ActivityItem[] = vacancies.value.map((v) => ({
+  const vacancyItems: ActivityItem[] = vacancies.value.map(v => ({
     id: v.id,
-    kind: "vacancy",
+    kind: 'vacancy',
     label: v.title,
-    createdAt: v.createdAt,
-  }));
-  const interviewItems: ActivityItem[] = interviews.value.map((i) => ({
+    createdAt: v.createdAt
+  }))
+  const interviewItems: ActivityItem[] = interviews.value.map(i => ({
     id: i.id,
-    kind: "interview",
+    kind: 'interview',
     label: i.displayName,
-    createdAt: i.createdAt,
-  }));
+    createdAt: i.createdAt
+  }))
 
   return [...vacancyItems, ...interviewItems]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 3);
-});
+    .slice(0, 3)
+})
 
 async function loadDashboard(): Promise<void> {
-  loadState.value = "loading";
-  loadError.value = null;
+  loadState.value = 'loading'
+  loadError.value = null
   try {
     const [vacancyList, interviewList, notifications] = await Promise.all([
       fetchMyVacancies(),
       fetchMyInterviews(),
-      fetchHrNotifications(),
-    ]);
-    vacancies.value = vacancyList;
-    interviews.value = interviewList;
-    unreadNotifications.value = notifications.filter((item) => item.readAt == null).length;
-    loadState.value = "ready";
+      fetchHrNotifications()
+    ])
+    vacancies.value = vacancyList
+    interviews.value = interviewList
+    unreadNotifications.value = notifications.filter(item => item.readAt == null).length
+    loadState.value = 'ready'
   } catch (error) {
-    loadState.value = "error";
-    loadError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити дані";
+    loadState.value = 'error'
+    loadError.value = error instanceof Error ? error.message : 'Не вдалося завантажити дані'
   }
 }
 
 function onVacancyCreated(vacancyId: string): void {
-  showVacancyModal.value = false;
-  router.push({ name: "vacancy-prep", params: { id: vacancyId } });
+  showVacancyModal.value = false
+  router.push({ name: 'vacancy-prep', params: { id: vacancyId } })
 }
 
-function activityTypeLabel(kind: ActivityItem["kind"]): string {
-  return kind === "vacancy" ? "Анкета" : "Співбесіда";
+function activityTypeLabel(kind: ActivityItem['kind']): string {
+  return kind === 'vacancy' ? 'Анкета' : 'Співбесіда'
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("uk-UA");
+  return new Date(iso).toLocaleDateString('uk-UA')
 }
 
-onMounted(loadDashboard);
+onMounted(loadDashboard)
 </script>
 
 <template>
@@ -104,9 +102,7 @@ onMounted(loadDashboard);
       </div>
 
       <div class="dashboard-actions">
-        <button type="button" class="btn-primary" @click="showVacancyModal = true">
-          Створити нову вакансію
-        </button>
+        <button type="button" class="btn-primary" @click="showVacancyModal = true">Створити нову вакансію</button>
         <RouterLink class="btn-secondary-link" :to="{ name: 'hr-applications' }">
           Заявки кандидатів
           <span v-if="unreadNotifications > 0" class="badge">{{ unreadNotifications }}</span>
@@ -125,11 +121,7 @@ onMounted(loadDashboard);
       </section>
     </template>
 
-    <CreateVacancyModal
-      :open="showVacancyModal"
-      @close="showVacancyModal = false"
-      @created="onVacancyCreated"
-    />
+    <CreateVacancyModal :open="showVacancyModal" @close="showVacancyModal = false" @created="onVacancyCreated" />
   </div>
 </template>
 
@@ -138,15 +130,18 @@ onMounted(loadDashboard);
   margin: 0 0 1.25rem;
   font-size: 1.375rem;
 }
+
 .fail {
   color: var(--danger);
 }
+
 .overview-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
+
 .card {
   display: flex;
   flex-direction: column;
@@ -156,21 +151,25 @@ onMounted(loadDashboard);
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
 }
+
 .card-value {
   font-size: 1.75rem;
   font-weight: 600;
   color: #111827;
 }
+
 .card-label {
   font-size: 0.875rem;
   color: #6b7280;
 }
+
 .dashboard-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
+
 .btn-primary {
   font-family: inherit;
   font-size: 0.875rem;
@@ -181,10 +180,12 @@ onMounted(loadDashboard);
   background: var(--accent);
   color: #fff;
 }
+
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .btn-secondary-link {
   display: inline-flex;
   align-items: center;
@@ -198,6 +199,7 @@ onMounted(loadDashboard);
   color: #374151;
   text-decoration: none;
 }
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -210,18 +212,22 @@ onMounted(loadDashboard);
   font-size: 0.75rem;
   font-weight: 600;
 }
+
 .recent {
   margin-top: 1.5rem;
 }
+
 .recent h3 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
 }
+
 .activity-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
+
 .activity-item {
   display: flex;
   flex-wrap: wrap;
@@ -231,14 +237,17 @@ onMounted(loadDashboard);
   border-bottom: 1px solid #eee;
   font-size: 0.875rem;
 }
+
 .activity-type {
   color: #6b7280;
   min-width: 5.5rem;
 }
+
 .activity-label {
   flex: 1;
   font-weight: 500;
 }
+
 .activity-date {
   color: #6b7280;
 }

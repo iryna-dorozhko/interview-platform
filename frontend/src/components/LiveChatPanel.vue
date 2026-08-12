@@ -1,86 +1,86 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import type { AgentThinkingState, LiveMessage } from "../composables/useInterviewRoom";
-import {
-  confidenceBadgeFor,
-  labelFor,
-  messageStyles,
-} from "../utils/live-message-styles";
+
+import type { AgentThinkingState, LiveMessage } from '../composables/useInterviewRoom'
+import { confidenceBadgeFor, labelFor, messageStyles } from '../utils/live-message-styles'
 
 const props = defineProps<{
-  messages: LiveMessage[];
-  currentRole: "HR" | "CANDIDATE";
-  connectionState: "connecting" | "connected" | "error";
-  disabled?: boolean;
-  errorMessage?: string | null;
-  agentThinking?: AgentThinkingState | null;
-  peerTypingLabel?: string | null;
-}>();
+  messages: LiveMessage[]
+  currentRole: 'HR' | 'CANDIDATE'
+  connectionState: 'connecting' | 'connected' | 'error'
+  disabled?: boolean
+  errorMessage?: string | null
+  agentThinking?: AgentThinkingState | null
+  peerTypingLabel?: string | null
+}>()
 
 const emit = defineEmits<{
-  send: [content: string];
-  typingInput: [content: string];
-}>();
+  send: [content: string]
+  typingInput: [content: string]
+}>()
 
-const input = ref("");
-const messagesEl = ref<HTMLElement | null>(null);
-const composerInputEl = ref<HTMLTextAreaElement | null>(null);
+const input = ref('')
+const messagesEl = ref<HTMLElement | null>(null)
+const composerInputEl = ref<HTMLTextAreaElement | null>(null)
 
 function resizeComposer(): void {
-  const el = composerInputEl.value;
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  const el = composerInputEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 const thinkingLabel = computed(() => {
   switch (props.agentThinking?.agentType) {
-    case "AGENT_ARBITER":
-      return "Arbiter";
-    case "AGENT_COMPANY":
-      return "Компанія";
-    case "AGENT_CANDIDATE":
-      return "Кандидат (AI)";
-    default:
-      return "Агент";
+    case 'AGENT_ARBITER': {
+      return 'Arbiter'
+    }
+    case 'AGENT_COMPANY': {
+      return 'Компанія'
+    }
+    case 'AGENT_CANDIDATE': {
+      return 'Кандидат (AI)'
+    }
+    default: {
+      return 'Агент'
+    }
   }
-});
+})
 
 async function scrollToBottom(): Promise<void> {
-  await nextTick();
-  const el = messagesEl.value;
-  if (el) el.scrollTop = el.scrollHeight;
+  await nextTick()
+  const el = messagesEl.value
+  if (el) el.scrollTop = el.scrollHeight
 }
 
 watch(
   () => props.messages.length,
   () => {
-    void scrollToBottom();
-  },
-);
+    void scrollToBottom()
+  }
+)
 
-watch(input, async (value) => {
-  emit("typingInput", value);
-  await nextTick();
-  resizeComposer();
-});
+watch(input, async value => {
+  emit('typingInput', value)
+  await nextTick()
+  resizeComposer()
+})
 
 function sendMessage(): void {
-  const text = input.value.trim();
-  if (!text || props.disabled) return;
-  emit("send", text);
-  input.value = "";
+  const text = input.value.trim()
+  if (!text || props.disabled) return
+  emit('send', text)
+  input.value = ''
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    sendMessage();
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    sendMessage()
   }
 }
 
 function messageConfidenceBadge(message: LiveMessage) {
-  return confidenceBadgeFor(message.authorType, message.candidateConfidence);
+  return confidenceBadgeFor(message.authorType, message.candidateConfidence)
 }
 </script>
 
@@ -88,36 +88,24 @@ function messageConfidenceBadge(message: LiveMessage) {
   <section class="chat-panel">
     <p v-if="connectionState === 'connecting'" class="status-hint">Підключення до кімнати…</p>
     <p v-else-if="connectionState === 'error'" class="error-banner" role="alert">
-      {{ errorMessage ?? "Помилка підключення" }}
+      {{ errorMessage ?? 'Помилка підключення' }}
     </p>
 
     <div ref="messagesEl" class="messages" role="log" aria-live="polite">
-      <p v-if="messages.length === 0" class="empty-hint">
-        Очікуйте початку співбесіди або напишіть повідомлення.
-      </p>
+      <p v-if="messages.length === 0" class="empty-hint">Очікуйте початку співбесіди або напишіть повідомлення.</p>
       <div
         v-for="message in messages"
         :key="message.id"
         class="message"
         :class="{ own: messageStyles(message.authorType, currentRole).own }"
       >
-        <span
-          class="message-label"
-          :style="messageStyles(message.authorType, currentRole).label"
-        >
+        <span class="message-label" :style="messageStyles(message.authorType, currentRole).label">
           {{ labelFor(message.authorType) }}
         </span>
-        <span
-          v-if="messageConfidenceBadge(message)"
-          class="confidence-badge"
-          :style="messageConfidenceBadge(message)!"
-        >
+        <span v-if="messageConfidenceBadge(message)" class="confidence-badge" :style="messageConfidenceBadge(message)!">
           {{ messageConfidenceBadge(message)!.label }}
         </span>
-        <p
-          class="message-text"
-          :style="messageStyles(message.authorType, currentRole).bubble"
-        >
+        <p class="message-text" :style="messageStyles(message.authorType, currentRole).bubble">
           {{ message.content }}
         </p>
       </div>
@@ -151,11 +139,13 @@ function messageConfidenceBadge(message: LiveMessage) {
 .chat-panel {
   margin-top: 1rem;
 }
+
 .status-hint {
   margin: 0 0 0.75rem;
   color: #666;
   font-size: 0.875rem;
 }
+
 .messages {
   max-height: calc(100vh - 16rem);
   min-height: 20rem;
@@ -166,19 +156,23 @@ function messageConfidenceBadge(message: LiveMessage) {
   background: var(--surface);
   margin-bottom: 0.75rem;
 }
+
 .empty-hint {
   margin: 0;
   color: #666;
   font-size: 0.9rem;
 }
+
 .message {
   margin-bottom: 0.75rem;
   max-width: 85%;
 }
+
 .message.own {
   margin-left: auto;
   text-align: right;
 }
+
 .message-label {
   display: inline-block;
   font-size: 0.75rem;
@@ -186,6 +180,7 @@ function messageConfidenceBadge(message: LiveMessage) {
   border-radius: 9999px;
   margin-bottom: 0.25rem;
 }
+
 .confidence-badge {
   display: inline-block;
   font-size: 0.7rem;
@@ -195,6 +190,7 @@ function messageConfidenceBadge(message: LiveMessage) {
   margin-bottom: 0.25rem;
   vertical-align: middle;
 }
+
 .message-text {
   margin: 0;
   padding: 0.5rem 0.75rem;
@@ -202,12 +198,14 @@ function messageConfidenceBadge(message: LiveMessage) {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
 .thinking {
   margin: 0;
   color: #666;
   font-size: 0.875rem;
   font-style: italic;
 }
+
 .error-banner {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -216,11 +214,13 @@ function messageConfidenceBadge(message: LiveMessage) {
   border-radius: var(--radius);
   font-size: 0.875rem;
 }
+
 .composer {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
 }
+
 .composer-input {
   flex: 1;
   font-family: inherit;
@@ -235,10 +235,12 @@ function messageConfidenceBadge(message: LiveMessage) {
   background: var(--surface);
   line-height: 1.4;
 }
+
 .composer-input:focus {
   outline: 2px solid var(--accent-focus);
   border-color: var(--accent);
 }
+
 .btn-primary {
   font-family: inherit;
   font-size: 0.875rem;
@@ -250,6 +252,7 @@ function messageConfidenceBadge(message: LiveMessage) {
   color: #fff;
   font-weight: 600;
 }
+
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;

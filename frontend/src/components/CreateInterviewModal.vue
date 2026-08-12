@@ -1,124 +1,118 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
-import { createInterview, type CreatedInterview } from "../api/interviews";
-import { fetchMyVacancies, type VacancySummary } from "../api/vacancies";
-import { formatScheduledAtUk } from "../utils/invite-message";
-import InviteCopyActions from "./InviteCopyActions.vue";
+
+import { createInterview, type CreatedInterview } from '../api/interviews'
+import { fetchMyVacancies, type VacancySummary } from '../api/vacancies'
+import { formatScheduledAtUk } from '../utils/invite-message'
+import InviteCopyActions from './InviteCopyActions.vue'
 
 const props = withDefaults(
   defineProps<{
-    open: boolean;
-    initialVacancyId?: string;
-    initialCandidateEmail?: string;
-    lockedVacancy?: boolean;
+    open: boolean
+    initialVacancyId?: string
+    initialCandidateEmail?: string
+    lockedVacancy?: boolean
   }>(),
   {
-    initialVacancyId: "",
-    initialCandidateEmail: "",
-    lockedVacancy: false,
-  },
-);
+    initialVacancyId: '',
+    initialCandidateEmail: '',
+    lockedVacancy: false
+  }
+)
 
 const emit = defineEmits<{
-  close: [];
-  created: [interview: CreatedInterview];
-}>();
+  close: []
+  created: [interview: CreatedInterview]
+}>()
 
-const router = useRouter();
+const router = useRouter()
 
-const step = ref<"form" | "code">("form");
-const createdInterview = ref<CreatedInterview | null>(null);
-const confirmedVacancies = ref<VacancySummary[]>([]);
-const selectedVacancyId = ref("");
-const candidateEmail = ref("");
-const scheduledAtLocal = ref("");
-const loading = ref(false);
-const submitting = ref(false);
-const error = ref<string | null>(null);
-const loadError = ref<string | null>(null);
+const step = ref<'form' | 'code'>('form')
+const createdInterview = ref<CreatedInterview | null>(null)
+const confirmedVacancies = ref<VacancySummary[]>([])
+const selectedVacancyId = ref('')
+const candidateEmail = ref('')
+const scheduledAtLocal = ref('')
+const loading = ref(false)
+const submitting = ref(false)
+const error = ref<string | null>(null)
+const loadError = ref<string | null>(null)
 
 const formattedScheduledAt = computed(() =>
-  createdInterview.value ? formatScheduledAtUk(createdInterview.value.scheduledAt) : null,
-);
+  createdInterview.value ? formatScheduledAtUk(createdInterview.value.scheduledAt) : null
+)
 
 watch(
   () => props.open,
-  async (isOpen) => {
-    if (!isOpen) return;
+  async isOpen => {
+    if (!isOpen) return
 
-    step.value = "form";
-    createdInterview.value = null;
-    selectedVacancyId.value = props.initialVacancyId;
-    candidateEmail.value = props.initialCandidateEmail;
-    scheduledAtLocal.value = "";
-    error.value = null;
-    loadError.value = null;
-    submitting.value = false;
-    loading.value = true;
-    confirmedVacancies.value = [];
+    step.value = 'form'
+    createdInterview.value = null
+    selectedVacancyId.value = props.initialVacancyId
+    candidateEmail.value = props.initialCandidateEmail
+    scheduledAtLocal.value = ''
+    error.value = null
+    loadError.value = null
+    submitting.value = false
+    loading.value = true
+    confirmedVacancies.value = []
 
     try {
-      const vacancies = await fetchMyVacancies("active");
-      confirmedVacancies.value = vacancies.filter(
-        (v) => v.status === "CONFIRMED" && v.hiddenAt == null,
-      );
+      const vacancies = await fetchMyVacancies('active')
+      confirmedVacancies.value = vacancies.filter(v => v.status === 'CONFIRMED' && v.hiddenAt == null)
       if (props.initialVacancyId) {
-        const hasInitial = confirmedVacancies.value.some((v) => v.id === props.initialVacancyId);
-        selectedVacancyId.value = hasInitial
-          ? props.initialVacancyId
-          : confirmedVacancies.value[0]?.id ?? "";
+        const hasInitial = confirmedVacancies.value.some(v => v.id === props.initialVacancyId)
+        selectedVacancyId.value = hasInitial ? props.initialVacancyId : (confirmedVacancies.value[0]?.id ?? '')
       } else if (confirmedVacancies.value.length > 0) {
-        selectedVacancyId.value = confirmedVacancies.value[0].id;
+        selectedVacancyId.value = confirmedVacancies.value[0].id
       }
-    } catch (err) {
-      loadError.value =
-        err instanceof Error ? err.message : "Не вдалося завантажити список анкет";
+    } catch (error) {
+      loadError.value = error instanceof Error ? error.message : 'Не вдалося завантажити список анкет'
     } finally {
-      loading.value = false;
+      loading.value = false
     }
-  },
-);
+  }
+)
 
 function onClose(): void {
-  if (submitting.value) return;
-  emit("close");
+  if (submitting.value) return
+  emit('close')
 }
 
 function finishCreated(): void {
-  if (!createdInterview.value) return;
-  emit("created", createdInterview.value);
-  emit("close");
+  if (!createdInterview.value) return
+  emit('created', createdInterview.value)
+  emit('close')
 }
 
 function onContinue(): void {
-  if (!createdInterview.value) return;
-  router.push({ name: "interview-room", params: { id: createdInterview.value.id } });
-  finishCreated();
+  if (!createdInterview.value) return
+  router.push({ name: 'interview-room', params: { id: createdInterview.value.id } })
+  finishCreated()
 }
 
 async function onSubmit(): Promise<void> {
-  if (!selectedVacancyId.value) return;
+  if (!selectedVacancyId.value) return
 
-  error.value = null;
-  submitting.value = true;
+  error.value = null
+  submitting.value = true
   try {
-    const options: { candidateEmail?: string; scheduledAt?: string } = {};
-    const email = candidateEmail.value.trim();
-    if (email) options.candidateEmail = email;
+    const options: { candidateEmail?: string; scheduledAt?: string } = {}
+    const email = candidateEmail.value.trim()
+    if (email) options.candidateEmail = email
     if (scheduledAtLocal.value) {
-      options.scheduledAt = new Date(scheduledAtLocal.value).toISOString();
+      options.scheduledAt = new Date(scheduledAtLocal.value).toISOString()
     }
     const interview = await createInterview(
       selectedVacancyId.value,
-      Object.keys(options).length > 0 ? options : undefined,
-    );
-    createdInterview.value = interview;
-    step.value = "code";
+      Object.keys(options).length > 0 ? options : undefined
+    )
+    createdInterview.value = interview
+    step.value = 'code'
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Не вдалося створити співбесіду";
+    error.value = err instanceof Error ? err.message : 'Не вдалося створити співбесіду'
   } finally {
-    submitting.value = false;
+    submitting.value = false
   }
 }
 </script>
@@ -149,16 +143,11 @@ async function onSubmit(): Promise<void> {
 
         <p v-if="loading">Завантаження…</p>
         <p v-else-if="loadError" class="fail">{{ loadError }}</p>
-        <p v-else-if="confirmedVacancies.length === 0" class="empty-message">
-          Спочатку створіть і підтвердіть анкету
-        </p>
+        <p v-else-if="confirmedVacancies.length === 0" class="empty-message">Спочатку створіть і підтвердіть анкету</p>
         <form v-else @submit.prevent="onSubmit">
           <label class="field">
             <span>Анкета</span>
-            <select
-              v-model="selectedVacancyId"
-              :disabled="submitting || lockedVacancy"
-            >
+            <select v-model="selectedVacancyId" :disabled="submitting || lockedVacancy">
               <option v-for="vacancy in confirmedVacancies" :key="vacancy.id" :value="vacancy.id">
                 {{ vacancy.title }}
               </option>
@@ -166,12 +155,7 @@ async function onSubmit(): Promise<void> {
           </label>
           <label class="field">
             <span>Email кандидата</span>
-            <input
-              v-model="candidateEmail"
-              type="email"
-              autocomplete="off"
-              :disabled="submitting"
-            />
+            <input v-model="candidateEmail" type="email" autocomplete="off" :disabled="submitting" />
           </label>
           <label class="field">
             <span>Запланований час</span>
@@ -179,11 +163,9 @@ async function onSubmit(): Promise<void> {
           </label>
           <p v-if="error" class="fail">{{ error }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" :disabled="submitting" @click="onClose">
-              Скасувати
-            </button>
+            <button type="button" class="btn-secondary" :disabled="submitting" @click="onClose">Скасувати</button>
             <button type="submit" class="btn-primary" :disabled="submitting">
-              {{ submitting ? "Створення…" : "Створити" }}
+              {{ submitting ? 'Створення…' : 'Створити' }}
             </button>
           </div>
         </form>
@@ -200,25 +182,28 @@ async function onSubmit(): Promise<void> {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgb(0 0 0 / 40%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   padding: 1rem;
 }
+
 .modal {
   background: #fff;
   border-radius: 0.5rem;
   padding: 1.25rem;
   width: 100%;
   max-width: 24rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 25px rgb(0 0 0 / 15%);
 }
+
 .modal h2 {
   margin: 0 0 1rem;
   font-size: 1.125rem;
 }
+
 .join-code {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -228,34 +213,40 @@ async function onSubmit(): Promise<void> {
   text-align: center;
   padding: 1rem 0;
 }
+
 .hint {
   margin: 0 0 0.5rem;
   color: #555;
   font-size: 0.875rem;
   text-align: center;
 }
+
 .invitation-info {
   margin: 0 0 0.5rem;
   color: #555;
   font-size: 0.875rem;
   text-align: center;
 }
+
 .empty-message {
   margin: 0;
   color: #555;
   font-size: 0.875rem;
 }
+
 form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
   font-size: 0.875rem;
 }
+
 .field select,
 .field input {
   font-family: inherit;
@@ -265,17 +256,20 @@ form {
   border-radius: 0.375rem;
   background: #fff;
 }
+
 .fail {
   margin: 0.75rem 0 0;
   color: var(--danger);
   font-size: 0.875rem;
 }
+
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1rem;
 }
+
 .btn-primary,
 .btn-secondary {
   font-family: inherit;
@@ -285,19 +279,23 @@ form {
   border: 1px solid transparent;
   cursor: pointer;
 }
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
 }
+
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .btn-secondary {
   background: #f3f4f6;
   color: #374151;
   border-color: #d1d5db;
 }
+
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;

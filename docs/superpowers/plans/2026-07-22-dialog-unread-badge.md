@@ -50,10 +50,12 @@
 ### Task 1: Prisma cursors + migration
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_dialog_unread_cursors/migration.sql` (via `prisma migrate`)
 
 **Interfaces:**
+
 - Consumes: existing `Dialog` model
 - Produces: `Dialog.hrLastReadAt: DateTime?`, `Dialog.candidateLastReadAt: DateTime?`
 
@@ -88,11 +90,13 @@ git commit -m "feat(db): add dialog unread read cursors"
 ### Task 2: Unread helpers + `GET /dialogs` returns `unreadCount`
 
 **Files:**
+
 - Modify: `backend/src/routes/dialogs.ts`
 - Modify: `backend/src/routes/dialogs.test.ts`
 - Test: `backend/src/routes/dialogs.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Dialog.hrLastReadAt`, `Dialog.candidateLastReadAt`, `prisma.dialogMessage.count`
 - Produces: list items include `unreadCount: number`; helpers `lastReadAtForUser`, `countUnreadMessages`
 
@@ -107,11 +111,11 @@ In `dialogs.test.ts`:
   candidateLastReadAt: Date | null;
 ```
 
-2. Set both to `null` in every existing seed dialog / `create` path.
+1. Set both to `null` in every existing seed dialog / `create` path.
 
-3. Extend `dialog.update` to also apply `hrLastReadAt` / `candidateLastReadAt` when present in `data`.
+2. Extend `dialog.update` to also apply `hrLastReadAt` / `candidateLastReadAt` when present in `data`.
 
-4. Add `dialogMessage.count`:
+3. Add `dialogMessage.count`:
 
 ```typescript
 count: async ({
@@ -136,7 +140,7 @@ count: async ({
 },
 ```
 
-5. Add tests (after existing list tests):
+1. Add tests (after existing list tests):
 
 ```typescript
 test("GET /dialogs includes unreadCount for foreign messages only", async () => {
@@ -325,11 +329,13 @@ git commit -m "feat(api): include unreadCount on dialog list"
 ### Task 3: `GET /dialogs/unread-count` + `POST /dialogs/:id/read`
 
 **Files:**
+
 - Modify: `backend/src/routes/dialogs.ts`
 - Modify: `backend/src/routes/dialogs.test.ts`
 - Test: `backend/src/routes/dialogs.test.ts`
 
 **Interfaces:**
+
 - Consumes: helpers from Task 2
 - Produces:
   - `GET /api/dialogs/unread-count` → `{ unreadCount: number }`
@@ -443,9 +449,11 @@ git commit -m "feat(api): dialog unread total and mark-read endpoints"
 ### Task 4: Frontend API client
 
 **Files:**
+
 - Modify: `frontend/src/api/dialogs.ts`
 
 **Interfaces:**
+
 - Consumes: backend Task 2–3 shapes
 - Produces:
   - `DialogListItem.unreadCount: number`
@@ -504,6 +512,7 @@ git commit -m "feat(fe): dialog unread API client helpers"
 ### Task 5: `useDialogUnread` composable + tests
 
 **Files:**
+
 - Create: `frontend/src/composables/useDialogUnread.ts`
 - Create: `frontend/src/composables/useDialogUnread.test.ts`
 - Modify: `frontend/package.json` (`test` script)
@@ -511,6 +520,7 @@ git commit -m "feat(fe): dialog unread API client helpers"
 - Modify: `frontend/src/layouts/CandidateLayout.vue`
 
 **Interfaces:**
+
 - Consumes: `fetchDialogUnreadCount`, `markDialogRead`
 - Produces:
   - `unreadCount: Ref<number>`
@@ -699,12 +709,14 @@ git commit -m "feat(fe): poll dialog unread total in layouts"
 ### Task 6: Sidebar + list + thread UI badges
 
 **Files:**
+
 - Modify: `frontend/src/components/HrSidebar.vue`
 - Modify: `frontend/src/components/CandidateSidebar.vue`
 - Modify: `frontend/src/views/DialogListView.vue`
 - Modify: `frontend/src/views/DialogThreadView.vue`
 
 **Interfaces:**
+
 - Consumes: `useDialogUnread`, `formatUnreadBadge`, `DialogListItem.unreadCount`, `markRead`
 - Produces: visible badges; mark-read on thread open
 

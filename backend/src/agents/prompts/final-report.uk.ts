@@ -23,4 +23,4 @@ export const FINAL_REPORT_SYSTEM_PROMPT_UK = `Ти HR-аналітик. Отри
 - Не став status met для вимоги лише з inferred без підтвердження людиною (HUMAN_CANDIDATE або confirmed).
 - Після unknown пріоритет має HUMAN_CANDIDATE.
 - skills.strong / skills.growth кандидата — лише evidence і контекст; це НЕ пріоритет вимог вакансії.
-- Не повертай поле matchScore — його обчислить бекенд.`;
+- Не повертай поле matchScore — його обчислить бекенд.`

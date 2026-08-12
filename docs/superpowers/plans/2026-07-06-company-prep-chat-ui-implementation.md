@@ -15,6 +15,7 @@
 ### Task 1: Company Agent — profile extraction logic
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/company-profile-extraction.uk.ts`
 - Modify: `backend/src/agents/company-agent.ts`
 - Modify: `backend/src/agents/company-agent.test.ts`
@@ -232,6 +233,7 @@ git commit -m "feat: add profile extraction logic to company agent"
 ### Task 2: `GET /api/prep/:interviewId` — load chat state
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 
@@ -531,6 +533,7 @@ git commit -m "feat: add GET /api/prep/:interviewId to load chat state"
 ### Task 3: `POST /api/prep/:interviewId/finish` — generate profile and close session
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 
@@ -888,6 +891,7 @@ git commit -m "feat: add POST /api/prep/:interviewId/finish to generate company 
 ### Task 4: `DELETE /api/prep/:interviewId` — reset chat
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 
@@ -1120,6 +1124,7 @@ git commit -m "feat: add DELETE /api/prep/:interviewId to reset chat"
 ### Task 5: `GET /api/interviews/mine` — navigation endpoint
 
 **Files:**
+
 - Create: `backend/src/routes/interviews.ts`
 - Create: `backend/src/routes/interviews.test.ts`
 - Modify: `backend/src/server.ts`
@@ -1276,6 +1281,7 @@ git commit -m "feat: add GET /api/interviews/mine navigation endpoint"
 ### Task 6: Frontend API clients
 
 **Files:**
+
 - Create: `frontend/src/api/prep.ts`
 - Create: `frontend/src/api/interviews.ts`
 
@@ -1402,6 +1408,7 @@ git commit -m "feat: add frontend API clients for prep chat and interviews"
 ### Task 7: `CompanyPrepView.vue` — the chat page
 
 **Files:**
+
 - Create: `frontend/src/views/CompanyPrepView.vue`
 - Modify: `frontend/src/router/index.ts`
 
@@ -1841,6 +1848,7 @@ git commit -m "feat: add Company Prep chat page with delete/finish actions"
 ### Task 8: Navigation from `HomeView.vue`
 
 **Files:**
+
 - Modify: `frontend/src/views/HomeView.vue`
 
 - [ ] **Step 1: Add the navigation button**
@@ -1928,6 +1936,7 @@ git commit -m "feat: add navigation to Company Prep chat from home page"
 ### Task 9: README update
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update Day 5 section**
@@ -2010,6 +2019,7 @@ curl -X DELETE "http://localhost:3000/api/prep/$INTERVIEW_ID" \
 curl "http://localhost:3000/api/interviews/mine" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
 ```
 
 - [ ] **Step 2: Run build**

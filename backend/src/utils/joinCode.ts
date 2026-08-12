@@ -1,12 +1,13 @@
-import crypto from "node:crypto";
+import crypto from 'node:crypto'
 
-const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-const CODE_LENGTH = 6;
+const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+const CODE_LENGTH = 6
 
+// Модуль generateJoinCode.
 export function generateJoinCode(): string {
-  let code = "";
+  let code = ''
   for (let i = 0; i < CODE_LENGTH; i++) {
-    code += ALPHABET[crypto.randomInt(ALPHABET.length)];
+    code += ALPHABET[crypto.randomInt(ALPHABET.length)]
   }
-  return code;
+  return code
 }

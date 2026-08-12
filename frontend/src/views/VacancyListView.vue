@@ -1,117 +1,104 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
-import CreateVacancyModal from "../components/CreateVacancyModal.vue";
-import {
-  deleteVacancy,
-  fetchMyVacancies,
-  hideVacancy,
-  unhideVacancy,
-  type VacancySummary,
-} from "../api/vacancies";
 
-type ListState = "loading" | "ready" | "error";
+import CreateVacancyModal from '../components/CreateVacancyModal.vue'
+import { deleteVacancy, fetchMyVacancies, hideVacancy, unhideVacancy, type VacancySummary } from '../api/vacancies'
+
+type ListState = 'loading' | 'ready' | 'error'
 
 const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Чернетка",
-  CONFIRMED: "Підтверджена",
-};
+  DRAFT: 'Чернетка',
+  CONFIRMED: 'Підтверджена'
+}
 
-const router = useRouter();
+const router = useRouter()
 
-const vacancies = ref<VacancySummary[]>([]);
-const visibility = ref<"active" | "hidden">("active");
-const listState = ref<ListState>("loading");
-const listError = ref<string | null>(null);
-const actionError = ref<string | null>(null);
-const showVacancyModal = ref(false);
+const vacancies = ref<VacancySummary[]>([])
+const visibility = ref<'active' | 'hidden'>('active')
+const listState = ref<ListState>('loading')
+const listError = ref<string | null>(null)
+const actionError = ref<string | null>(null)
+const showVacancyModal = ref(false)
 
 async function loadVacancies(): Promise<void> {
-  listState.value = "loading";
-  listError.value = null;
+  listState.value = 'loading'
+  listError.value = null
   try {
-    vacancies.value = await fetchMyVacancies(visibility.value);
-    listState.value = "ready";
+    vacancies.value = await fetchMyVacancies(visibility.value)
+    listState.value = 'ready'
   } catch (error) {
-    listState.value = "error";
-    listError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити список анкет";
+    listState.value = 'error'
+    listError.value = error instanceof Error ? error.message : 'Не вдалося завантажити список анкет'
   }
 }
 
-function setVisibility(next: "active" | "hidden"): void {
-  visibility.value = next;
-  void loadVacancies();
+function setVisibility(next: 'active' | 'hidden'): void {
+  visibility.value = next
+  void loadVacancies()
 }
 
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  return STATUS_LABELS[status] ?? status
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("uk-UA");
+  return new Date(iso).toLocaleDateString('uk-UA')
 }
 
 function goToPrep(id: string): void {
-  router.push({ name: "vacancy-prep", params: { id } });
+  router.push({ name: 'vacancy-prep', params: { id } })
 }
 
 function goToDetail(id: string): void {
-  router.push({ name: "vacancy-detail", params: { id } });
+  router.push({ name: 'vacancy-detail', params: { id } })
 }
 
 function onVacancyCreated(vacancyId: string): void {
-  showVacancyModal.value = false;
-  router.push({ name: "vacancy-prep", params: { id: vacancyId } });
+  showVacancyModal.value = false
+  router.push({ name: 'vacancy-prep', params: { id: vacancyId } })
 }
 
 async function onHide(vacancy: VacancySummary): Promise<void> {
-  actionError.value = null;
+  actionError.value = null
   try {
-    await hideVacancy(vacancy.id);
-    vacancies.value = vacancies.value.filter((item) => item.id !== vacancy.id);
+    await hideVacancy(vacancy.id)
+    vacancies.value = vacancies.value.filter(item => item.id !== vacancy.id)
   } catch (error) {
-    actionError.value =
-      error instanceof Error ? error.message : "Не вдалося сховати вакансію";
+    actionError.value = error instanceof Error ? error.message : 'Не вдалося сховати вакансію'
   }
 }
 
 async function onUnhide(vacancy: VacancySummary): Promise<void> {
-  actionError.value = null;
+  actionError.value = null
   try {
-    await unhideVacancy(vacancy.id);
-    vacancies.value = vacancies.value.filter((item) => item.id !== vacancy.id);
+    await unhideVacancy(vacancy.id)
+    vacancies.value = vacancies.value.filter(item => item.id !== vacancy.id)
   } catch (error) {
-    actionError.value =
-      error instanceof Error ? error.message : "Не вдалося показати вакансію";
+    actionError.value = error instanceof Error ? error.message : 'Не вдалося показати вакансію'
   }
 }
 
 async function onDelete(vacancy: VacancySummary): Promise<void> {
-  actionError.value = null;
+  actionError.value = null
   if (!window.confirm(`Видалити анкету «${vacancy.title}»? Цю дію не можна скасувати.`)) {
-    return;
+    return
   }
 
   try {
-    await deleteVacancy(vacancy.id);
-    vacancies.value = vacancies.value.filter((item) => item.id !== vacancy.id);
+    await deleteVacancy(vacancy.id)
+    vacancies.value = vacancies.value.filter(item => item.id !== vacancy.id)
   } catch (error) {
-    actionError.value =
-      error instanceof Error ? error.message : "Не вдалося видалити анкету";
+    actionError.value = error instanceof Error ? error.message : 'Не вдалося видалити анкету'
   }
 }
 
-onMounted(loadVacancies);
+onMounted(loadVacancies)
 </script>
 
 <template>
   <div class="vacancy-list">
     <div class="list-header">
       <h1>Вакансії</h1>
-      <button type="button" class="btn-primary" @click="showVacancyModal = true">
-        Створити вакансію
-      </button>
+      <button type="button" class="btn-primary" @click="showVacancyModal = true">Створити вакансію</button>
     </div>
 
     <div class="visibility-tabs" role="tablist" aria-label="Видимість вакансій">
@@ -139,9 +126,7 @@ onMounted(loadVacancies);
     <p v-else-if="listState === 'error'" class="fail">{{ listError }}</p>
     <p v-else-if="vacancies.length === 0" class="muted">
       <template v-if="visibility === 'hidden'">Немає прихованих вакансій.</template>
-      <template v-else>
-        У вас ще немає вакансій. Натисніть «Створити вакансію», щоб додати першу.
-      </template>
+      <template v-else> У вас ще немає вакансій. Натисніть «Створити вакансію», щоб додати першу. </template>
     </p>
     <template v-else>
       <p v-if="actionError" class="fail" role="alert">{{ actionError }}</p>
@@ -160,12 +145,7 @@ onMounted(loadVacancies);
             <td>{{ formatDate(vacancy.createdAt) }}</td>
             <td>{{ statusLabel(vacancy.status) }}</td>
             <td class="actions-cell">
-              <button
-                v-if="vacancy.status === 'DRAFT'"
-                type="button"
-                class="btn-primary"
-                @click="goToPrep(vacancy.id)"
-              >
+              <button v-if="vacancy.status === 'DRAFT'" type="button" class="btn-primary" @click="goToPrep(vacancy.id)">
                 Пройти анкету
               </button>
               <button
@@ -184,36 +164,18 @@ onMounted(loadVacancies);
               >
                 Редагувати
               </button>
-              <button
-                v-if="visibility === 'active'"
-                type="button"
-                class="btn-secondary"
-                @click="onHide(vacancy)"
-              >
+              <button v-if="visibility === 'active'" type="button" class="btn-secondary" @click="onHide(vacancy)">
                 Приховати
               </button>
-              <button
-                v-else
-                type="button"
-                class="btn-secondary"
-                @click="onUnhide(vacancy)"
-              >
-                Показати
-              </button>
-              <button type="button" class="btn-danger" @click="onDelete(vacancy)">
-                Видалити
-              </button>
+              <button v-else type="button" class="btn-secondary" @click="onUnhide(vacancy)">Показати</button>
+              <button type="button" class="btn-danger" @click="onDelete(vacancy)">Видалити</button>
             </td>
           </tr>
         </tbody>
       </table>
     </template>
 
-    <CreateVacancyModal
-      :open="showVacancyModal"
-      @close="showVacancyModal = false"
-      @created="onVacancyCreated"
-    />
+    <CreateVacancyModal :open="showVacancyModal" @close="showVacancyModal = false" @created="onVacancyCreated" />
   </div>
 </template>
 
@@ -225,15 +187,18 @@ onMounted(loadVacancies);
   gap: 1rem;
   margin-bottom: 1rem;
 }
+
 .vacancy-list h1 {
   margin: 0;
   font-size: 1.25rem;
 }
+
 .visibility-tabs {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
+
 .visibility-tabs button {
   font-family: inherit;
   font-size: 0.875rem;
@@ -244,21 +209,26 @@ onMounted(loadVacancies);
   color: #374151;
   cursor: pointer;
 }
+
 .visibility-tabs button.active {
   background: var(--accent);
   color: #fff;
   border-color: transparent;
 }
+
 .muted {
   color: #6b7280;
 }
+
 .fail {
   color: var(--danger);
 }
+
 .vacancies-table {
   width: 100%;
   border-collapse: collapse;
 }
+
 .vacancies-table th,
 .vacancies-table td {
   text-align: left;
@@ -266,17 +236,20 @@ onMounted(loadVacancies);
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
+
 .vacancies-table th {
   font-size: 0.8rem;
   color: #555;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
 .actions-cell {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
 .btn-primary,
 .btn-secondary,
 .btn-danger {
@@ -288,15 +261,18 @@ onMounted(loadVacancies);
   cursor: pointer;
   white-space: nowrap;
 }
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
 }
+
 .btn-secondary {
   background: #fff;
   color: #374151;
   border-color: #d1d5db;
 }
+
 .btn-danger {
   background: #fff;
   color: var(--danger);

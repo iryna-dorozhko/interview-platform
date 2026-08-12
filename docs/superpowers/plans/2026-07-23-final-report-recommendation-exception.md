@@ -42,10 +42,12 @@
 ### Task 1: Agent — parse exception + normalize (TDD)
 
 **Files:**
+
 - Modify: `backend/src/agents/final-report-agent.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `RecommendationOverrideKind = "culture_fit" | "soft_skills" | "critical_gap_ok" | "red_flag" | "other"`
   - `ExtractedFinalReport` з `overrideKind: RecommendationOverrideKind | null` та `overrideReason: string | null`
@@ -296,10 +298,12 @@ git commit -m "feat(report): allow recommendation exception with kind and reason
 ### Task 2: Prompt rules
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/final-report.uk.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts` (prompt asserts)
 
 **Interfaces:**
+
 - Consumes: Task 1 kinds / семантика
 - Produces: оновлений `FINAL_REPORT_SYSTEM_PROMPT_UK`
 
@@ -354,10 +358,12 @@ git commit -m "feat(report): document recommendation exception in final-report p
 ### Task 3: Prisma schema + migration
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/20260723120000_final_report_recommendation_override/migration.sql`
 
 **Interfaces:**
+
 - Produces: Prisma enum `RecommendationOverrideKind` + `FinalReport.overrideKind` / `overrideReason`
 - Consumes: Task 1 string union (ті самі значення)
 
@@ -426,12 +432,14 @@ git commit -m "feat(db): add FinalReport recommendation override fields"
 ### Task 4: Persist + GET report API
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts` (create `finalReport`)
 - Modify: `backend/src/routes/reports.ts` (GET `/:id` response)
 - Modify: `backend/src/routes/reports.test.ts` (fake prisma + assert)
 - Modify: `backend/src/routes/interviews.test.ts` лише якщо create mock типово ламається без нових полів
 
 **Interfaces:**
+
 - Consumes: `extracted.overrideKind`, `extracted.overrideReason` з Task 1
 - Produces: API `report.overrideKind`, `report.overrideReason` (`string | null`)
 
@@ -506,10 +514,12 @@ git commit -m "feat(api): persist and return final report recommendation overrid
 ### Task 5: Frontend — types + Exception block
 
 **Files:**
+
 - Modify: `frontend/src/api/reports.ts`
 - Modify: `frontend/src/views/ReportView.vue`
 
 **Interfaces:**
+
 - Consumes: API поля з Task 4
 - Produces: UI блок «Виняток» під recommendation
 
@@ -610,9 +620,11 @@ git commit -m "feat(fe): show recommendation exception block on report page"
 ### Task 6: README
 
 **Files:**
+
 - Modify: `README.md` (секція фінального звіту / scoring ~рядок про `recommendation`)
 
 **Interfaces:**
+
 - Consumes: поведінка Tasks 1–5
 
 - [ ] **Step 1: Update scoring paragraph**

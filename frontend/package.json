@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24",
+    "bun": ">=1.3"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/composables/usePrepChat.test.ts src/composables/useDialogUnread.test.ts src/utils/typing-indicator.test.ts src/components/HrSidebar.order.test.ts"
+    "test": "bun test --preload ./bun.test.preload.ts src/"
   },
   "dependencies": {
     "dompurify": "^3.4.12",
@@ -23,9 +27,14 @@
     "@types/node": "^22.10.5",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/tsconfig": "^0.7.0",
+    "lightningcss": "^1.33.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
+    "unplugin-auto-import": "^21.1.0",
     "vite": "^6.0.7",
+    "vite-plugin-vue-layouts-next": "^2.1.0",
+    "vue-macros": "^3.1.4",
     "vue-tsc": "^2.2.0"
-  }
+  },
+  "license": "ISC"
 }

@@ -1,32 +1,34 @@
-import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
-import type { Server } from "socket.io";
-import { generateApplicationDeclineLetter } from "../agents/application-decline-letter-agent";
-import type { LlmProvider } from "../llm/types";
-import { applyTerminalApplicationStatus } from "../services/application-hr-decision";
-import { emitDialogMessage } from "../socket/dialogs";
+import { Router } from 'express'
+import type { Request, Response } from 'express'
+import type { PrismaClient } from '@prisma/client'
+import type { Server } from 'socket.io'
+import { generateApplicationDeclineLetter } from '../agents/application-decline-letter-agent'
+import type { LlmProvider } from '../llm/types'
+import { applyTerminalApplicationStatus } from '../services/application-hr-decision'
+import { emitDialogMessage } from '../socket/dialogs'
 import {
   ACTIVE_CANDIDATE_INTERVIEW_STATUSES,
   getConfirmedQuestionnaireProfile,
-  maybeTransitionToReady,
-} from "../utils/interview-readiness";
-import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME } from "../utils/candidate-interview-kind";
+  maybeTransitionToReady
+} from '../utils/interview-readiness'
+import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME } from '../utils/candidate-interview-kind'
 import {
   APPLICATION_ALREADY_CONVERTED,
   createInterviewWithJoinCode,
   parseOptionalScheduledAt,
-  serializeInvitation,
-} from "./interviews";
+  serializeInvitation
+} from './interviews'
 
+// Модуль mapApplicationListItem.
 function mapApplicationListItem(app: {
-  id: string;
-  vacancyId: string;
-  matchScore: number;
-  candidateSummary: string;
-  status: string;
-  interviewId: string | null;
-  createdAt: Date;
-  vacancy: { id: string; title: string };
+  id: string
+  vacancyId: string
+  matchScore: number
+  candidateSummary: string
+  status: string
+  interviewId: string | null
+  createdAt: Date
+  vacancy: { id: string; title: string }
 }) {
   return {
     id: app.id,
@@ -36,60 +38,61 @@ function mapApplicationListItem(app: {
     candidateSummary: app.candidateSummary,
     status: app.status,
     interviewId: app.interviewId,
-    createdAt: app.createdAt.toISOString(),
-  };
+    createdAt: app.createdAt.toISOString()
+  }
 }
 
+// Створює HrApplicationsRouter.
 export function createHrApplicationsRouter(
   getPrisma: () => PrismaClient,
   getLlmProvider: () => LlmProvider,
-  getIo: () => Server,
+  getIo: () => Server
 ): Router {
-  const router = Router();
+  const router = Router()
 
-  router.get("/hr/notifications", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.get('/hr/notifications', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const notifications = await prisma.hrNotification.findMany({
       where: { hrUserId: req.user!.id },
-      orderBy: { createdAt: "desc" },
-    });
+      orderBy: { createdAt: 'desc' }
+    })
 
     notifications.sort((a, b) => {
-      const aUnread = a.readAt == null ? 0 : 1;
-      const bUnread = b.readAt == null ? 0 : 1;
-      if (aUnread !== bUnread) return aUnread - bUnread;
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
+      const aUnread = a.readAt == null ? 0 : 1
+      const bUnread = b.readAt == null ? 0 : 1
+      if (aUnread !== bUnread) return aUnread - bUnread
+      return b.createdAt.getTime() - a.createdAt.getTime()
+    })
 
     res.status(200).json({
-      notifications: notifications.map((item) => ({
+      notifications: notifications.map(item => ({
         id: item.id,
         type: item.type,
         payload: item.payload,
         readAt: item.readAt?.toISOString() ?? null,
-        createdAt: item.createdAt.toISOString(),
-      })),
-    });
-  });
+        createdAt: item.createdAt.toISOString()
+      }))
+    })
+  })
 
-  router.post("/hr/notifications/:id/read", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.post('/hr/notifications/:id/read', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const notification = await prisma.hrNotification.findUnique({
-      where: { id: req.params.id },
-    });
+      where: { id: req.params.id }
+    })
 
     if (!notification || notification.hrUserId !== req.user!.id) {
-      res.status(404).json({ error: "Notification not found" });
-      return;
+      res.status(404).json({ error: 'Notification not found' })
+      return
     }
 
     const updated =
-      notification.readAt != null
-        ? notification
-        : await prisma.hrNotification.update({
+      notification.readAt == null
+        ? await prisma.hrNotification.update({
             where: { id: notification.id },
-            data: { readAt: new Date() },
-          });
+            data: { readAt: new Date() }
+          })
+        : notification
 
     res.status(200).json({
       notification: {
@@ -97,43 +100,40 @@ export function createHrApplicationsRouter(
         type: updated.type,
         payload: updated.payload,
         readAt: updated.readAt?.toISOString() ?? null,
-        createdAt: updated.createdAt.toISOString(),
-      },
-    });
-  });
+        createdAt: updated.createdAt.toISOString()
+      }
+    })
+  })
 
-  router.get("/hr/applications", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.get('/hr/applications', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const applications = await prisma.vacancyApplication.findMany({
       where: { vacancy: { hrUserId: req.user!.id } },
-      orderBy: { createdAt: "desc" },
-      include: { vacancy: { select: { id: true, title: true } } },
-    });
+      orderBy: { createdAt: 'desc' },
+      include: { vacancy: { select: { id: true, title: true } } }
+    })
 
     res.status(200).json({
-      applications: applications.map(mapApplicationListItem),
-    });
-  });
+      applications: applications.map(mapApplicationListItem)
+    })
+  })
 
-  router.get("/hr/applications/:id", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.get('/hr/applications/:id', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
       include: {
         vacancy: { select: { id: true, title: true, hrUserId: true } },
-        candidateUser: { select: { id: true, email: true } },
-      },
-    });
+        candidateUser: { select: { id: true, email: true } }
+      }
+    })
 
     if (!application || application.vacancy.hrUserId !== req.user!.id) {
-      res.status(404).json({ error: "Application not found" });
-      return;
+      res.status(404).json({ error: 'Application not found' })
+      return
     }
 
-    const profile = await getConfirmedQuestionnaireProfile(
-      prisma,
-      application.candidateUserId,
-    );
+    const profile = await getConfirmedQuestionnaireProfile(prisma, application.candidateUserId)
 
     res.status(200).json({
       application: {
@@ -149,86 +149,86 @@ export function createHrApplicationsRouter(
         candidate: {
           id: application.candidateUserId,
           fullName: profile?.fullName ?? null,
-          email: profile?.email ?? application.candidateUser.email,
-        },
-      },
-    });
-  });
+          email: profile?.email ?? application.candidateUser.email
+        }
+      }
+    })
+  })
 
-  router.delete("/hr/applications/:id", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.delete('/hr/applications/:id', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
       include: {
-        vacancy: { select: { hrUserId: true } },
-      },
-    });
+        vacancy: { select: { hrUserId: true } }
+      }
+    })
 
     if (!application || application.vacancy.hrUserId !== req.user!.id) {
-      res.status(404).json({ error: "Application not found" });
-      return;
+      res.status(404).json({ error: 'Application not found' })
+      return
     }
     if (application.interviewId) {
-      res.status(409).json({ error: "Cannot delete application linked to interview" });
-      return;
+      res.status(409).json({ error: 'Cannot delete application linked to interview' })
+      return
     }
 
-    await prisma.vacancyApplication.delete({ where: { id: application.id } });
-    res.status(204).end();
-  });
+    await prisma.vacancyApplication.delete({ where: { id: application.id } })
+    res.status(204).end()
+  })
 
-  router.post("/hr/applications/:id/create-interview", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
-    const hrUserId = req.user!.id;
+  router.post('/hr/applications/:id/create-interview', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
+    const hrUserId = req.user!.id
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
       include: {
-        vacancy: true,
-      },
-    });
+        vacancy: true
+      }
+    })
 
     if (!application || application.vacancy.hrUserId !== hrUserId) {
-      res.status(404).json({ error: "Application not found" });
-      return;
+      res.status(404).json({ error: 'Application not found' })
+      return
     }
-    if (application.status !== "PENDING") {
-      res.status(409).json({ error: "Application is not pending" });
-      return;
+    if (application.status !== 'PENDING') {
+      res.status(409).json({ error: 'Application is not pending' })
+      return
     }
-    if (application.vacancy.status !== "CONFIRMED") {
-      res.status(400).json({ error: "Vacancy is not confirmed" });
-      return;
+    if (application.vacancy.status !== 'CONFIRMED') {
+      res.status(400).json({ error: 'Vacancy is not confirmed' })
+      return
     }
     if (application.vacancy.hiddenAt != null) {
-      res.status(409).json({ error: "VACANCY_HIDDEN" });
-      return;
+      res.status(409).json({ error: 'VACANCY_HIDDEN' })
+      return
     }
 
-    const body = (req.body ?? {}) as { scheduledAt?: unknown };
-    const scheduledAt = parseOptionalScheduledAt(body.scheduledAt);
-    if (scheduledAt === "invalid") {
-      res.status(400).json({ error: "Invalid scheduledAt" });
-      return;
+    const body = (req.body ?? {}) as { scheduledAt?: unknown }
+    const scheduledAt = parseOptionalScheduledAt(body.scheduledAt)
+    if (scheduledAt === 'invalid') {
+      res.status(400).json({ error: 'Invalid scheduledAt' })
+      return
     }
 
     const blockingActive = await prisma.interview.findFirst({
       where: {
         candidateUserId: application.candidateUserId,
         status: { in: [...ACTIVE_CANDIDATE_INTERVIEW_STATUSES] },
-        displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME },
+        displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME }
       },
-      select: { id: true, status: true, displayName: true },
-    });
+      select: { id: true, status: true, displayName: true }
+    })
     // #region agent log
-    fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+    fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '66c73a' },
       body: JSON.stringify({
-        sessionId: "66c73a",
-        runId: "post-fix",
-        hypothesisId: "A",
-        location: "hr-applications.ts:create-interview:precheck",
-        message: "create-interview precheck existing candidate interviews",
+        sessionId: '66c73a',
+        runId: 'post-fix',
+        hypothesisId: 'A',
+        location: 'hr-applications.ts:create-interview:precheck',
+        message: 'create-interview precheck existing candidate interviews',
         data: {
           applicationIdSuffix: application.id.slice(-6),
           candidateUserIdSuffix: application.candidateUserId.slice(-6),
@@ -238,39 +238,39 @@ export function createHrApplicationsRouter(
             ? {
                 idSuffix: blockingActive.id.slice(-6),
                 status: blockingActive.status,
-                displayName: blockingActive.displayName,
+                displayName: blockingActive.displayName
               }
-            : null,
+            : null
         },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
     // #endregion
     if (blockingActive) {
       // #region agent log
-      fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+      fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '66c73a' },
         body: JSON.stringify({
-          sessionId: "66c73a",
-          runId: "post-fix",
-          hypothesisId: "B",
-          location: "hr-applications.ts:create-interview:blocked",
-          message: "create-interview rejected: candidate has active interview",
+          sessionId: '66c73a',
+          runId: 'post-fix',
+          hypothesisId: 'B',
+          location: 'hr-applications.ts:create-interview:blocked',
+          message: 'create-interview rejected: candidate has active interview',
           data: {
-            mappedResponse: "Candidate already has active interview",
+            mappedResponse: 'Candidate already has active interview',
             status: 409,
-            blockingIdSuffix: blockingActive.id.slice(-6),
+            blockingIdSuffix: blockingActive.id.slice(-6)
           },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
       // #endregion
-      res.status(409).json({ error: "Candidate already has active interview" });
-      return;
+      res.status(409).json({ error: 'Candidate already has active interview' })
+      return
     }
 
-    let result: Awaited<ReturnType<typeof createInterviewWithJoinCode>>;
+    let result: Awaited<ReturnType<typeof createInterviewWithJoinCode>>
     try {
       result = await createInterviewWithJoinCode(prisma, {
         hrUserId,
@@ -280,61 +280,59 @@ export function createHrApplicationsRouter(
         candidateUserId: application.candidateUserId,
         afterCreate: async (tx, { interview }) => {
           const updated = await tx.vacancyApplication.updateMany({
-            where: { id: application.id, status: "PENDING" },
+            where: { id: application.id, status: 'PENDING' },
             data: {
-              status: "CONVERTED",
-              interviewId: interview.id,
-            },
-          });
+              status: 'CONVERTED',
+              interviewId: interview.id
+            }
+          })
           if (updated.count === 0) {
-            const err = new Error("Application already converted");
-            (err as { code?: string }).code = APPLICATION_ALREADY_CONVERTED;
-            throw err;
+            const err = new Error('Application already converted')
+            ;(err as { code?: string }).code = APPLICATION_ALREADY_CONVERTED
+            throw err
           }
-        },
-      });
+        }
+      })
     } catch (error) {
       if ((error as { code?: string }).code === APPLICATION_ALREADY_CONVERTED) {
-        res.status(409).json({ error: "Application is not pending" });
-        return;
+        res.status(409).json({ error: 'Application is not pending' })
+        return
       }
-      const detail = error instanceof Error ? error.message : String(error);
-      const prismaCode = (error as { code?: string }).code ?? null;
-      const isCandidateConflict =
-        prismaCode === "P2002" && detail.includes("candidateUserId");
+      const detail = error instanceof Error ? error.message : String(error)
+      const prismaCode = (error as { code?: string }).code ?? null
+      const isCandidateConflict = prismaCode === 'P2002' && detail.includes('candidateUserId')
       const mappedResponse = isCandidateConflict
-        ? "Candidate already has active interview"
-        : "Failed to generate unique join code";
-      const mappedStatus = isCandidateConflict ? 409 : 500;
+        ? 'Candidate already has active interview'
+        : 'Failed to generate unique join code'
+      const mappedStatus = isCandidateConflict ? 409 : 500
       // #region agent log
-      const prismaMeta = (error as { code?: string; meta?: { target?: string[] } }).meta;
-      fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+      const prismaMeta = (error as { code?: string; meta?: { target?: string[] } }).meta
+      fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '66c73a' },
         body: JSON.stringify({
-          sessionId: "66c73a",
-          runId: "post-fix",
-          hypothesisId: "B",
-          location: "hr-applications.ts:create-interview:catch",
-          message: "create-interview failed",
+          sessionId: '66c73a',
+          runId: 'post-fix',
+          hypothesisId: 'B',
+          location: 'hr-applications.ts:create-interview:catch',
+          message: 'create-interview failed',
           data: {
             prismaCode,
             prismaTarget: prismaMeta?.target ?? null,
             detailSnippet: detail.slice(0, 280),
             mappedResponse,
-            mappedStatus,
+            mappedStatus
           },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
       // #endregion
-      console.error("[hr-applications:create-interview] failed:", detail);
-      res.status(mappedStatus).json({ error: mappedResponse });
-      return;
+      console.error('[hr-applications:create-interview] failed:', detail)
+      res.status(mappedStatus).json({ error: mappedResponse })
+      return
     }
 
-    const interview =
-      (await maybeTransitionToReady(prisma, result.interview.id)) ?? result.interview;
+    const interview = (await maybeTransitionToReady(prisma, result.interview.id)) ?? result.interview
 
     res.status(201).json({
       interview: {
@@ -345,130 +343,130 @@ export function createHrApplicationsRouter(
         status: interview.status,
         createdAt: interview.createdAt.toISOString(),
         scheduledAt: interview.scheduledAt?.toISOString() ?? null,
-        invitation: serializeInvitation(result.invitation),
+        invitation: serializeInvitation(result.invitation)
       },
       application: {
         id: application.id,
-        status: "CONVERTED",
-        interviewId: result.interview.id,
-      },
-    });
-  });
+        status: 'CONVERTED',
+        interviewId: result.interview.id
+      }
+    })
+  })
 
-  router.post("/hr/applications/:id/decline/draft", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.post('/hr/applications/:id/decline/draft', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
       include: {
-        vacancy: { select: { id: true, title: true, hrUserId: true } },
-      },
-    });
+        vacancy: { select: { id: true, title: true, hrUserId: true } }
+      }
+    })
 
     if (!application || application.vacancy.hrUserId !== req.user!.id) {
-      res.status(404).json({ error: "Application not found" });
-      return;
+      res.status(404).json({ error: 'Application not found' })
+      return
     }
-    if (application.status !== "PENDING") {
-      res.status(409).json({ error: "Application is not pending" });
-      return;
+    if (application.status !== 'PENDING') {
+      res.status(409).json({ error: 'Application is not pending' })
+      return
     }
 
     try {
       const body = await generateApplicationDeclineLetter(getLlmProvider(), {
         vacancyTitle: application.vacancy.title,
         candidateSummary: application.candidateSummary,
-        matchScore: application.matchScore,
-      });
-      res.status(200).json({ body });
+        matchScore: application.matchScore
+      })
+      res.status(200).json({ body })
     } catch {
-      res.status(502).json({ error: "Failed to generate letter" });
+      res.status(502).json({ error: 'Failed to generate letter' })
     }
-  });
+  })
 
-  router.post("/hr/applications/:id/decline", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
-    const hrUserId = req.user!.id;
+  router.post('/hr/applications/:id/decline', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
+    const hrUserId = req.user!.id
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
       include: {
-        vacancy: { select: { id: true, title: true, hrUserId: true } },
-      },
-    });
+        vacancy: { select: { id: true, title: true, hrUserId: true } }
+      }
+    })
 
     if (!application || application.vacancy.hrUserId !== hrUserId) {
-      res.status(404).json({ error: "Application not found" });
-      return;
+      res.status(404).json({ error: 'Application not found' })
+      return
     }
-    if (application.status !== "PENDING") {
-      res.status(409).json({ error: "Application is not pending" });
-      return;
+    if (application.status !== 'PENDING') {
+      res.status(409).json({ error: 'Application is not pending' })
+      return
     }
 
-    const letterBodyRaw = req.body?.letterBody;
-    if (typeof letterBodyRaw !== "string" || letterBodyRaw.trim().length === 0) {
-      res.status(400).json({ error: "letterBody required" });
-      return;
+    const letterBodyRaw = req.body?.letterBody
+    if (typeof letterBodyRaw !== 'string' || letterBodyRaw.trim().length === 0) {
+      res.status(400).json({ error: 'letterBody required' })
+      return
     }
-    const letterBody = letterBodyRaw.trim();
-    const candidateUserId = application.candidateUserId;
+    const letterBody = letterBodyRaw.trim()
+    const candidateUserId = application.candidateUserId
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async tx => {
       const existing = await tx.dialog.findUnique({
         where: {
           hrUserId_candidateUserId: {
             hrUserId,
-            candidateUserId,
-          },
-        },
-      });
+            candidateUserId
+          }
+        }
+      })
 
       const dialog =
         existing ??
         (await tx.dialog.create({
           data: {
             hrUserId,
-            candidateUserId,
-          },
-        }));
+            candidateUserId
+          }
+        }))
 
       const message = await tx.dialogMessage.create({
         data: {
           dialogId: dialog.id,
           senderUserId: hrUserId,
           body: letterBody,
-          kind: "DECISION_LETTER",
-        },
-      });
+          kind: 'DECISION_LETTER'
+        }
+      })
 
       await applyTerminalApplicationStatus(tx, {
         applicationId: application.id,
         candidateUserId,
         vacancyId: application.vacancyId,
-        status: "DECLINED_BY_HR",
-      });
+        status: 'DECLINED_BY_HR'
+      })
 
       await tx.dialog.update({
         where: { id: dialog.id },
-        data: { updatedAt: new Date(), candidateHiddenAt: null },
-      });
+        data: { updatedAt: new Date(), candidateHiddenAt: null }
+      })
 
-      return { dialogId: dialog.id, message };
-    });
+      return { dialogId: dialog.id, message }
+    })
 
     emitDialogMessage(getIo(), result.dialogId, {
       id: result.message.id,
       dialogId: result.dialogId,
       senderUserId: result.message.senderUserId,
       body: result.message.body,
-      kind: "DECISION_LETTER",
-      createdAt: result.message.createdAt.toISOString(),
-    });
+      kind: 'DECISION_LETTER',
+      createdAt: result.message.createdAt.toISOString()
+    })
 
     res.status(201).json({
-      application: { id: application.id, status: "DECLINED_BY_HR" },
-      dialogId: result.dialogId,
-    });
-  });
+      application: { id: application.id, status: 'DECLINED_BY_HR' },
+      dialogId: result.dialogId
+    })
+  })
 
-  return router;
+  return router
 }

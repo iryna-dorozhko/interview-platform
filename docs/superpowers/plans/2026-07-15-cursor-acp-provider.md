@@ -52,11 +52,13 @@
 ### Task 1: Cursor ACP Configuration Boundary
 
 **Files:**
+
 - Create: `backend/src/llm/cursor-acp.config.ts`
 - Create: `backend/src/llm/cursor-acp.config.test.ts`
 - Modify: `backend/src/llm/types.ts`
 
 **Interfaces:**
+
 - Produces: `CursorAcpConfig`, `readCursorAcpConfig(env)`, `assertNoConfiguredMcp(config)`.
 - Produces: optional `LlmProvider.close?(): Promise<void>`.
 - Consumes: no ACP protocol code.
@@ -200,10 +202,12 @@ git commit -m "feat(backend): add Cursor ACP configuration"
 ### Task 2: ACP Protocol Codec and Safe Transcript
 
 **Files:**
+
 - Create: `backend/src/llm/cursor-acp.protocol.ts`
 - Create: `backend/src/llm/cursor-acp.protocol.test.ts`
 
 **Interfaces:**
+
 - Produces: `NdjsonDecoder`, `parseJsonRpcMessage`, ACP result validators,
   `buildCursorAcpPrompt`, and rejection helpers.
 - Consumes: `ChatMessage` from `types.ts`.
@@ -349,10 +353,12 @@ git commit -m "feat(backend): add ACP protocol codec"
 ### Task 3: Shared Cursor ACP Client and Concurrent Sessions
 
 **Files:**
+
 - Create: `backend/src/llm/cursor-acp.client.ts`
 - Create: `backend/src/llm/cursor-acp.client.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CursorAcpConfig` and protocol validators/helpers.
 - Produces: `CursorAcpClient.completePrompt(prompt): Promise<string>` and
   `CursorAcpClient.close(): Promise<void>`.
@@ -595,6 +601,7 @@ git commit -m "feat(backend): add shared Cursor ACP client"
 ### Task 4: LLM Provider and Factory Wiring
 
 **Files:**
+
 - Create: `backend/src/llm/cursor-acp.provider.ts`
 - Create: `backend/src/llm/cursor-acp.provider.test.ts`
 - Modify: `backend/src/llm/types.ts`
@@ -602,6 +609,7 @@ git commit -m "feat(backend): add shared Cursor ACP client"
 - Modify: `backend/src/llm/factory.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CursorAcpClient`, `buildCursorAcpPrompt`, `CursorAcpConfig`.
 - Produces: `createCursorAcpProvider(config, deps?)`.
 - Produces: `LLM_PROVIDER=cursor-acp` factory selection.
@@ -766,11 +774,13 @@ git commit -m "feat(backend): add Cursor ACP LLM provider"
 ### Task 5: Timeouts, Crash Recovery, Recycling, and Shutdown
 
 **Files:**
+
 - Modify: `backend/src/llm/cursor-acp.client.ts`
 - Modify: `backend/src/llm/cursor-acp.client.test.ts`
 - Modify: `backend/src/llm/cursor-acp.provider.test.ts`
 
 **Interfaces:**
+
 - Extends existing `CursorAcpClient`; no new public provider API.
 - Uses config timeout, recycle, and grace-period fields from Task 1.
 
@@ -970,6 +980,7 @@ git commit -m "fix(backend): harden Cursor ACP lifecycle"
 ### Task 6: Singleton Server Wiring and Graceful Shutdown
 
 **Files:**
+
 - Create: `backend/src/server-lifecycle.ts`
 - Create: `backend/src/server-lifecycle.test.ts`
 - Modify: `backend/src/server.ts`
@@ -977,6 +988,7 @@ git commit -m "fix(backend): harden Cursor ACP lifecycle"
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
 **Interfaces:**
+
 - Produces: `RoomOrchestrator.close(): void`.
 - Produces: `createGracefulShutdown(deps): (signal) => Promise<void>`.
 - Consumes: optional `LlmProvider.close`.
@@ -1130,11 +1142,13 @@ git commit -m "feat(backend): add graceful shared LLM shutdown"
 ### Task 7: Smoke Script, Test Registration, and Operator Configuration
 
 **Files:**
+
 - Modify: `backend/scripts/llm-test.ts`
 - Modify: `backend/.env.example`
 - Modify: `backend/package.json`
 
 **Interfaces:**
+
 - Consumes: factory-created `LlmProvider` and optional `close`.
 - Produces: one command that exercises sequential and concurrent completions.
 
@@ -1230,10 +1244,12 @@ git commit -m "test(backend): add Cursor ACP smoke workflow"
 ### Task 8: Real ACP and Backend Verification
 
 **Files:**
+
 - Local-only: `backend/.env` — change only `LLM_PROVIDER=cursor-acp`; never stage.
 - No tracked source changes expected.
 
 **Interfaces:**
+
 - Verifies the complete production path against Cursor CLI.
 
 - [ ] **Step 1: Confirm CLI and auth without exposing credentials**
@@ -1341,4 +1357,3 @@ git diff --check
 
 Expected: no `.env`, credential, token, auth, or generated Cursor session file
 is staged or tracked; `git diff --check` exits 0.
-

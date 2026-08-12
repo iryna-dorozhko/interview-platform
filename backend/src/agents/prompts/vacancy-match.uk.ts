@@ -15,7 +15,7 @@ evidence — коротке фактичне пояснення українсь
 - assessments має містити рівно всі critical+desired вимоги вакансії, без доданих
 - priority має збігатися з вхідним списком
 - status лише met|unknown|unmet
-- evidence — непустий рядок`;
+- evidence — непустий рядок`
 
 export const CANDIDATE_SUMMARY_SYSTEM_PROMPT_UK = `Ти HR-асистент. Отримуєш JSON-профіль кандидата та назву вакансії.
 
@@ -27,4 +27,4 @@ export const CANDIDATE_SUMMARY_SYSTEM_PROMPT_UK = `Ти HR-асистент. О�
 
 Правила:
 - summary — непустий рядок українською
-- Спирайся лише на надані дані; не вигадуй фактів`;
+- Спирайся лише на надані дані; не вигадуй фактів`

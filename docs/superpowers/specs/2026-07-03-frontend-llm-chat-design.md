@@ -26,6 +26,7 @@ Day 2 додав backend LLM-шар (`POST /api/llm/complete`) з провайд
 **Підхід:** окремий компонент `ChatPanel` + API-клієнт `api/llm.ts`. Стан чату локально в компоненті (`ref`), без Pinia і без БД.
 
 **Сторінка** (`App.vue`):
+
 1. Блок статусу Day 1 (без змін у логіці)
 2. Розділювач
 3. `ChatPanel`
@@ -65,6 +66,7 @@ export async function sendChat(
 ### `frontend/src/components/ChatPanel.vue`
 
 **Стан:**
+
 - `messages: Ref<UiMessage[]>`
 - `input: Ref<string>`
 - `loading: Ref<boolean>`
@@ -72,11 +74,13 @@ export async function sendChat(
 - `lastProvider: Ref<string | null>`
 
 **Дії:**
+
 - `sendMessage()` — валідація, push user, fetch, push assistant, скрол
 - `clearChat()` — очистити messages, input, error, lastProvider
 - `onKeydown` — Enter надсилає, Shift+Enter — новий рядок
 
 **UI:**
+
 - Заголовок «Чат з AI»
 - Кнопка «Новий чат» (disabled під час loading)
 - Список повідомлень: user праворуч (синій), assistant ліворуч (сірий)
@@ -131,8 +135,9 @@ Backend без змін — існуючий endpoint вже підтримує 
 ## Тестування
 
 **Ручна перевірка:**
+
 1. `omlx serve --port 8000` + backend dev
-2. Відкрити http://localhost:5173
+2. Відкрити <http://localhost:5173>
 3. Надіслати 2–3 повідомлення — модель пам’ятає контекст
 4. «Новий чат» — історія очищується
 5. Зупинити omlx — помилка 503 у банері

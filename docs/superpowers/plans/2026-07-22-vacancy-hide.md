@@ -48,10 +48,12 @@
 ### Task 1: Prisma — `hiddenAt` on Vacancy
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/20260722180000_vacancy_hidden_at/migration.sql`
 
 **Interfaces:**
+
 - Produces: `Vacancy.hiddenAt: DateTime | null` (Prisma client after generate)
 
 - [ ] **Step 1: Add field to schema**
@@ -103,11 +105,13 @@ git commit -m "feat(db): add Vacancy.hiddenAt for match visibility"
 ### Task 2: Backend — hide / unhide / mine visibility
 
 **Files:**
+
 - Modify: `backend/src/routes/vacancies.ts`
 - Modify: `backend/src/routes/vacancies.test.ts`
 - Test: `backend/src/routes/vacancies.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ACTIVE_CANDIDATE_INTERVIEW_STATUSES` from `../utils/interview-readiness`
 - Produces:
   - Vacancy JSON always includes `hiddenAt: string | null` (ISO from `Date`, or `null`)
@@ -474,11 +478,13 @@ git commit -m "feat(api): hide and unhide vacancies with visibility filter"
 ### Task 3: Match pool excludes hidden vacancies
 
 **Files:**
+
 - Modify: `backend/src/services/vacancy-match.ts`
 - Modify: `backend/src/services/vacancy-match.test.ts`
 - Test: `backend/src/services/vacancy-match.test.ts`
 
 **Interfaces:**
+
 - Consumes: Prisma `vacancy.findMany` where clause
 - Produces: `listMatchableVacancies` only rows with `hiddenAt: null`
 
@@ -546,12 +552,14 @@ git commit -m "fix(match): exclude hidden vacancies from candidate match pool"
 ### Task 4: Block creating interviews for hidden vacancies
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 - Modify: `backend/src/routes/hr-applications.ts`
 - Modify: `backend/src/routes/hr-applications.test.ts`
 
 **Interfaces:**
+
 - Produces: both create paths return `409` `{ error: "VACANCY_HIDDEN" }` when `vacancy.hiddenAt != null`
 
 - [ ] **Step 1: Write failing interview create test**
@@ -623,11 +631,13 @@ git commit -m "fix(api): block new interviews on hidden vacancies"
 ### Task 5: Frontend API + VacancyListView tabs and actions
 
 **Files:**
+
 - Modify: `frontend/src/api/vacancies.ts`
 - Modify: `frontend/src/views/VacancyListView.vue`
 - Modify: `frontend/src/components/CreateInterviewModal.vue`
 
 **Interfaces:**
+
 - Produces:
   - `VacancySummary.hiddenAt: string | null`
   - `fetchMyVacancies(visibility?: "active" | "hidden")`

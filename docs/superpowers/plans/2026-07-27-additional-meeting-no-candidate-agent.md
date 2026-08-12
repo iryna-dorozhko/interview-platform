@@ -43,11 +43,13 @@
 ### Task 1: Arbiter follow-up mode (no ANSWER / CANDIDATE_QUESTIONS)
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/arbiter-agent.uk.ts`
 - Modify: `backend/src/agents/arbiter-agent.ts`
 - Modify: `backend/src/agents/arbiter-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Interview.kind`
 - Produces:
   - `export const ADDITIONAL_MEETING_ARBITER_NUDGE_UK: string`
@@ -126,10 +128,12 @@ git commit -m "feat(arbiter): follow-up mode without candidate agent"
 ### Task 2: Orchestrator hard-skip Candidate Agent
 
 **Files:**
+
 - Modify: `backend/src/socket/orchestrator.ts`
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
 **Interfaces:**
+
 - Consumes: `prisma.interview.findUnique({ select: { kind: true } })` inside conductor (or cache once per loop)
 - Produces: no `runCandidate` / no candidate thinking emit for ADDITIONAL_MEETING on ANSWER / CANDIDATE_QUESTIONS
 
@@ -232,6 +236,7 @@ git commit -m "feat(live): skip candidate agent on additional meetings"
 ### Task 3: Frontend — hide Candidate (AI) + expose kind to candidate room
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-interview.ts` (+ test if exists)
 - Modify: `frontend/src/api/candidate-interview.ts`
 - Modify: `frontend/src/views/HrInterviewRoomView.vue`
@@ -240,6 +245,7 @@ git commit -m "feat(live): skip candidate agent on additional meetings"
 - Modify: `frontend/src/components/AgentStatusPanel.vue`
 
 **Interfaces:**
+
 - `interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null` prop on room content / panel
 - Candidate GET interview includes `kind`
 

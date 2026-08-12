@@ -1,52 +1,55 @@
-import { Router, type Request, type Response } from "express";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Router } from 'express'
+import type { Request, Response } from 'express'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import {
   buildCompanyProfileAgentMessages,
   buildHrCompanyProfileExtractionMessages,
   parseAgentReply,
-  parseHrCompanyProfileExtraction,
-} from "../agents/company-profile-agent";
-import { LlmError } from "../llm/errors";
-import { toSafeLlmErrorMessage, withLlmRetry } from "../llm/retry";
-import type { LlmProvider } from "../llm/types";
+  parseHrCompanyProfileExtraction
+} from '../agents/company-profile-agent'
+import { LlmError } from '../llm/errors'
+import { toSafeLlmErrorMessage, withLlmRetry } from '../llm/retry'
+import type { LlmProvider } from '../llm/types'
 
+// Модуль llmHttpStatus.
 function llmHttpStatus(error: unknown): number {
-  if (error instanceof LlmError && error.code === "empty_response") return 502;
-  if (error instanceof Error && error.name.endsWith("ExtractionError")) return 502;
-  return 503;
+  if (error instanceof LlmError && error.code === 'empty_response') return 502
+  if (error instanceof Error && error.name.endsWith('ExtractionError')) return 502
+  return 503
 }
 
 type MessageBody = {
-  message?: unknown;
-};
+  message?: unknown
+}
 
 type ProfilePatchBody = {
-  companyName?: unknown;
-  culture?: unknown;
-  companyDirection?: unknown;
-  policies?: unknown;
-  workFormat?: unknown;
-  onboardingApproach?: unknown;
-};
+  companyName?: unknown
+  culture?: unknown
+  companyDirection?: unknown
+  policies?: unknown
+  workFormat?: unknown
+  onboardingApproach?: unknown
+}
 
 type HrCompanyProfileDto = {
-  companyName: string | null;
-  culture: string[];
-  companyDirection: string[];
-  policies: string[];
-  workFormat: string[];
-  onboardingApproach: string[];
-  confirmedAt: string | null;
-};
+  companyName: string | null
+  culture: string[]
+  companyDirection: string[]
+  policies: string[]
+  workFormat: string[]
+  onboardingApproach: string[]
+  confirmedAt: string | null
+}
 
+// Модуль toProfileDto.
 function toProfileDto(profile: {
-  companyName: string | null;
-  culture: unknown;
-  companyDirection: unknown;
-  policies: unknown;
-  workFormat: unknown;
-  onboardingApproach: unknown;
-  confirmedAt: Date | null;
+  companyName: string | null
+  culture: unknown
+  companyDirection: unknown
+  policies: unknown
+  workFormat: unknown
+  onboardingApproach: unknown
+  confirmedAt: Date | null
 }): HrCompanyProfileDto {
   return {
     companyName: profile.companyName,
@@ -55,168 +58,163 @@ function toProfileDto(profile: {
     policies: profile.policies as string[],
     workFormat: profile.workFormat as string[],
     onboardingApproach: profile.onboardingApproach as string[],
-    confirmedAt: profile.confirmedAt ? profile.confirmedAt.toISOString() : null,
-  };
+    confirmedAt: profile.confirmedAt ? profile.confirmedAt.toISOString() : null
+  }
 }
 
+// Парсить StringArray.
 function parseStringArray(value: unknown): string[] | null {
   if (!Array.isArray(value) || value.length === 0) {
-    return null;
+    return null
   }
-  const items = value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
+  const items = value.map(item => (typeof item === 'string' ? item.trim() : '')).filter(item => item.length > 0)
   if (items.length === 0 || items.length !== value.length) {
-    return null;
+    return null
   }
-  return items;
+  return items
 }
 
+// Парсить CompanyName.
 function parseCompanyName(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
+  if (typeof value !== 'string') {
+    return null
   }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
+// Модуль asInputJson.
 function asInputJson(value: unknown): Prisma.InputJsonValue {
-  return value as Prisma.InputJsonValue;
+  return value as Prisma.InputJsonValue
 }
 
+// Парсить ProfilePatch.
 function parseProfilePatch(
   body: ProfilePatchBody
 ): { ok: true; data: Prisma.HrCompanyProfileUpdateInput } | { ok: false; error: string } {
-  const data: Prisma.HrCompanyProfileUpdateInput = {};
-  const hasField = (field: keyof ProfilePatchBody) => Object.prototype.hasOwnProperty.call(body, field);
+  const data: Prisma.HrCompanyProfileUpdateInput = {}
+  const hasField = (field: keyof ProfilePatchBody) => Object.hasOwn(body, field)
 
-  if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
-    return { ok: false, error: "No fields to update" };
+  if (!Object.keys(body).some(key => hasField(key as keyof ProfilePatchBody))) {
+    return { ok: false, error: 'No fields to update' }
   }
 
-  if (hasField("companyName")) {
-    const parsed = parseCompanyName(body.companyName);
+  if (hasField('companyName')) {
+    const parsed = parseCompanyName(body.companyName)
     if (!parsed) {
-      return { ok: false, error: "Invalid companyName" };
+      return { ok: false, error: 'Invalid companyName' }
     }
-    data.companyName = parsed;
+    data.companyName = parsed
   }
 
-  const arrayFields = [
-    "culture",
-    "companyDirection",
-    "policies",
-    "workFormat",
-    "onboardingApproach",
-  ] as const;
+  const arrayFields = ['culture', 'companyDirection', 'policies', 'workFormat', 'onboardingApproach'] as const
 
   for (const field of arrayFields) {
     if (!hasField(field)) {
-      continue;
+      continue
     }
-    const parsed = parseStringArray(body[field]);
+    const parsed = parseStringArray(body[field])
     if (!parsed) {
-      return { ok: false, error: `Invalid ${field}` };
+      return { ok: false, error: `Invalid ${field}` }
     }
-    data[field] = asInputJson(parsed);
+    data[field] = asInputJson(parsed)
   }
 
-  return { ok: true, data };
+  return { ok: true, data }
 }
 
-export function createCompanyPrepRouter(
-  getPrisma: () => PrismaClient,
-  getProvider: () => LlmProvider
-): Router {
-  const router = Router();
+// Створює CompanyPrepRouter.
+export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvider: () => LlmProvider): Router {
+  const router = Router()
 
-  router.get("/company-prep", async (req: Request, res: Response) => {
-    const hrUserId = req.user?.id;
+  router.get('/company-prep', async (req: Request, res: Response) => {
+    const hrUserId = req.user?.id
     if (!hrUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
-    const prisma = getPrisma();
-    const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } });
+    const prisma = getPrisma()
+    const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } })
     if (!session) {
-      res.status(200).json({ messages: [], isClosed: false, profile: null });
-      return;
+      res.status(200).json({ messages: [], isClosed: false, profile: null })
+      return
     }
 
     const messages = await prisma.prepMessageCompany.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
 
-    const profile = session.isClosed
-      ? await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } })
-      : null;
+    const profile = session.isClosed ? await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } }) : null
 
     res.status(200).json({
-      messages: messages.map((item) => ({
+      messages: messages.map(item => ({
         id: item.id,
         authorType: item.authorType,
         content: item.content,
-        createdAt: item.createdAt,
+        createdAt: item.createdAt
       })),
       isClosed: session.isClosed,
-      profile: profile ? toProfileDto(profile) : null,
-    });
-  });
+      profile: profile ? toProfileDto(profile) : null
+    })
+  })
 
-  router.post("/company-prep/finish", async (req: Request, res: Response) => {
-    const hrUserId = req.user?.id;
+  router.post('/company-prep/finish', async (req: Request, res: Response) => {
+    const hrUserId = req.user?.id
     if (!hrUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
-    const prisma = getPrisma();
-    const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } });
+    const prisma = getPrisma()
+    const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } })
     if (!session) {
-      res.status(404).json({ error: "Prep session not found" });
-      return;
+      res.status(404).json({ error: 'Prep session not found' })
+      return
     }
 
     if (session.isClosed) {
-      res.status(409).json({ error: "Prep session closed" });
-      return;
+      res.status(409).json({ error: 'Prep session closed' })
+      return
     }
 
     const history = await prisma.prepMessageCompany.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
 
     const llmMessages = buildHrCompanyProfileExtractionMessages(
-      history.map((item) => ({ authorType: item.authorType, content: item.content }))
-    );
+      history.map(item => ({ authorType: item.authorType, content: item.content }))
+    )
 
-    let provider: LlmProvider;
+    let provider: LlmProvider
     try {
-      provider = getProvider();
+      provider = getProvider()
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep:finish] provider init failed:", detail);
-      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[company-prep:finish] provider init failed:', detail)
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    let extracted;
+    let extracted
     try {
-      extracted = await withLlmRetry(async () => {
-        const rawReply = await provider.complete(llmMessages);
-        return parseHrCompanyProfileExtraction(rawReply);
-      }, { label: "company-prep:finish" });
+      extracted = await withLlmRetry(
+        async () => {
+          const rawReply = await provider.complete(llmMessages)
+          return parseHrCompanyProfileExtraction(rawReply)
+        },
+        { label: 'company-prep:finish' }
+      )
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[company-prep:finish:${provider.name}] llm failed:`, detail);
-      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error(`[company-prep:finish:${provider.name}] llm failed:`, detail)
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    let profile;
+    let profile
     try {
       profile = await prisma.hrCompanyProfile.upsert({
         where: { hrUserId },
@@ -226,7 +224,7 @@ export function createCompanyPrepRouter(
           companyDirection: extracted.companyDirection,
           policies: extracted.policies,
           workFormat: extracted.workFormat,
-          onboardingApproach: extracted.onboardingApproach,
+          onboardingApproach: extracted.onboardingApproach
         },
         create: {
           hrUserId,
@@ -235,157 +233,159 @@ export function createCompanyPrepRouter(
           companyDirection: extracted.companyDirection,
           policies: extracted.policies,
           workFormat: extracted.workFormat,
-          onboardingApproach: extracted.onboardingApproach,
-        },
-      });
-      await prisma.prepSessionCompany.update({ where: { id: session.id }, data: { isClosed: true } });
+          onboardingApproach: extracted.onboardingApproach
+        }
+      })
+      await prisma.prepSessionCompany.update({
+        where: { id: session.id },
+        data: { isClosed: true }
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep:finish] failed to persist profile:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[company-prep:finish] failed to persist profile:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-    res.status(200).json({ profile: toProfileDto(profile) });
-  });
+    res.status(200).json({ profile: toProfileDto(profile) })
+  })
 
-  router.patch("/company-prep/profile", async (req: Request, res: Response) => {
-    const hrUserId = req.user?.id;
+  router.patch('/company-prep/profile', async (req: Request, res: Response) => {
+    const hrUserId = req.user?.id
     if (!hrUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
-    const prisma = getPrisma();
-    const profile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } });
+    const prisma = getPrisma()
+    const profile = await prisma.hrCompanyProfile.findUnique({ where: { hrUserId } })
     if (!profile) {
-      res.status(404).json({ error: "Profile not found" });
-      return;
+      res.status(404).json({ error: 'Profile not found' })
+      return
     }
 
-    const parsed = parseProfilePatch((req.body ?? {}) as ProfilePatchBody);
+    const parsed = parseProfilePatch((req.body ?? {}) as ProfilePatchBody)
     if (!parsed.ok) {
-      res.status(400).json({ error: parsed.error });
-      return;
+      res.status(400).json({ error: parsed.error })
+      return
     }
 
-    let updatedProfile;
+    let updatedProfile
     try {
       updatedProfile = await prisma.hrCompanyProfile.update({
         where: { hrUserId },
-        data: parsed.data,
-      });
+        data: parsed.data
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep:patch-profile] failed to update profile:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[company-prep:patch-profile] failed to update profile:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-    res.status(200).json({ profile: toProfileDto(updatedProfile) });
-  });
+    res.status(200).json({ profile: toProfileDto(updatedProfile) })
+  })
 
-  router.post("/company-prep/message", async (req: Request, res: Response) => {
-    const hrUserId = req.user?.id;
+  router.post('/company-prep/message', async (req: Request, res: Response) => {
+    const hrUserId = req.user?.id
     if (!hrUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
-    const body = (req.body ?? {}) as MessageBody;
-    const message = typeof body.message === "string" ? body.message.trim() : "";
-    const prisma = getPrisma();
+    const body = (req.body ?? {}) as MessageBody
+    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const prisma = getPrisma()
 
     const session = await prisma.prepSessionCompany.upsert({
       where: { hrUserId },
       update: {},
-      create: { hrUserId },
-    });
+      create: { hrUserId }
+    })
 
     if (session.isClosed) {
-      res.status(409).json({ error: "Prep session closed" });
-      return;
+      res.status(409).json({ error: 'Prep session closed' })
+      return
     }
 
     if (message) {
       await prisma.prepMessageCompany.create({
-        data: { sessionId: session.id, authorType: "HUMAN_HR", content: message },
-      });
+        data: { sessionId: session.id, authorType: 'HUMAN_HR', content: message }
+      })
     }
 
     const history = await prisma.prepMessageCompany.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
 
     const llmMessages = buildCompanyProfileAgentMessages(
-      history.map((item) => ({ authorType: item.authorType, content: item.content }))
-    );
+      history.map(item => ({ authorType: item.authorType, content: item.content }))
+    )
 
-    let provider: LlmProvider;
+    let provider: LlmProvider
     try {
-      provider = getProvider();
+      provider = getProvider()
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep] provider init failed:", detail);
-      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[company-prep] provider init failed:', detail)
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    let rawReply: string;
+    let rawReply: string
     try {
-      rawReply = await withLlmRetry(
-        () => provider.complete(llmMessages),
-        { label: "company-prep:message" },
-      );
+      rawReply = await withLlmRetry(() => provider.complete(llmMessages), {
+        label: 'company-prep:message'
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[company-prep:${provider.name}] llm failed:`, detail);
-      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error(`[company-prep:${provider.name}] llm failed:`, detail)
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply);
+    const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply)
 
     try {
       await prisma.prepMessageCompany.create({
-        data: { sessionId: session.id, authorType: "AGENT_COMPANY", content: agentMessage },
-      });
+        data: { sessionId: session.id, authorType: 'AGENT_COMPANY', content: agentMessage }
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep] failed to persist agent reply:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[company-prep] failed to persist agent reply:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-    res.status(200).json({ message: agentMessage, readyForConfirmation });
-  });
+    res.status(200).json({ message: agentMessage, readyForConfirmation })
+  })
 
-  router.delete("/company-prep", async (req: Request, res: Response) => {
-    const hrUserId = req.user?.id;
+  router.delete('/company-prep', async (req: Request, res: Response) => {
+    const hrUserId = req.user?.id
     if (!hrUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
-    const prisma = getPrisma();
+    const prisma = getPrisma()
 
     try {
-      const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } });
+      const session = await prisma.prepSessionCompany.findUnique({ where: { hrUserId } })
       if (session) {
-        await prisma.prepMessageCompany.deleteMany({ where: { sessionId: session.id } });
-        await prisma.prepSessionCompany.delete({ where: { id: session.id } });
+        await prisma.prepMessageCompany.deleteMany({ where: { sessionId: session.id } })
+        await prisma.prepSessionCompany.delete({ where: { id: session.id } })
       }
-      await prisma.hrCompanyProfile.deleteMany({ where: { hrUserId } });
+      await prisma.hrCompanyProfile.deleteMany({ where: { hrUserId } })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[company-prep:delete] failed to reset prep chat:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[company-prep:delete] failed to reset prep chat:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-    res.status(200).json({ ok: true });
-  });
+    res.status(200).json({ ok: true })
+  })
 
-  return router;
+  return router
 }

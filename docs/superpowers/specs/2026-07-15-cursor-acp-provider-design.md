@@ -34,10 +34,10 @@ The design was checked against Cursor CLI `2026.07.09-a3815c0` and ACP v1 on
 
 Primary references:
 
-- https://cursor.com/docs/cli/acp
-- https://agentclientprotocol.com/protocol/v1/transports
-- https://agentclientprotocol.com/protocol/v1/session-setup
-- https://agentclientprotocol.com/protocol/v1/session-config-options
+- <https://cursor.com/docs/cli/acp>
+- <https://agentclientprotocol.com/protocol/v1/transports>
+- <https://agentclientprotocol.com/protocol/v1/session-setup>
+- <https://agentclientprotocol.com/protocol/v1/session-config-options>
 
 ## Architecture
 

@@ -46,6 +46,7 @@
 ### Task 1: Prisma schema — `Invitation` + `scheduledAt`
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: migration via `npm --workspace backend run db:migrate`
 
@@ -64,14 +65,14 @@ enum InvitationStatus {
 }
 ```
 
-2. On `Interview`, add:
+1. On `Interview`, add:
 
 ```prisma
   scheduledAt      DateTime?
   invitations      Invitation[]
 ```
 
-3. Add model (before or after `FinalReport`):
+1. Add model (before or after `FinalReport`):
 
 ```prisma
 model Invitation {
@@ -88,7 +89,7 @@ model Invitation {
 }
 ```
 
-4. On `Interview` delete path in `interviews.ts`: cascade handles invitations — no manual delete needed if `onDelete: Cascade`.
+1. On `Interview` delete path in `interviews.ts`: cascade handles invitations — no manual delete needed if `onDelete: Cascade`.
 
 - [ ] **Step 2: Migrate**
 
@@ -112,6 +113,7 @@ git commit -m "feat: add Invitation model and Interview.scheduledAt"
 ### Task 2: Invitation helpers (TDD)
 
 **Files:**
+
 - Create: `backend/src/utils/invitation.ts`
 - Create: `backend/src/utils/invitation.test.ts`
 - Modify: `backend/package.json` (`test` script — append `src/utils/invitation.test.ts`)
@@ -213,6 +215,7 @@ git commit -m "feat: add invitation email helpers"
 ### Task 3: Extend `POST /interviews` — email + scheduledAt
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 
@@ -334,6 +337,7 @@ git commit -m "feat: create interview with optional invitation and scheduledAt"
 ### Task 4: `PATCH /interviews/:id` (schedule) and `PATCH /interviews/:id/invitation`
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 
@@ -383,6 +387,7 @@ git commit -m "feat: add HR PATCH invitation and scheduledAt"
 ### Task 5: Candidate invitations API
 
 **Files:**
+
 - Create: `backend/src/routes/candidate-invitations.ts`
 - Create: `backend/src/routes/candidate-invitations.test.ts`
 - Modify: `backend/src/server.ts`
@@ -485,6 +490,7 @@ git commit -m "feat: add candidate invitations list accept decline API"
 ### Task 6: Join cancels PENDING invitations
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-interview.ts`
 - Modify: `backend/src/routes/candidate-interview.test.ts`
 
@@ -521,6 +527,7 @@ git commit -m "feat: cancel pending invitation when candidate joins by code"
 ### Task 7: Frontend invite helpers + API clients
 
 **Files:**
+
 - Create: `frontend/src/utils/invite-message.ts`
 - Modify: `frontend/src/api/interviews.ts`
 - Create: `frontend/src/api/candidate-invitations.ts`
@@ -644,6 +651,7 @@ git commit -m "feat: add frontend invitation API clients and invite message help
 ### Task 8: `InviteCopyActions` + `CreateInterviewModal`
 
 **Files:**
+
 - Create: `frontend/src/components/InviteCopyActions.vue`
 - Modify: `frontend/src/components/CreateInterviewModal.vue`
 
@@ -684,6 +692,7 @@ git commit -m "feat: HR create modal invite copy actions and optional email"
 ### Task 9: `InterviewDetailView` — copy, email, schedule
 
 **Files:**
+
 - Modify: `frontend/src/views/InterviewDetailView.vue`
 
 - [ ] **Step 1: UI blocks**
@@ -712,6 +721,7 @@ git commit -m "feat: manage invitation and schedule on interview detail"
 ### Task 10: CandidateHome invitations
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateHomeView.vue`
 
 - [ ] **Step 1: Load invitations in `loadDashboard`**
@@ -753,6 +763,7 @@ git commit -m "feat: show Accept/Decline invitations on candidate home"
 ### Task 11: `/join` route + auth redirect
 
 **Files:**
+
 - Create: `frontend/src/views/JoinInterviewView.vue`
 - Modify: `frontend/src/router/index.ts`
 - Modify: `frontend/src/views/CandidateLoginView.vue` (register link with redirect)
@@ -775,7 +786,7 @@ In `router/index.ts` (top-level, no auth meta):
 On mount:
 
 1. Read `code` from query (string); if missing → show «Код не вказано».
-2. If `!auth.token` → `router.replace({ name: 'candidate-login', query: { redirect: `/join?code=${code}` } })`.
+2. If `!auth.token` → `router.replace({ name: 'candidate-login', query: { redirect:`/join?code=${code}`} })`.
 3. If `auth.user.role === 'HR'` → show «Увійдіть як кандидат» + link to candidate login with same redirect (do not auto-join).
 4. If CANDIDATE → `joinInterviewByCode(code)`; success → `candidate-home` with optional query `joined=1` or use store/banner via sessionStorage; failure → show error + link to home / manual join.
 
@@ -796,6 +807,7 @@ git commit -m "feat: add /join deep link with login redirect and auto-join"
 ### Task 12: README + full verification
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Add short section** (after Day 8 Create Interview Quick Start or Day 14 join)

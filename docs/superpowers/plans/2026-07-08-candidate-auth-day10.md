@@ -52,6 +52,7 @@
 ### Task 1: Backend Auth Endpoints + Tests (TDD)
 
 **Files:**
+
 - Modify: `backend/src/routes/auth.test.ts`
 - Modify: `backend/src/routes/auth.ts`
 - Test: `backend/src/routes/auth.test.ts`
@@ -153,6 +154,7 @@ git commit -m "feat(auth): add candidate register/login and role-specific auth r
 ### Task 2: Frontend Auth API + Store Split (TDD-lite via build and type checks)
 
 **Files:**
+
 - Modify: `frontend/src/api/auth.ts`
 - Modify: `frontend/src/stores/auth.ts`
 - Test: `frontend/src/api/auth.ts` (type/build verification)
@@ -215,6 +217,7 @@ git commit -m "refactor(frontend-auth): split hr and candidate auth actions"
 ### Task 3: Candidate Views + HR Login View Update
 
 **Files:**
+
 - Modify: `frontend/src/views/LoginView.vue`
 - Create: `frontend/src/views/CandidateLoginView.vue`
 - Create: `frontend/src/views/CandidateRegisterView.vue`
@@ -289,6 +292,7 @@ git commit -m "feat(frontend): add candidate auth views and empty candidate cabi
 ### Task 4: Router Role Guards + Redirect Rules
 
 **Files:**
+
 - Modify: `frontend/src/router/index.ts`
 - Test: `frontend/src/router/index.ts` (manual route checks + build)
 
@@ -338,6 +342,7 @@ Run: `npm --workspace frontend run build`
 Expected: PASS.
 
 Manual checks:
+
 - HR token + open `/candidate/login` -> redirected to `/`
 - Candidate token + open `/vacancies` -> redirected to `/candidate`
 - Logged out + open `/candidate` -> redirected to `/candidate/login`
@@ -354,6 +359,7 @@ git commit -m "feat(router): add role-aware hr/candidate auth guards"
 ### Task 5: README Update + Final Verification
 
 **Files:**
+
 - Modify: `README.md`
 - Test: full build and targeted backend tests
 
@@ -408,4 +414,3 @@ git commit -m "docs: add candidate auth routes and day10 verification flow"
 - Spec coverage: покрито endpoint-и, маршрути, role redirects, порожній candidate cabinet, тести, README.
 - Placeholder scan: у кроках немає невизначених маркерів або відкладених дій.
 - Type consistency: всюди використано `HR | CANDIDATE`, action names `loginHr`, `loginCandidate`, `registerCandidate`.
-

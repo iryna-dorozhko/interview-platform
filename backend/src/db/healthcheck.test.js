@@ -1,52 +1,34 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const Module = require("node:module");
+import assert from 'node:assert/strict'
+import { test } from 'vitest'
+import { checkDatabaseHealth } from './healthcheck.js'
 
-const { checkDatabaseHealth } = require("./healthcheck");
-
-test("checkDatabaseHealth returns ok:true on successful query", async () => {
+test('checkDatabaseHealth returns ok:true on successful query', async () => {
   const fakePrismaClient = {
-    $queryRaw: async () => [{ "?column?": 1 }],
-  };
+    $queryRaw: async () => [{ '?column?': 1 }]
+  }
 
-  const result = await checkDatabaseHealth(fakePrismaClient);
+  const result = await checkDatabaseHealth(fakePrismaClient)
 
-  assert.deepEqual(result, { ok: true });
-});
+  assert.deepEqual(result, { ok: true })
+})
 
-test("checkDatabaseHealth returns ok:false when query fails", async () => {
+test('checkDatabaseHealth returns ok:false when query fails', async () => {
   const fakePrismaClient = {
     $queryRaw: async () => {
-      throw new Error("db unavailable");
-    },
-  };
-
-  const result = await checkDatabaseHealth(fakePrismaClient);
-
-  assert.deepEqual(result, { ok: false, error: "db unavailable" });
-});
-
-test("checkDatabaseHealth returns ok:false when Prisma client initialization fails", async () => {
-  const originalLoad = Module._load;
-
-  Module._load = function patchedLoad(request, _parent, _isMain) {
-    if (request === "@prisma/client") {
-      return {
-        PrismaClient: class PrismaClient {
-          constructor() {
-            throw new Error("init failed");
-          }
-        },
-      };
+      throw new Error('db unavailable')
     }
-
-    return originalLoad.apply(this, arguments);
-  };
-
-  try {
-    const result = await checkDatabaseHealth();
-    assert.deepEqual(result, { ok: false, error: "init failed" });
-  } finally {
-    Module._load = originalLoad;
   }
-});
+
+  const result = await checkDatabaseHealth(fakePrismaClient)
+
+  assert.deepEqual(result, { ok: false, error: 'db unavailable' })
+})
+
+test('checkDatabaseHealth returns ok:false when Prisma client initialization fails', async () => {
+  const result = await checkDatabaseHealth(undefined, {
+    createPrismaClient: async () => {
+      throw new Error('init failed')
+    }
+  })
+  assert.deepEqual(result, { ok: false, error: 'init failed' })
+})

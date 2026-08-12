@@ -58,11 +58,13 @@
 ### Task 1: Normalize `VacancyRequirements`
 
 **Files:**
+
 - Create: `backend/src/utils/vacancy-requirements.ts`
 - Create: `backend/src/utils/vacancy-requirements.test.ts`
 - Modify: `backend/package.json` — додати тест у `scripts.test`
 
 **Interfaces:**
+
 - Produces:
   - `type VacancyRequirements = { critical: string[]; desired: string[] }`
   - `normalizeVacancyRequirements(raw: unknown): VacancyRequirements | null`
@@ -195,10 +197,12 @@ git commit -m "feat: add vacancy requirements normalizer"
 ### Task 2: Prisma schema — breakdown + vacancy version
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/20260721100000_prioritized_vacancy_requirements/migration.sql`
 
 **Interfaces:**
+
 - Produces schema fields:
   - `VacancyMatchScore.breakdown Json`
   - `VacancyMatchScore.rankedForVacancyConfirmedAt DateTime`
@@ -288,12 +292,14 @@ git commit -m "feat(db): store match breakdown and vacancy score version"
 ### Task 3: Company Agent — збір і extraction structured requirements
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-agent.uk.ts`
 - Modify: `backend/src/agents/prompts/vacancy-profile-extraction.uk.ts`
 - Modify: `backend/src/agents/company-agent.ts`
 - Modify: `backend/src/agents/company-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `normalizeVacancyRequirements`, `assertNonEmptyRequirements`
 - Produces: `ExtractedVacancyProfile.requirements: VacancyRequirements`
 
@@ -418,10 +424,12 @@ git commit -m "feat(prep): extract critical and desired vacancy requirements"
 ### Task 4: Prep routes — serialize / PATCH / confirm
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: `normalizeVacancyRequirements`, `assertNonEmptyRequirements`
 - Produces: API `profile.requirements: { critical, desired }`
 
@@ -653,11 +661,13 @@ git commit -m "feat(api): expose structured vacancy requirements in prep"
 ### Task 5: Frontend vacancy prep + detail
 
 **Files:**
+
 - Modify: `frontend/src/api/prep.ts`
 - Modify: `frontend/src/views/VacancyPrepView.vue`
 - Modify: `frontend/src/views/VacancyDetailView.vue`
 
 **Interfaces:**
+
 - Consumes API `requirements: { critical, desired }`
 - Produces UI з двома списками
 
@@ -752,11 +762,13 @@ git commit -m "feat(ui): edit critical and desired vacancy requirements"
 ### Task 6: Deterministic match score formula
 
 **Files:**
+
 - Create: `backend/src/services/match-score.ts`
 - Create: `backend/src/services/match-score.test.ts`
 - Modify: `backend/package.json` — додати тест у `scripts.test`
 
 **Interfaces:**
+
 - Produces:
   - `type RequirementStatus = "met" | "unknown" | "unmet"`
   - `type RequirementAssessment = { requirement: string; priority: "critical" | "desired"; status: RequirementStatus; evidence: string }`
@@ -924,11 +936,13 @@ git commit -m "feat: add deterministic prioritized match score formula"
 ### Task 7: Vacancy match agent — per-requirement assessments
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/vacancy-match.uk.ts`
 - Modify: `backend/src/agents/vacancy-match-agent.ts`
 - Modify: `backend/src/agents/vacancy-match-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `VacancyRequirements`, `RequirementAssessment`
 - Produces:
   - `parseVacancyMatchAssessments(raw, vacancies) → Array<{ vacancyId; assessments; contextFit }>`
@@ -1065,10 +1079,12 @@ git commit -m "feat(match): request per-requirement LLM assessments"
 ### Task 8: Match service — partial cache + formula
 
 **Files:**
+
 - Modify: `backend/src/services/vacancy-match.ts`
 - Modify: `backend/src/services/vacancy-match.test.ts`
 
 **Interfaces:**
+
 - Consumes: `rankVacanciesWithLlm` assessments, `computeMatchScore`, `normalizeVacancyRequirements`
 - Produces: offers з `matchScore`; internal breakdown stored in DB; partial re-rank
 
@@ -1266,12 +1282,14 @@ git commit -m "feat(match): score with priorities and partial vacancy cache"
 ### Task 9: Application snapshot + HR breakdown API
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-matches.ts`
 - Modify: `backend/src/routes/candidate-matches.test.ts`
 - Modify: `backend/src/routes/hr-applications.ts`
 - Modify: `backend/src/routes/hr-applications.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - accept створює `matchBreakdown` snapshot
   - `GET /hr/applications/:id` повертає `matchBreakdown`
@@ -1426,10 +1444,12 @@ git commit -m "feat(api): snapshot match breakdown for HR application details"
 ### Task 10: HR applications UI — breakdown
 
 **Files:**
+
 - Modify: `frontend/src/api/hr-applications.ts`
 - Modify: `frontend/src/views/HrApplicationsView.vue`
 
 **Interfaces:**
+
 - Consumes `matchBreakdown` from detail API
 - Produces статуси українською + cap banner
 
@@ -1530,6 +1550,7 @@ git commit -m "feat(ui): show prioritized match breakdown for HR"
 ### Task 11: README + full verification
 
 **Files:**
+
 - Modify: `README.md` (секції vacancy prep / vacancy match & applications)
 - Modify: будь-які застарілі приклади `requirements: ["..."]` у релевантних README-блоках match/prep
 

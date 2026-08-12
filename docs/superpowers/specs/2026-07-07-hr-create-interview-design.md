@@ -129,6 +129,7 @@ export async function createInterview(): Promise<Interview> {
 ```
 
   де кнопка «Перейти до анкети» веде на `/prep/:interviewId` щойно створеної співбесіди (`router.push({ name: "company-prep", params: { interviewId } })`).
+
 - Помилки виводяться через новий локальний `createError`-стан (за аналогією з наявним `prepNavError`).
 - Банер лишається видимим до перезавантаження сторінки / створення нової співбесіди (тимчасове рішення до дашборду Дня 9, який покаже повний список з кодами).
 
@@ -137,6 +138,7 @@ export async function createInterview(): Promise<Interview> {
 ## Тестування і верифікація
 
 **Backend (`interviews.test.ts`), нові кейси:**
+
 - `POST /interviews` повертає `201`, `joinCode` довжиною 6, лише символи з дозволеного алфавіту.
 - Два послідовні виклики повертають різні `joinCode` (детермінований fake-prisma або мокнутий `crypto.randomInt`).
 - Симуляція колізії: fake Prisma кидає `P2002` один раз → другий виклик `create` успішний → відповідь `201`.
@@ -145,6 +147,7 @@ export async function createInterview(): Promise<Interview> {
 - Нова співбесіда з'являється в `GET /interviews/mine` для того самого HR.
 
 **Ручний сценарій (Day 8 DoD):**
+
 1. Логін HR → натиснути «Створити співбесіду».
 2. Бачимо 6-символьний код на екрані.
 3. Створити другу співбесіду → переконатись, що код інший.

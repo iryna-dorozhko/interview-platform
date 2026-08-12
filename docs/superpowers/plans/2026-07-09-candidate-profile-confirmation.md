@@ -38,6 +38,7 @@
 ### Task 1: Candidate profile extraction prompt and parser
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/candidate-profile-extraction.uk.ts`
 - Modify: `backend/src/agents/candidate-agent.ts`
 - Modify: `backend/src/agents/candidate-agent.test.ts`
@@ -241,6 +242,7 @@ git commit -m "feat(backend): add candidate profile extraction parser"
 ### Task 2: POST /candidate-prep/:interviewId/finish
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-prep.ts`
 - Modify: `backend/src/routes/candidate-prep.test.ts`
 
@@ -628,6 +630,7 @@ git commit -m "feat(backend): add candidate prep finish endpoint"
 ### Task 3: POST /candidate-prep/:interviewId/confirm
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-prep.ts`
 - Modify: `backend/src/routes/candidate-prep.test.ts`
 
@@ -822,6 +825,7 @@ git commit -m "feat(backend): add candidate prep confirm endpoint"
 ### Task 4: Frontend API client — finish and confirm
 
 **Files:**
+
 - Modify: `frontend/src/api/candidate-prep.ts`
 
 - [ ] **Step 1: Update types and add API functions**
@@ -891,6 +895,7 @@ git commit -m "feat(frontend): add candidate prep finish and confirm API"
 ### Task 5: CandidatePrepView — profile screen and finish/confirm UI
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidatePrepView.vue`
 
 - [ ] **Step 1: Update script imports and refs**
@@ -1171,6 +1176,7 @@ git commit -m "feat(frontend): add candidate profile review and confirm UI"
 ### Task 6: README Day 13 documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Mark Day 13 DoD checkboxes and add API rows**

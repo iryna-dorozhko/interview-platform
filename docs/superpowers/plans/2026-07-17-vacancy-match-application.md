@@ -53,11 +53,13 @@
 ### Task 1: Prisma models
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_vacancy_match_application/migration.sql`
 - Test: verify via `cd backend && npx prisma validate` (і існуючий seed-check, якщо чіпає клієнт)
 
 **Interfaces:**
+
 - Consumes: `User`, `Vacancy`, `Interview`
 - Produces: enums + models нижче; Prisma Client з новими делегатами
 
@@ -196,10 +198,12 @@ git commit -m "feat(db): add vacancy match, application, and HR notification mod
 ### Task 2: Pure match ranking helpers
 
 **Files:**
+
 - Create: `backend/src/services/vacancy-match.ts`
 - Test: `backend/src/services/vacancy-match.test.ts`
 
 **Interfaces:**
+
 - Consumes: score rows + rejected vacancy ids
 - Produces:
   - `export type CandidateMatchOffer = { vacancyId: string; title: string; matchScore: number }`
@@ -299,11 +303,13 @@ git commit -m "feat(match): add vacancy offer ranking helpers"
 ### Task 3: Vacancy match LLM agent
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/vacancy-match.uk.ts`
 - Create: `backend/src/agents/vacancy-match-agent.ts`
 - Test: `backend/src/agents/vacancy-match-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `LlmProvider.complete`, candidate profile fields, vacancy profiles (incl. culture in prompt only)
 - Produces:
   - `export type VacancyMatchInput = { vacancyId: string; title: string; role: string; requirements: unknown; culture: unknown; expectations: unknown }`
@@ -379,10 +385,12 @@ git commit -m "feat(agents): add vacancy match scoring agent"
 ### Task 4: Match service (load pool, cache scores, resolve next)
 
 **Files:**
+
 - Modify: `backend/src/services/vacancy-match.ts`
 - Modify: `backend/src/services/vacancy-match.test.ts`
 
 **Interfaces:**
+
 - Consumes: Prisma, `rankVacanciesWithLlm`, `isCandidateQuestionnaireConfirmed` / questionnaire profile lookup, helpers from Task 2
 - Produces:
   - `export async function getConfirmedCandidateProfile(prisma, candidateUserId): Promise<(CandidateMatchInput & { confirmedAt: Date }) | null>`
@@ -392,6 +400,7 @@ git commit -m "feat(agents): add vacancy match scoring agent"
   - `export async function getNextMatchOffer(prisma, llm, candidateUserId): Promise<CandidateMatchOffer | null>` — throws typed errors або повертає result union
 
 Error codes (кинути / повернути):
+
 - `QUESTIONNAIRE_NOT_CONFIRMED`
 - `MATCH_UNAVAILABLE` (LLM failure → route maps to 503)
 
@@ -454,11 +463,13 @@ git commit -m "feat(match): cache LLM vacancy scores and resolve next offer"
 ### Task 5: Candidate matches API
 
 **Files:**
+
 - Create: `backend/src/routes/candidate-matches.ts`
 - Create: `backend/src/routes/candidate-matches.test.ts`
 - Modify: `backend/src/server.ts`
 
 **Interfaces:**
+
 - Consumes: match service, prisma, llm provider, `requireAuth`+`requireCandidate` (на mount)
 - Produces router mounted at `/api/candidate`:
   - `GET /matches/next` → `{ vacancyId, title, matchScore }` або `{ vacancyId: null, title: null, matchScore: null }`
@@ -467,6 +478,7 @@ git commit -m "feat(match): cache LLM vacancy scores and resolve next offer"
   - `GET /applications/active` → `{ application: {...} | null }`
 
 Status mapping:
+
 - no confirmed questionnaire → 403 `{ error: "Questionnaire not confirmed" }`
 - PENDING exists on `GET /matches/next` or accept → 409 `{ error: "ACTIVE_APPLICATION_EXISTS" }`
 - LLM fail → 503 `{ error: "Підбір тимчасово недоступний" }`
@@ -540,12 +552,14 @@ git commit -m "feat(api): add candidate vacancy match and application endpoints"
 ### Task 6: HR notifications & applications API (+ create-interview)
 
 **Files:**
+
 - Create: `backend/src/routes/hr-applications.ts`
 - Create: `backend/src/routes/hr-applications.test.ts`
 - Modify: `backend/src/server.ts`
 - Modify: `backend/src/routes/interviews.ts` (extract `createInterviewRecord` helper **або** inline duplicate create+joinCode loop у hr-applications — краще extract)
 
 **Interfaces:**
+
 - Produces under `/api` with `requireAuth`+`requireHr`:
   - `GET /hr/notifications` → `{ notifications: Array<{ id, type, payload, readAt, createdAt }> }` unread first
   - `POST /hr/notifications/:id/read` → `{ notification }`
@@ -615,6 +629,7 @@ git commit -m "feat(api): add HR application inbox and create-interview from app
 ### Task 7: Candidate frontend (matches screen + redirects)
 
 **Files:**
+
 - Create: `frontend/src/api/candidate-matches.ts`
 - Create: `frontend/src/views/CandidateMatchesView.vue`
 - Modify: `frontend/src/router/index.ts`
@@ -623,6 +638,7 @@ git commit -m "feat(api): add HR application inbox and create-interview from app
 - Modify: `frontend/src/views/CandidateHomeView.vue`
 
 **Interfaces:**
+
 - API helpers: `fetchActiveApplication`, `fetchNextMatch`, `rejectMatch`, `acceptMatch`
 - Route: `{ path: "matches", name: "candidate-matches", component: CandidateMatchesView }` under `/candidate`
 
@@ -649,6 +665,7 @@ export type ActiveApplication = {
 - [ ] **Step 2: CandidateMatchesView.vue**
 
 On mount:
+
 1. `fetchActiveApplication` — якщо PENDING, показати статус «Заявку надіслано. Очікуйте відповіді HR.»
 2. Інакше `fetchNextMatch` — loading / картка title + `matchScore%` + кнопки / empty «Немає підходящих вакансій» / помилка 503 текстом українською.
 
@@ -682,6 +699,7 @@ git commit -m "feat(ui): add candidate vacancy match accept/reject screen"
 ### Task 8: HR frontend (applications inbox) + README
 
 **Files:**
+
 - Create: `frontend/src/api/hr-applications.ts`
 - Create: `frontend/src/views/HrApplicationsView.vue`
 - Modify: `frontend/src/router/index.ts`
@@ -690,12 +708,14 @@ git commit -m "feat(ui): add candidate vacancy match accept/reject screen"
 - Modify: `README.md`
 
 **Interfaces:**
+
 - `fetchHrNotifications`, `markNotificationRead`, `fetchHrApplications`, `fetchHrApplication`, `createInterviewFromApplication`
 - Route: `/applications` name `hr-applications` (HR layout)
 
 - [ ] **Step 1: API + HrApplicationsView**
 
 Список заявок: імʼя, email, вакансія, %, статус. Деталі: `candidateSummary`. Кнопка «Створити співбесіду»:
+
 - або виклик `POST .../create-interview` напряму з optional date field на сторінці;
 - або відкрити `CreateInterviewModal` з prefill, а після успіху викликати convert endpoint — **простіше v1:** форма на сторінці заявки з `scheduledAt` + кнопка, що бʼє `create-interview` (без обовʼязкового modal).
 

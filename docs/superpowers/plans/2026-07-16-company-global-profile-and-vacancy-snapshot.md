@@ -53,10 +53,12 @@
 ### Task 1: Prisma schema and migration
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_hr_company_profile/migration.sql`
 
 **Interfaces:**
+
 - Produces: Prisma models `HrCompanyProfile`, `PrepSessionCompany`, `PrepMessageCompany`; extended `CompanyProfile` with nullable snapshot fields
 
 - [ ] **Step 1: Add models to schema**
@@ -117,6 +119,7 @@ onboardingApproach Json?
 - [ ] **Step 2: Generate and apply migration**
 
 Run:
+
 ```bash
 cd backend && npx prisma migrate dev --name hr_company_profile
 npx prisma generate
@@ -136,6 +139,7 @@ git commit -m "feat(db): add HR company profile and company prep session models"
 ### Task 2: Company Profile Agent (universal fields)
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/company-profile-agent.uk.ts`
 - Create: `backend/src/agents/prompts/hr-company-profile-extraction.uk.ts`
 - Create: `backend/src/agents/company-profile-agent.ts`
@@ -143,6 +147,7 @@ git commit -m "feat(db): add HR company profile and company prep session models"
 - Modify: `backend/package.json` (додати `company-profile-agent.test.ts` у script `test`)
 
 **Interfaces:**
+
 - Produces: `buildCompanyProfileAgentMessages(history: PrepHistoryItem[]): ChatMessage[]`
 - Produces: `buildHrCompanyProfileExtractionMessages(history: PrepHistoryItem[]): ChatMessage[]`
 - Produces: `parseHrCompanyProfileExtraction(rawText: string): HrCompanyProfileExtracted` where:
@@ -204,11 +209,13 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Implement agent module**
 
 `company-profile-agent.ts` — mirror `company-agent.ts` structure:
+
 - reuse `PrepHistoryItem`, `parseAgentReply` from `./agent-reply`
 - `buildCompanyProfileAgentMessages` — same placeholder-user-turn logic as vacancy agent
 - `parseHrCompanyProfileExtraction` — validate all 5 array fields (reuse `ProfileExtractionError` pattern)
 
 Prompts (українською):
+
 - `company-profile-agent.uk.ts` — 5 тем, одне питання за раз, `READY:true/false`
 - `hr-company-profile-extraction.uk.ts` — JSON з 5 полями
 
@@ -230,6 +237,7 @@ git commit -m "feat(agents): add company profile agent for universal HR fields"
 ### Task 3: Vacancy Company Agent — 3 fields only
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-agent.uk.ts`
 - Create: `backend/src/agents/prompts/vacancy-profile-extraction.uk.ts`
 - Modify: `backend/src/agents/company-agent.ts`
@@ -237,6 +245,7 @@ git commit -m "feat(agents): add company profile agent for universal HR fields"
 - Delete or stop importing: `backend/src/agents/prompts/company-profile-extraction.uk.ts` (rename to vacancy-specific)
 
 **Interfaces:**
+
 - Produces: `ExtractedVacancyProfile { role: string; requirements: string[]; expectations: string[] }`
 - Produces: `parseVacancyProfileExtraction(rawText: string): ExtractedVacancyProfile`
 - Consumes: `buildProfileExtractionMessages` updated to use vacancy extraction prompt
@@ -286,12 +295,14 @@ git commit -m "refactor(agents): limit vacancy company agent to role/requirement
 ### Task 4: Company Prep router
 
 **Files:**
+
 - Create: `backend/src/routes/company-prep.ts`
 - Create: `backend/src/routes/company-prep.test.ts`
 - Modify: `backend/src/server.ts`
 - Modify: `backend/package.json`
 
 **Interfaces:**
+
 - Produces: `createCompanyPrepRouter(getPrisma, getProvider): Router`
 - Endpoints: `GET /company-prep`, `POST /company-prep/message`, `POST /company-prep/finish`, `POST /company-prep/confirm`, `DELETE /company-prep`
 - Profile DTO:
@@ -325,6 +336,7 @@ Run: `npm --workspace backend test -- src/routes/company-prep.test.ts`
 - [ ] **Step 3: Implement router**
 
 Copy structure from `prep.ts`, keyed by `req.user.id` instead of `vacancyId`:
+
 - `PrepSessionCompany` upsert on message
 - `finish` → LLM extraction → `hrCompanyProfile.upsert` → close session
 - `confirm` → set `confirmedAt`
@@ -353,10 +365,12 @@ git commit -m "feat(api): add company-prep routes for HR global profile chat"
 ### Task 5: Vacancy prep — gate, snapshot, PATCH
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: confirmed `HrCompanyProfile` from Task 1
 - Consumes: `parseVacancyProfileExtraction` from Task 3
 - Produces: helper `assertConfirmedHrCompanyProfile(req, res, prisma): Promise<HrCompanyProfile | null>`
@@ -434,10 +448,12 @@ git commit -m "feat(prep): gate vacancy prep on confirmed company profile and sn
 ### Task 6: Frontend API clients
 
 **Files:**
+
 - Create: `frontend/src/api/company-prep.ts`
 - Modify: `frontend/src/api/prep.ts`
 
 **Interfaces:**
+
 - Produces: `fetchCompanyPrepState()`, `sendCompanyPrepMessage()`, `finishCompanyPrepChat()`, `confirmCompanyPrepProfile()`, `deleteCompanyPrepChat()`
 - Produces: extended `CompanyProfile` type with 8 fields
 - Produces: `updatePrepProfile(vacancyId, payload): Promise<{ profile: CompanyProfile }>`
@@ -502,6 +518,7 @@ git commit -m "feat(frontend): add company-prep API client and extend vacancy pr
 ### Task 7: Sidebar and router
 
 **Files:**
+
 - Modify: `frontend/src/components/HrSidebar.vue`
 - Modify: `frontend/src/router/index.ts`
 
@@ -547,14 +564,17 @@ git commit -m "feat(ui): add company profile route and sidebar navigation"
 ### Task 8: CompanyProfilePrepView
 
 **Files:**
+
 - Create: `frontend/src/views/CompanyProfilePrepView.vue`
 
 **Interfaces:**
+
 - Consumes: `frontend/src/api/company-prep.ts` from Task 6
 
 - [ ] **Step 1: Create view**
 
 Clone `VacancyPrepView.vue` structure with these deltas:
+
 - Title: «Профіль компанії»
 - No vacancy title fetch
 - API calls use `company-prep` client
@@ -582,6 +602,7 @@ git commit -m "feat(ui): add CompanyProfilePrepView for universal HR questionnai
 ### Task 9: VacancyPrepView — gate and editable profile
 
 **Files:**
+
 - Modify: `frontend/src/views/VacancyPrepView.vue`
 
 - [ ] **Step 1: Gate UI when missingCompanyProfile**
@@ -630,6 +651,7 @@ async function onSaveProfileEdits(): Promise<void> {
 Use simple `<textarea>` for `role`, newline-separated lists or dynamic `<input>` rows for arrays (match existing UI patterns — keep minimal).
 
 Section labels (українською):
+
 - Посада, Вимоги, Очікування (вакансійні)
 - Культура, Напрям компанії, Політики, Формат роботи, Онбординг (snapshot, editable locally)
 
@@ -654,6 +676,7 @@ git commit -m "feat(ui): gate vacancy prep and add editable full profile before 
 ### Task 10: Spec doc sync and final verification
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-07-16-company-global-profile-and-vacancy-snapshot-design.md` (sidebar section already present — commit if unstaged)
 
 - [ ] **Step 1: Run full backend test suite**
@@ -665,6 +688,7 @@ Expected: PASS
 - [ ] **Step 2: Run typecheck/build**
 
 Run:
+
 ```bash
 npm --workspace backend run build
 npm --workspace frontend run build

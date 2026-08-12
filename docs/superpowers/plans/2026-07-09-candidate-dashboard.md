@@ -32,6 +32,7 @@
 ### Task 1: Allow DELETE after confirmed profile
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-prep.ts`
 - Modify: `backend/src/routes/candidate-prep.test.ts`
 
@@ -128,6 +129,7 @@ git commit -m "feat: allow candidate prep reset after profile confirmation"
 ### Task 2: CandidateLayout and CandidateSidebar
 
 **Files:**
+
 - Create: `frontend/src/layouts/CandidateLayout.vue`
 - Create: `frontend/src/components/CandidateSidebar.vue`
 
@@ -303,6 +305,7 @@ git commit -m "feat: add candidate layout and sidebar"
 ### Task 3: Nested candidate routes
 
 **Files:**
+
 - Modify: `frontend/src/router/index.ts`
 - Create: `frontend/src/views/CandidateProfileView.vue` (stub)
 - Create: `frontend/src/views/CandidateInterviewView.vue` (stub)
@@ -412,6 +415,7 @@ git commit -m "feat: nest candidate routes under CandidateLayout"
 ### Task 4: JoinInterviewModal
 
 **Files:**
+
 - Create: `frontend/src/components/JoinInterviewModal.vue`
 
 - [ ] **Step 1: Create the modal component**
@@ -592,6 +596,7 @@ git commit -m "feat: add JoinInterviewModal for candidate join-by-code"
 ### Task 5: CandidateHomeView dashboard
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateHomeView.vue`
 
 - [ ] **Step 1: Replace CandidateHomeView.vue**
@@ -736,6 +741,7 @@ git commit -m "feat: candidate home dashboard with overview cards and join modal
 ### Task 6: CandidateProfileView
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateProfileView.vue`
 
 - [ ] **Step 1: Implement full profile view**
@@ -846,6 +852,7 @@ git commit -m "feat: candidate profile view with view/delete/restart actions"
 ### Task 7: CandidateInterviewView
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateInterviewView.vue`
 
 - [ ] **Step 1: Implement interview detail page**
@@ -981,6 +988,7 @@ git commit -m "feat: candidate interview detail page"
 ### Task 8: Update CandidatePrepView navigation
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidatePrepView.vue`
 
 - [ ] **Step 1: Update back link**

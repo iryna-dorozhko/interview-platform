@@ -1,14 +1,14 @@
-const TOKEN_KEY = "auth_token";
+const TOKEN_KEY = 'auth_token'
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY)
 }
 
 export function setStoredToken(token: string | null): void {
   if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_KEY, token)
   } else {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY)
   }
 }
 
@@ -17,22 +17,19 @@ export class ApiError extends Error {
     message: string,
     public status: number
   ) {
-    super(message);
-    this.name = "ApiError";
+    super(message)
+    this.name = 'ApiError'
   }
 }
 
-export async function fetchWithAuth(
-  path: string,
-  init: RequestInit = {}
-): Promise<Response> {
-  const token = getStoredToken();
-  const headers = new Headers(init.headers);
+export async function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = getStoredToken()
+  const headers = new Headers(init.headers)
   if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    headers.set('Authorization', `Bearer ${token}`)
   }
-  if (init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
   }
-  return fetch(path, { ...init, headers });
+  return fetch(path, { ...init, headers })
 }

@@ -42,6 +42,7 @@
 ### Task 1: Backend TypeScript toolchain
 
 **Files:**
+
 - Create: `backend/tsconfig.json`
 - Modify: `backend/package.json`
 - Modify: `backend/.env.example`
@@ -144,6 +145,7 @@ console.log(`backend stub listening on ${port}`);
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 npm install
 npm --workspace backend run lint
@@ -163,6 +165,7 @@ git commit -m "chore: add backend typescript toolchain and dependencies"
 ### Task 2: Shared Prisma client module
 
 **Files:**
+
 - Create: `backend/src/db/prisma.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -215,6 +218,7 @@ git commit -m "feat: add shared prisma client module for backend runtime"
 ### Task 3: HR seed check module
 
 **Files:**
+
 - Create: `backend/src/db/seed-check.ts`
 - Create: `backend/src/db/seed-check.test.ts`
 - Test: `backend/src/db/seed-check.test.ts`
@@ -321,6 +325,7 @@ git commit -m "feat: add HR seed user existence check"
 ### Task 4: Health route and payload builder
 
 **Files:**
+
 - Create: `backend/src/routes/health.ts`
 - Create: `backend/src/routes/health.test.ts`
 - Test: `backend/src/routes/health.test.ts`
@@ -464,6 +469,7 @@ git commit -m "feat: add /api/health route and payload builder"
 ### Task 5: Express server entrypoint
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -510,6 +516,7 @@ app.listen(port, () => {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run (requires Postgres + seed):
+
 ```bash
 docker compose up -d postgres
 npm --workspace backend run db:seed
@@ -517,16 +524,19 @@ npm --workspace backend run dev
 ```
 
 In another terminal:
+
 ```bash
 curl -s http://localhost:3000/api/health
 ```
 
 Expected JSON:
+
 ```json
 {"ok":true,"database":{"ok":true},"seed":{"ok":true,"email":"hr@test.com"}}
 ```
 
 Also run:
+
 ```bash
 npm --workspace backend run build
 node backend/dist/server.js
@@ -546,6 +556,7 @@ git commit -m "feat: add express server with /api/health endpoint"
 ### Task 6: Frontend Vite + Vue 3 scaffold
 
 **Files:**
+
 - Create: `frontend/index.html`
 - Create: `frontend/vite.config.ts`
 - Create: `frontend/tsconfig.json`
@@ -704,6 +715,7 @@ Replace `frontend/package.json`:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 npm install
 npm --workspace frontend run lint
@@ -724,6 +736,7 @@ git commit -m "feat: add vite vue3 frontend scaffold"
 ### Task 7: Frontend status page and health API client
 
 **Files:**
+
 - Create: `frontend/src/api/health.ts`
 - Modify: `frontend/src/App.vue`
 
@@ -862,6 +875,7 @@ onMounted(async () => {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 docker compose up -d postgres
 npm --workspace backend run db:seed
@@ -882,6 +896,7 @@ git commit -m "feat: add day1 status page with health api client"
 ### Task 8: README runtime verification docs
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Write the failing test**
@@ -911,10 +926,12 @@ npm run dev
 ```
 
 Сервіси:
+
 - Frontend: [http://localhost:5173](http://localhost:5173)
 - Backend API: [http://localhost:3000/api/health](http://localhost:3000/api/health)
 
 Очікуваний результат у браузері (frontend):
+
 - Backend API: **OK**
 - PostgreSQL: **OK**
 - Seed HR (`hr@test.com`): **OK**
@@ -930,6 +947,7 @@ curl http://localhost:3000/api/health
 ```json
 {"ok":true,"database":{"ok":true},"seed":{"ok":true,"email":"hr@test.com"}}
 ```
+
 ```
 
 Also update Day 1 Definition of Done checkboxes from `- [ ]` to `- [x]` for all four items.
@@ -951,6 +969,7 @@ git commit -m "docs: add day1 runtime verification steps and mark dod complete"
 ### Task 9: End-to-end Day 1 verification
 
 **Files:**
+
 - Modify: none (verification only)
 
 - [ ] **Step 1: Write the failing test**
@@ -976,6 +995,7 @@ Fix only concrete failures discovered in Step 2 (missing deps, TS errors, proxy 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 docker compose up -d postgres
 npm install
@@ -988,6 +1008,7 @@ npm run dev
 ```
 
 Verify:
+
 - `curl http://localhost:3000/api/health` → `ok: true`
 - Browser `http://localhost:5173` → all statuses OK
 - `test -d backend/dist && test -d frontend/dist` → exit 0

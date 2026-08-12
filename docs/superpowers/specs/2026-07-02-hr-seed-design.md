@@ -47,15 +47,18 @@ Day 1 bootstrap вимагає наявності тестового HR-кори
 ## Тестування і верифікація
 
 **Ручна перевірка:**
+
 - `cd backend && npm run db:seed` → очікується `Seeded HR user: hr@test.com`.
 - Повторний запуск seed → той самий результат, без дублікатів (ідемпотентність).
 
 **Опційно (smoke-тест):**
+
 - Після seed у таблиці `User` є рівно один запис з `email = hr@test.com` і `role = HR`.
 
 ## Документація
 
 У `README.md` (секція database bootstrap) вже задокументовано:
+
 - команду `db:seed`;
 - тестові credentials: `hr@test.com` / `123456`.
 

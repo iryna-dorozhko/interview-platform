@@ -28,6 +28,7 @@ Day 3 MVP: HR може зайти на сайт під своїм акаунто
 **vue-router + Pinia + Express middleware** — відповідає MVP-стеку, зручно розширювати для кабінету кандидата та майбутніх HR-маршрутів.
 
 Альтернативи відхилені:
+
 - Composable без Pinia — Pinia знадобиться для interview/chat; зайва міграція пізніше.
 - Захист лише на backend без router guard — немає URL `/login`, гірше для DoD.
 

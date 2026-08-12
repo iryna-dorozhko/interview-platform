@@ -1,1810 +1,2245 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import express, { type NextFunction, type Request, type Response } from "express";
-import { requireAuth, requireHr, type AuthUser } from "../auth/middleware";
-import { signToken } from "../auth/jwt";
-import { createPrepRouter } from "./prep";
-import { LlmUnavailableError, LlmEmptyResponseError } from "../llm/errors";
-import { SAFE_LLM_ERROR_UK } from "../llm/retry";
-import type { LlmProvider } from "../llm/types";
+import { env } from 'node:process'
+import assert from 'node:assert/strict'
+import { test } from 'vitest'
+import express, { type NextFunction, type Request, type Response } from 'express'
+import { requireAuth, requireHr } from '../auth/middleware'
+import type { AuthUser } from '../auth/middleware'
+import { signToken } from '../auth/jwt'
+import { createPrepRouter } from './prep'
+import { LlmUnavailableError, LlmEmptyResponseError } from '../llm/errors'
+import { SAFE_LLM_ERROR_UK } from '../llm/retry'
+import type { LlmProvider } from '../llm/types'
 
-type FakeVacancy = { id: string; hrUserId: string; status?: string };
-type FakeSession = { id: string; vacancyId: string; isClosed: boolean };
+type FakeVacancy = { id: string; hrUserId: string; status?: string }
+type FakeSession = { id: string; vacancyId: string; isClosed: boolean }
 type FakeMessage = {
-  id: string;
-  sessionId: string;
-  authorType: "HUMAN_HR" | "AGENT_COMPANY";
-  content: string;
-  createdAt: Date;
-};
+  id: string
+  sessionId: string
+  authorType: 'HUMAN_HR' | 'AGENT_COMPANY'
+  content: string
+  createdAt: Date
+}
 type FakeHrCompanyProfile = {
-  id: string;
-  hrUserId: string;
-  culture: string[];
-  companyDirection: string[];
-  policies: string[];
-  workFormat: string[];
-  onboardingApproach: string[];
-  confirmedAt: Date | null;
-};
+  id: string
+  hrUserId: string
+  culture: string[]
+  companyDirection: string[]
+  policies: string[]
+  workFormat: string[]
+  onboardingApproach: string[]
+  confirmedAt: Date | null
+}
 type FakeProfile = {
-  id: string;
-  vacancyId: string;
-  role: string;
-  requirements: string[] | { critical: string[]; desired: string[] };
-  culture: string[];
-  expectations: string[];
-  companyDirection?: string[];
-  policies?: string[];
-  workFormat?: string[];
-  onboardingApproach?: string[];
-  confirmedAt: Date | null;
-};
-type FakeInterview = { id: string; vacancyId: string; status: string };
+  id: string
+  vacancyId: string
+  role: string
+  requirements: string[] | { critical: string[]; desired: string[] }
+  culture: string[]
+  expectations: string[]
+  companyDirection?: string[]
+  policies?: string[]
+  workFormat?: string[]
+  onboardingApproach?: string[]
+  confirmedAt: Date | null
+}
+type FakeInterview = { id: string; vacancyId: string; status: string }
 
-function makeConfirmedHrProfile(hrUserId = "hr_1"): FakeHrCompanyProfile {
+function makeConfirmedHrProfile(hrUserId = 'hr_1'): FakeHrCompanyProfile {
   return {
-    id: "hr_profile_1",
+    id: 'hr_profile_1',
     hrUserId,
-    culture: ["відкритість"],
-    companyDirection: ["EdTech"],
-    policies: ["гнучкий графік"],
-    workFormat: ["Гібрид"],
-    onboardingApproach: ["Buddy 2 тижні"],
-    confirmedAt: new Date("2026-07-16T09:00:00.000Z"),
-  };
+    culture: ['відкритість'],
+    companyDirection: ['EdTech'],
+    policies: ['гнучкий графік'],
+    workFormat: ['Гібрид'],
+    onboardingApproach: ['Buddy 2 тижні'],
+    confirmedAt: new Date('2026-07-16T09:00:00.000Z')
+  }
 }
 
 function makeMockVacancyExtraction(overrides: Record<string, unknown> = {}) {
   return {
-    role: "Middle Backend Developer",
-    requirements: { critical: [], desired: ["Node.js"] },
-    expectations: ["не вказано"],
+    role: 'Middle Backend Developer',
+    requirements: { critical: [], desired: ['Node.js'] },
+    expectations: ['не вказано'],
     workConditions: [
-      "Формат: remote",
-      "Графік: повний день",
-      "Бенефіти: не вказано",
-      "Релокація: не вказано",
-      "Випробувальний: не вказано",
-      "Обладнання: не вказано",
+      'Формат: remote',
+      'Графік: повний день',
+      'Бенефіти: не вказано',
+      'Релокація: не вказано',
+      'Випробувальний: не вказано',
+      'Обладнання: не вказано'
     ],
-    compensation: { displayText: "не вказано" },
-    ...overrides,
-  };
+    compensation: { displayText: 'не вказано' },
+    ...overrides
+  }
 }
 
 function makeFakePrisma(
   seed: {
-    vacancies?: FakeVacancy[];
-    sessions?: FakeSession[];
-    profiles?: FakeProfile[];
-    hrCompanyProfiles?: FakeHrCompanyProfile[];
-    interviews?: FakeInterview[];
+    vacancies?: FakeVacancy[]
+    sessions?: FakeSession[]
+    profiles?: FakeProfile[]
+    hrCompanyProfiles?: FakeHrCompanyProfile[]
+    interviews?: FakeInterview[]
   } = {}
 ) {
-  const vacancies = (seed.vacancies ?? []).map((item) => ({ status: "DRAFT", ...item }));
-  const sessions = seed.sessions ?? [];
-  const profiles = seed.profiles ?? [];
-  const hrCompanyProfiles = seed.hrCompanyProfiles ?? [];
-  const interviews = seed.interviews ?? [];
-  const messages: FakeMessage[] = [];
-  let counter = 0;
+  const vacancies = (seed.vacancies ?? []).map(item => ({ status: 'DRAFT', ...item }))
+  const sessions = seed.sessions ?? []
+  const profiles = seed.profiles ?? []
+  const hrCompanyProfiles = seed.hrCompanyProfiles ?? []
+  const interviews = seed.interviews ?? []
+  const messages: FakeMessage[] = []
+  let counter = 0
 
   return {
     vacancy: {
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        vacancies.find((item) => item.id === where.id) ?? null,
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: { status: string };
-      }) => {
-        const vacancy = vacancies.find((item) => item.id === where.id);
-        if (!vacancy) throw new Error("vacancy not found");
-        Object.assign(vacancy, data);
-        return vacancy;
-      },
+      findUnique: async ({ where }: { where: { id: string } }) => vacancies.find(item => item.id === where.id) ?? null,
+      update: async ({ where, data }: { where: { id: string }; data: { status: string } }) => {
+        const vacancy = vacancies.find(item => item.id === where.id)
+        if (!vacancy) throw new Error('vacancy not found')
+        Object.assign(vacancy, data)
+        return vacancy
+      }
     },
     prepSessionHr: {
       findUnique: async ({ where }: { where: { vacancyId: string } }) =>
-        sessions.find((item) => item.vacancyId === where.vacancyId) ?? null,
-      upsert: async ({
-        where,
-        create,
-      }: {
-        where: { vacancyId: string };
-        create: { vacancyId: string };
-      }) => {
-        let session = sessions.find((item) => item.vacancyId === where.vacancyId);
+        sessions.find(item => item.vacancyId === where.vacancyId) ?? null,
+      upsert: async ({ where, create }: { where: { vacancyId: string }; create: { vacancyId: string } }) => {
+        let session = sessions.find(item => item.vacancyId === where.vacancyId)
         if (!session) {
-          session = { id: `session_${++counter}`, vacancyId: create.vacancyId, isClosed: false };
-          sessions.push(session);
+          session = { id: `session_${++counter}`, vacancyId: create.vacancyId, isClosed: false }
+          sessions.push(session)
         }
-        return session;
+        return session
       },
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: { isClosed: boolean };
-      }) => {
-        const session = sessions.find((item) => item.id === where.id);
-        if (!session) throw new Error("session not found");
-        Object.assign(session, data);
-        return session;
+      update: async ({ where, data }: { where: { id: string }; data: { isClosed: boolean } }) => {
+        const session = sessions.find(item => item.id === where.id)
+        if (!session) throw new Error('session not found')
+        Object.assign(session, data)
+        return session
       },
       delete: async ({ where }: { where: { id: string } }) => {
-        const index = sessions.findIndex((item) => item.id === where.id);
-        if (index === -1) throw new Error("session not found");
-        const [removed] = sessions.splice(index, 1);
-        return removed;
-      },
+        const index = sessions.findIndex(item => item.id === where.id)
+        if (index === -1) throw new Error('session not found')
+        const [removed] = sessions.splice(index, 1)
+        return removed
+      }
     },
     prepMessageHr: {
       create: async ({
-        data,
+        data
       }: {
-        data: { sessionId: string; authorType: "HUMAN_HR" | "AGENT_COMPANY"; content: string };
+        data: { sessionId: string; authorType: 'HUMAN_HR' | 'AGENT_COMPANY'; content: string }
       }) => {
-        const message: FakeMessage = { id: `message_${++counter}`, createdAt: new Date(), ...data };
-        messages.push(message);
-        return message;
+        const message: FakeMessage = { id: `message_${++counter}`, createdAt: new Date(), ...data }
+        messages.push(message)
+        return message
       },
       findMany: async ({ where }: { where: { sessionId: string } }) =>
         messages
-          .filter((item) => item.sessionId === where.sessionId)
+          .filter(item => item.sessionId === where.sessionId)
           .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
       deleteMany: async ({ where }: { where: { sessionId: string } }) => {
-        const remaining = messages.filter((item) => item.sessionId !== where.sessionId);
-        const removedCount = messages.length - remaining.length;
-        messages.length = 0;
-        messages.push(...remaining);
-        return { count: removedCount };
-      },
+        const remaining = messages.filter(item => item.sessionId !== where.sessionId)
+        const removedCount = messages.length - remaining.length
+        messages.length = 0
+        messages.push(...remaining)
+        return { count: removedCount }
+      }
     },
     companyProfile: {
       findUnique: async ({ where }: { where: { vacancyId: string } }) =>
-        profiles.find((item) => item.vacancyId === where.vacancyId) ?? null,
+        profiles.find(item => item.vacancyId === where.vacancyId) ?? null,
       update: async ({
         where,
-        data,
+        data
       }: {
-        where: { vacancyId: string };
-        data: Partial<Omit<FakeProfile, "id" | "vacancyId">>;
+        where: { vacancyId: string }
+        data: Partial<Omit<FakeProfile, 'id' | 'vacancyId'>>
       }) => {
-        const profile = profiles.find((item) => item.vacancyId === where.vacancyId);
-        if (!profile) throw new Error("profile not found");
-        Object.assign(profile, data);
-        return profile;
+        const profile = profiles.find(item => item.vacancyId === where.vacancyId)
+        if (!profile) throw new Error('profile not found')
+        Object.assign(profile, data)
+        return profile
       },
       upsert: async ({
         where,
         create,
-        update,
+        update
       }: {
-        where: { vacancyId: string };
-        create: Omit<FakeProfile, "id" | "confirmedAt">;
-        update: Omit<FakeProfile, "id" | "vacancyId" | "confirmedAt">;
+        where: { vacancyId: string }
+        create: Omit<FakeProfile, 'id' | 'confirmedAt'>
+        update: Omit<FakeProfile, 'id' | 'vacancyId' | 'confirmedAt'>
       }) => {
-        let profile = profiles.find((item) => item.vacancyId === where.vacancyId);
-        if (!profile) {
-          profile = { id: `profile_${++counter}`, confirmedAt: null, ...create };
-          profiles.push(profile);
+        let profile = profiles.find(item => item.vacancyId === where.vacancyId)
+        if (profile) {
+          Object.assign(profile, update)
         } else {
-          Object.assign(profile, update);
+          profile = { id: `profile_${++counter}`, confirmedAt: null, ...create }
+          profiles.push(profile)
         }
-        return profile;
+        return profile
       },
       deleteMany: async ({ where }: { where: { vacancyId: string } }) => {
-        const remaining = profiles.filter((item) => item.vacancyId !== where.vacancyId);
-        const removedCount = profiles.length - remaining.length;
-        profiles.length = 0;
-        profiles.push(...remaining);
-        return { count: removedCount };
-      },
+        const remaining = profiles.filter(item => item.vacancyId !== where.vacancyId)
+        const removedCount = profiles.length - remaining.length
+        profiles.length = 0
+        profiles.push(...remaining)
+        return { count: removedCount }
+      }
     },
     hrCompanyProfile: {
       findUnique: async ({ where }: { where: { hrUserId: string } }) =>
-        hrCompanyProfiles.find((item) => item.hrUserId === where.hrUserId) ?? null,
+        hrCompanyProfiles.find(item => item.hrUserId === where.hrUserId) ?? null
     },
     interview: {
-      findFirst: async ({
-        where,
-      }: {
-        where: { vacancyId: string; status?: { in: string[] } };
-      }) => {
-        const allowed = where.status?.in;
+      findFirst: async ({ where }: { where: { vacancyId: string; status?: { in: string[] } } }) => {
+        const allowed = where.status?.in
         return (
           interviews.find(
-            (item) =>
-              item.vacancyId === where.vacancyId &&
-              (allowed == null || allowed.includes(item.status))
+            item => item.vacancyId === where.vacancyId && (allowed == null || allowed.includes(item.status))
           ) ?? null
-        );
-      },
+        )
+      }
     },
     __sessions: sessions,
     __messages: messages,
     __profiles: profiles,
     __vacancies: vacancies,
     __hrCompanyProfiles: hrCompanyProfiles,
-    __interviews: interviews,
-  };
+    __interviews: interviews
+  }
 }
 
 function withUser(user: AuthUser) {
   return (req: Request, _res: Response, next: NextFunction) => {
-    req.user = user;
-    next();
-  };
+    req.user = user
+    next()
+  }
 }
 
-test("GET /prep/:vacancyId returns empty state when no session exists yet", async () => {
-  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+test('GET /prep/:vacancyId returns empty state when no session exists yet', async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }] })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.canEditProfile, true);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.canEditProfile, true)
     assert.deepEqual(body, {
       messages: [],
       isClosed: false,
       profile: null,
       missingCompanyProfile: true,
-      canEditProfile: true,
-    });
+      canEditProfile: true
+    })
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /prep/:vacancyId returns messages and isClosed when session exists", async () => {
+test('GET /prep/:vacancyId returns messages and isClosed when session exists', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  fakePrisma.__messages.push(
-    { id: "m1", sessionId: "session_1", authorType: "AGENT_COMPANY", content: "Привіт!", createdAt: new Date(1) }
-  );
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  fakePrisma.__messages.push({
+    id: 'm1',
+    sessionId: 'session_1',
+    authorType: 'AGENT_COMPANY',
+    content: 'Привіт!',
+    createdAt: new Date(1)
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.isClosed, false);
-    assert.equal(body.profile, null);
-    assert.equal(body.missingCompanyProfile, false);
-    assert.equal(body.messages.length, 1);
-    assert.equal(body.messages[0].content, "Привіт!");
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.isClosed, false)
+    assert.equal(body.profile, null)
+    assert.equal(body.missingCompanyProfile, false)
+    assert.equal(body.messages.length, 1)
+    assert.equal(body.messages[0].content, 'Привіт!')
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /prep/:vacancyId returns profile when session is closed", async () => {
+test('GET /prep/:vacancyId returns profile when session is closed', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-    profiles: [
-      {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["3+ роки"],
-        culture: ["не вказано"],
-        expectations: ["не вказано"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.isClosed, true);
-    assert.equal(body.profile.role, "QA Engineer");
-    assert.equal(body.profile.confirmedAt, null);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("GET /prep/:vacancyId includes confirmedAt: null in an unconfirmed profile", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["3+ роки"],
-        culture: ["не вказано"],
-        expectations: ["не вказано"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['3+ роки'],
+        culture: ['не вказано'],
+        expectations: ['не вказано'],
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.profile.confirmedAt, null);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.isClosed, true)
+    assert.equal(body.profile.role, 'QA Engineer')
+    assert.equal(body.profile.confirmedAt, null)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /prep/:vacancyId returns 404 when vacancy does not exist", async () => {
-  const fakePrisma = makeFakePrisma();
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/missing`);
-    assert.equal(response.status, 404);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("GET /prep/:vacancyId returns 403 when vacancy belongs to another HR", async () => {
-  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }] });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 403);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("GET /prep/:vacancyId returns canEditProfile true when no READY/LIVE interviews", async () => {
+test('GET /prep/:vacancyId includes confirmedAt: null in an unconfirmed profile', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "Dev",
-        requirements: { critical: ["TS"], desired: [] },
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['3+ роки'],
+        culture: ['не вказано'],
+        expectations: ['не вказано'],
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.profile.confirmedAt, null)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('GET /prep/:vacancyId returns 404 when vacancy does not exist', async () => {
+  const fakePrisma = makeFakePrisma()
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/missing`)
+    assert.equal(response.status, 404)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('GET /prep/:vacancyId returns 403 when vacancy belongs to another HR', async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_other' }] })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 403)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('GET /prep/:vacancyId returns canEditProfile true when no READY/LIVE interviews', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()],
+    profiles: [
+      {
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'Dev',
+        requirements: { critical: ['TS'], desired: [] },
         culture: [],
         expectations: [],
-        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
-      },
+        confirmedAt: new Date('2026-07-07T09:00:00.000Z')
+      }
     ],
     interviews: [
-      { id: "i1", vacancyId: "vacancy_1", status: "AWAITING_CANDIDATE" },
-      { id: "i2", vacancyId: "vacancy_1", status: "ENDED" },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+      { id: 'i1', vacancyId: 'vacancy_1', status: 'AWAITING_CANDIDATE' },
+      { id: 'i2', vacancyId: 'vacancy_1', status: 'ENDED' }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.canEditProfile, true);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.canEditProfile, true)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /prep/:vacancyId returns canEditProfile false when a READY interview exists", async () => {
+test('GET /prep/:vacancyId returns canEditProfile false when a READY interview exists', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "Dev",
-        requirements: { critical: ["TS"], desired: [] },
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'Dev',
+        requirements: { critical: ['TS'], desired: [] },
         culture: [],
         expectations: [],
-        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
-      },
+        confirmedAt: new Date('2026-07-07T09:00:00.000Z')
+      }
     ],
-    interviews: [{ id: "i1", vacancyId: "vacancy_1", status: "READY" }],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+    interviews: [{ id: 'i1', vacancyId: 'vacancy_1', status: 'READY' }]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.canEditProfile, false);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.canEditProfile, false)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /prep/:vacancyId/finish extracts profile, saves it, and closes the session", async () => {
+test('POST /prep/:vacancyId/finish extracts profile, saves it, and closes the session', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
   fakePrisma.__messages.push(
-    { id: "m1", sessionId: "session_1", authorType: "HUMAN_HR", content: "Middle Backend Developer", createdAt: new Date(1) },
-    { id: "m2", sessionId: "session_1", authorType: "AGENT_COMPANY", content: "Дякую.\nREADY:true", createdAt: new Date(2) }
-  );
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      return JSON.stringify(makeMockVacancyExtraction());
+    {
+      id: 'm1',
+      sessionId: 'session_1',
+      authorType: 'HUMAN_HR',
+      content: 'Middle Backend Developer',
+      createdAt: new Date(1)
     },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.profile.role, "Middle Backend Developer");
-    assert.equal(body.profile.confirmedAt, null);
-    assert.deepEqual(body.profile.culture, ["відкритість"]);
-    assert.deepEqual(body.profile.companyDirection, ["EdTech"]);
-    assert.deepEqual(body.profile.policies, ["гнучкий графік"]);
-    assert.deepEqual(body.profile.workFormat, ["Гібрид"]);
-    assert.deepEqual(body.profile.onboardingApproach, ["Buddy 2 тижні"]);
-    assert.equal(fakePrisma.__sessions[0].isClosed, true);
-    assert.equal(fakePrisma.__profiles.length, 1);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/finish returns confirmedAt: null for a freshly generated profile", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  fakePrisma.__messages.push(
-    { id: "m1", sessionId: "session_1", authorType: "HUMAN_HR", content: "Middle Backend Developer", createdAt: new Date(1) }
-  );
+    {
+      id: 'm2',
+      sessionId: 'session_1',
+      authorType: 'AGENT_COMPANY',
+      content: 'Дякую.\nREADY:true',
+      createdAt: new Date(2)
+    }
+  )
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
     async complete() {
-      return JSON.stringify(makeMockVacancyExtraction());
-    },
-  };
+      return JSON.stringify(makeMockVacancyExtraction())
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.profile.confirmedAt, null);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.profile.role, 'Middle Backend Developer')
+    assert.equal(body.profile.confirmedAt, null)
+    assert.deepEqual(body.profile.culture, ['відкритість'])
+    assert.deepEqual(body.profile.companyDirection, ['EdTech'])
+    assert.deepEqual(body.profile.policies, ['гнучкий графік'])
+    assert.deepEqual(body.profile.workFormat, ['Гібрид'])
+    assert.deepEqual(body.profile.onboardingApproach, ['Buddy 2 тижні'])
+    assert.equal(fakePrisma.__sessions[0].isClosed, true)
+    assert.equal(fakePrisma.__profiles.length, 1)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /prep/:vacancyId/confirm sets confirmedAt and moves vacancy to CONFIRMED", async () => {
+test('POST /prep/:vacancyId/finish returns confirmedAt: null for a freshly generated profile', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-    profiles: [
-      {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["3+ роки"],
-        culture: ["не вказано"],
-        expectations: ["не вказано"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.notEqual(body.profile.confirmedAt, null);
-    assert.equal(body.vacancyStatus, "CONFIRMED");
-    assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true);
-    assert.equal(fakePrisma.__vacancies[0].status, "CONFIRMED");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/confirm returns 404 when profile does not exist yet", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
-    assert.equal(response.status, 404);
-    const body = await response.json();
-    assert.equal(body.error, "Profile not found");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/confirm returns 409 when already confirmed", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-    profiles: [
-      {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["3+ роки"],
-        culture: ["не вказано"],
-        expectations: ["не вказано"],
-        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Profile already confirmed");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/confirm returns 403 when vacancy belongs to another HR", async () => {
-  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }] });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
-    assert.equal(response.status, 403);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/confirm returns 404 when vacancy does not exist", async () => {
-  const fakePrisma = makeFakePrisma();
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, { method: "POST" });
-    assert.equal(response.status, 404);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/finish returns 404 when no session exists yet", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 404);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/finish returns 409 when session is already closed", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 409);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/finish returns 502 when LLM returns invalid JSON", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не json"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 502);
-    assert.equal(fakePrisma.__sessions[0].isClosed, false);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/finish returns safe UK error after LLM retries exhausted", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  let completeCalls = 0;
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      completeCalls += 1;
-      throw new LlmUnavailableError("omlx server not reachable");
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 503);
-    const body = await response.json();
-    assert.equal(body.error, SAFE_LLM_ERROR_UK);
-    assert.equal(body.detail, undefined);
-    assert.equal(completeCalls, 3);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("DELETE /prep/:vacancyId removes session, messages, and profile", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-    profiles: [
-      {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["не вказано"],
-        culture: ["не вказано"],
-        expectations: ["не вказано"],
-        confirmedAt: null,
-      },
-    ],
-  });
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
   fakePrisma.__messages.push({
-    id: "m1",
-    sessionId: "session_1",
-    authorType: "AGENT_COMPANY",
-    content: "Привіт!",
-    createdAt: new Date(1),
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+    id: 'm1',
+    sessionId: 'session_1',
+    authorType: 'HUMAN_HR',
+    content: 'Middle Backend Developer',
+    createdAt: new Date(1)
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return JSON.stringify(makeMockVacancyExtraction())
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
-    assert.equal(response.status, 200);
-    assert.equal(fakePrisma.__sessions.length, 0);
-    assert.equal(fakePrisma.__messages.length, 0);
-    assert.equal(fakePrisma.__profiles.length, 0);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.profile.confirmedAt, null)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("DELETE /prep/:vacancyId returns 409 when profile is confirmed", async () => {
+test('POST /prep/:vacancyId/confirm sets confirmedAt and moves vacancy to CONFIRMED', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'DRAFT' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["не вказано"],
-        culture: ["не вказано"],
-        expectations: ["не вказано"],
-        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Profile is confirmed and cannot be reset");
-    assert.equal(fakePrisma.__sessions.length, 1);
-    assert.equal(fakePrisma.__profiles.length, 1);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("DELETE /prep/:vacancyId succeeds even when no session exists yet", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
-    assert.equal(response.status, 200);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("DELETE /prep/:vacancyId returns 403 when vacancy belongs to another HR", async () => {
-  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }] });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, { method: "DELETE" });
-    assert.equal(response.status, 403);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  }
-});
-
-test("POST /prep/:vacancyId/message creates session and both messages on first turn", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['3+ роки'],
+        culture: ['не вказано'],
+        expectations: ['не вказано'],
+        confirmedAt: null
+      }
+    ]
+  })
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
     async complete() {
-      return "Привіт! Розкажіть, будь ласка, про вакансію.\nREADY:false";
-    },
-  };
+      return 'не має викликатись'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.notEqual(body.profile.confirmedAt, null)
+    assert.equal(body.vacancyStatus, 'CONFIRMED')
+    assert.equal(fakePrisma.__profiles[0].confirmedAt !== null, true)
+    assert.equal(fakePrisma.__vacancies[0].status, 'CONFIRMED')
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/confirm returns 404 when profile does not exist yet', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'DRAFT' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 404)
+    const body = await response.json()
+    assert.equal(body.error, 'Profile not found')
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/confirm returns 409 when already confirmed', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'CONFIRMED' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()],
+    profiles: [
+      {
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['3+ роки'],
+        culture: ['не вказано'],
+        expectations: ['не вказано'],
+        confirmedAt: new Date('2026-07-07T09:00:00.000Z')
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'Profile already confirmed')
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/confirm returns 403 when vacancy belongs to another HR', async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_other' }] })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 403)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/confirm returns 404 when vacancy does not exist', async () => {
+  const fakePrisma = makeFakePrisma()
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 404)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/finish returns 404 when no session exists yet', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 404)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/finish returns 409 when session is already closed', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 409)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/finish returns 502 when LLM returns invalid JSON', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не json'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 502)
+    assert.equal(fakePrisma.__sessions[0].isClosed, false)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/finish returns safe UK error after LLM retries exhausted', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  let completeCalls = 0
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      completeCalls += 1
+      throw new LlmUnavailableError('omlx server not reachable')
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 503)
+    const body = await response.json()
+    assert.equal(body.error, SAFE_LLM_ERROR_UK)
+    assert.equal(body.detail, undefined)
+    assert.equal(completeCalls, 3)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('DELETE /prep/:vacancyId removes session, messages, and profile', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()],
+    profiles: [
+      {
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['не вказано'],
+        culture: ['не вказано'],
+        expectations: ['не вказано'],
+        confirmedAt: null
+      }
+    ]
+  })
+  fakePrisma.__messages.push({
+    id: 'm1',
+    sessionId: 'session_1',
+    authorType: 'AGENT_COMPANY',
+    content: 'Привіт!',
+    createdAt: new Date(1)
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, {
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 200)
+    assert.equal(fakePrisma.__sessions.length, 0)
+    assert.equal(fakePrisma.__messages.length, 0)
+    assert.equal(fakePrisma.__profiles.length, 0)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('DELETE /prep/:vacancyId returns 409 when profile is confirmed', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'CONFIRMED' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()],
+    profiles: [
+      {
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['не вказано'],
+        culture: ['не вказано'],
+        expectations: ['не вказано'],
+        confirmedAt: new Date('2026-07-07T09:00:00.000Z')
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, {
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'Profile is confirmed and cannot be reset')
+    assert.equal(fakePrisma.__sessions.length, 1)
+    assert.equal(fakePrisma.__profiles.length, 1)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('DELETE /prep/:vacancyId succeeds even when no session exists yet', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, {
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 200)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('DELETE /prep/:vacancyId returns 403 when vacancy belongs to another HR', async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_other' }] })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`, {
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 403)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})
+
+test('POST /prep/:vacancyId/message creates session and both messages on first turn', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'Привіт! Розкажіть, будь ласка, про вакансію.\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
 
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.message, "Привіт! Розкажіть, будь ласка, про вакансію.");
-    assert.equal(body.readyForConfirmation, false);
-    assert.equal(fakePrisma.__sessions.length, 1);
-    assert.equal(fakePrisma.__messages.length, 1);
-    assert.equal(fakePrisma.__messages[0].authorType, "AGENT_COMPANY");
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.message, 'Привіт! Розкажіть, будь ласка, про вакансію.')
+    assert.equal(body.readyForConfirmation, false)
+    assert.equal(fakePrisma.__sessions.length, 1)
+    assert.equal(fakePrisma.__messages.length, 1)
+    assert.equal(fakePrisma.__messages[0].authorType, 'AGENT_COMPANY')
   } finally {
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
+      server.close(err => (err ? reject(err) : resolve()))
+    })
   }
-});
+})
 
-test("POST /prep/:vacancyId/message saves HR message and extracts readyForConfirmation=true", async () => {
+test('POST /prep/:vacancyId/message saves HR message and extracts readyForConfirmation=true', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
     async complete() {
-      return "Дякую, цього достатньо.\nREADY:true";
-    },
-  };
+      return 'Дякую, цього достатньо.\nREADY:true'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Middle Backend Developer, 3+ роки досвіду" }),
-    });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Middle Backend Developer, 3+ роки досвіду' })
+    })
 
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.readyForConfirmation, true);
-    assert.equal(body.message, "Дякую, цього достатньо.");
-    assert.equal(fakePrisma.__messages.length, 2);
-    assert.equal(fakePrisma.__messages[0].authorType, "HUMAN_HR");
-    assert.equal(fakePrisma.__messages[0].content, "Middle Backend Developer, 3+ роки досвіду");
-    assert.equal(fakePrisma.__messages[1].authorType, "AGENT_COMPANY");
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.readyForConfirmation, true)
+    assert.equal(body.message, 'Дякую, цього достатньо.')
+    assert.equal(fakePrisma.__messages.length, 2)
+    assert.equal(fakePrisma.__messages[0].authorType, 'HUMAN_HR')
+    assert.equal(fakePrisma.__messages[0].content, 'Middle Backend Developer, 3+ роки досвіду')
+    assert.equal(fakePrisma.__messages[1].authorType, 'AGENT_COMPANY')
   } finally {
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
+      server.close(err => (err ? reject(err) : resolve()))
+    })
   }
-});
+})
 
-test("POST /prep/:vacancyId/message returns 404 when vacancy does not exist", async () => {
-  const fakePrisma = makeFakePrisma();
+test('POST /prep/:vacancyId/message returns 404 when vacancy does not exist', async () => {
+  const fakePrisma = makeFakePrisma()
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
     async complete() {
-      return "не має викликатись\nREADY:false";
-    },
-  };
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/missing/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
 
-    assert.equal(response.status, 404);
-    const body = await response.json();
-    assert.equal(body.error, "Vacancy not found");
+    assert.equal(response.status, 404)
+    const body = await response.json()
+    assert.equal(body.error, 'Vacancy not found')
   } finally {
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
+      server.close(err => (err ? reject(err) : resolve()))
+    })
   }
-});
+})
 
-test("POST /prep/:vacancyId/message returns 403 when vacancy belongs to another HR", async () => {
+test('POST /prep/:vacancyId/message returns 403 when vacancy belongs to another HR', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_other" }],
-  });
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_other' }]
+  })
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
     async complete() {
-      return "не має викликатись\nREADY:false";
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    assert.equal(response.status, 403);
-    const body = await response.json();
-    assert.equal(body.error, "Forbidden");
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message returns 409 when session is closed", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      return "не має викликатись\nREADY:false";
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Ще одне питання" }),
-    });
-
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Prep session closed");
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message returns safe UK error after LLM retries exhausted", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  let completeCalls = 0;
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      completeCalls += 1;
-      throw new LlmUnavailableError("omlx server not reachable");
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    assert.equal(response.status, 503);
-    const body = await response.json();
-    assert.equal(body.error, SAFE_LLM_ERROR_UK);
-    assert.equal(body.detail, undefined);
-    assert.equal(completeCalls, 3);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message returns 502 when LLM returns empty response", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      throw new LlmEmptyResponseError();
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    assert.equal(response.status, 502);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message returns 401 without auth when middleware applied", async () => {
-  process.env.JWT_SECRET = "test-secret-min-8-chars";
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      return "не має викликатись\nREADY:false";
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use("/api", requireAuth, requireHr, createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    assert.equal(response.status, 401);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message works with valid token through requireAuth+requireHr", async () => {
-  process.env.JWT_SECRET = "test-secret-min-8-chars";
-  const token = signToken({ sub: "hr_1", email: "hr@test.com", role: "HR" });
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      return "Привіт!\nREADY:false";
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use("/api", requireAuth, requireHr, createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({}),
-    });
-    assert.equal(response.status, 200);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message returns 500 when persisting agent reply fails", async () => {
-  const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  const originalCreate = fakePrisma.prepMessageHr.create;
-  fakePrisma.prepMessageHr.create = (async ({ data }: { data: { authorType: string } }) => {
-    if (data.authorType === "AGENT_COMPANY") {
-      throw new Error("db write failed");
+      return 'не має викликатись\nREADY:false'
     }
-    return originalCreate({ data } as never);
-  }) as typeof originalCreate;
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      return "Привіт!\nREADY:false";
-    },
-  };
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
 
-    assert.equal(response.status, 500);
-    const body = await response.json();
-    assert.equal(body.error, "Internal error");
+    assert.equal(response.status, 403)
+    const body = await response.json()
+    assert.equal(body.error, 'Forbidden')
   } finally {
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
+      server.close(err => (err ? reject(err) : resolve()))
+    })
   }
-});
+})
 
-test("POST /prep/:vacancyId/message returns 409 when company profile is missing", async () => {
-  const fakePrisma = makeFakePrisma({ vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }] });
-  const fakeProvider: LlmProvider = {
-    name: "omlx",
-    async complete() {
-      return "не має викликатись\nREADY:false";
-    },
-  };
-
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Привіт" }),
-    });
-
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Company profile is missing");
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
-});
-
-test("POST /prep/:vacancyId/message injects HrCompanyProfile into company agent system prompt", async () => {
-  const hrProfile = makeConfirmedHrProfile();
-  hrProfile.policies = ["24 дні PTO на рік"];
-  hrProfile.workFormat = ["core hours 10:00–16:00 Kyiv"];
+test('POST /prep/:vacancyId/message returns 409 when session is closed', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    hrCompanyProfiles: [hrProfile],
-  });
-  let capturedSystem = "";
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Ще одне питання' })
+    })
+
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'Prep session closed')
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message returns safe UK error after LLM retries exhausted', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  let completeCalls = 0
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      completeCalls += 1
+      throw new LlmUnavailableError('omlx server not reachable')
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+
+    assert.equal(response.status, 503)
+    const body = await response.json()
+    assert.equal(body.error, SAFE_LLM_ERROR_UK)
+    assert.equal(body.detail, undefined)
+    assert.equal(completeCalls, 3)
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message returns 502 when LLM returns empty response', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      throw new LlmEmptyResponseError()
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+
+    assert.equal(response.status, 502)
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message returns 401 without auth when middleware applied', async () => {
+  env.JWT_SECRET = 'test-secret-min-8-chars'
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(
+    '/api',
+    requireAuth,
+    requireHr,
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    assert.equal(response.status, 401)
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message works with valid token through requireAuth+requireHr', async () => {
+  env.JWT_SECRET = 'test-secret-min-8-chars'
+  const token = signToken({ sub: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'Привіт!\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(
+    '/api',
+    requireAuth,
+    requireHr,
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({})
+    })
+    assert.equal(response.status, 200)
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message returns 500 when persisting agent reply fails', async () => {
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  const originalCreate = fakePrisma.prepMessageHr.create
+  fakePrisma.prepMessageHr.create = (async ({ data }: { data: { authorType: string } }) => {
+    if (data.authorType === 'AGENT_COMPANY') {
+      throw new Error('db write failed')
+    }
+    return originalCreate({ data } as never)
+  }) as typeof originalCreate
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'Привіт!\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+
+    assert.equal(response.status, 500)
+    const body = await response.json()
+    assert.equal(body.error, 'Internal error')
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message returns 409 when company profile is missing', async () => {
+  const fakePrisma = makeFakePrisma({ vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }] })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
+
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Привіт' })
+    })
+
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'Company profile is missing')
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()))
+    })
+  }
+})
+
+test('POST /prep/:vacancyId/message injects HrCompanyProfile into company agent system prompt', async () => {
+  const hrProfile = makeConfirmedHrProfile()
+  hrProfile.policies = ['24 дні PTO на рік']
+  hrProfile.workFormat = ['core hours 10:00–16:00 Kyiv']
+  const fakePrisma = makeFakePrisma({
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    hrCompanyProfiles: [hrProfile]
+  })
+  let capturedSystem = ''
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
     async complete(messages) {
-      capturedSystem = messages[0]?.content ?? "";
-      return "Дякую. Яка зарплата для цієї ролі?\nREADY:false";
-    },
-  };
+      capturedSystem = messages[0]?.content ?? ''
+      return 'Дякую. Яка зарплата для цієї ролі?\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Backend Developer" }),
-    });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Backend Developer' })
+    })
 
-    assert.equal(response.status, 200);
-    assert.match(capturedSystem, /24 дні PTO на рік/);
-    assert.match(capturedSystem, /core hours 10:00–16:00 Kyiv/);
-    assert.match(capturedSystem, /не питай повторно|не перепитуй/i);
-    assert.doesNotMatch(capturedSystem, /\{\{COMPANY_PROFILE\}\}/);
+    assert.equal(response.status, 200)
+    assert.match(capturedSystem, /24 дні PTO на рік/)
+    assert.match(capturedSystem, /core hours 10:00–16:00 Kyiv/)
+    assert.match(capturedSystem, /не питай повторно|не перепитуй/i)
+    assert.doesNotMatch(capturedSystem, /\{\{COMPANY_PROFILE\}\}/)
   } finally {
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
+      server.close(err => (err ? reject(err) : resolve()))
+    })
   }
-});
+})
 
-test("POST /prep/:vacancyId/finish snapshots universal fields from HrCompanyProfile", async () => {
+test('POST /prep/:vacancyId/finish snapshots universal fields from HrCompanyProfile', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
-    hrCompanyProfiles: [makeConfirmedHrProfile()],
-  });
-  fakePrisma.__messages.push(
-    { id: "m1", sessionId: "session_1", authorType: "HUMAN_HR", content: "Middle Backend Developer", createdAt: new Date(1) }
-  );
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
+    hrCompanyProfiles: [makeConfirmedHrProfile()]
+  })
+  fakePrisma.__messages.push({
+    id: 'm1',
+    sessionId: 'session_1',
+    authorType: 'HUMAN_HR',
+    content: 'Middle Backend Developer',
+    createdAt: new Date(1)
+  })
   const fakeProvider: LlmProvider = {
-    name: "omlx",
+    name: 'omlx',
     async complete() {
-      return JSON.stringify(makeMockVacancyExtraction());
-    },
-  };
+      return JSON.stringify(makeMockVacancyExtraction())
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, { method: "POST" });
-    assert.equal(response.status, 200);
-    const profile = fakePrisma.__profiles[0];
-    assert.deepEqual(profile.culture, ["відкритість"]);
-    assert.deepEqual(profile.companyDirection, ["EdTech"]);
-    assert.deepEqual(profile.policies, ["гнучкий графік"]);
-    assert.deepEqual(profile.workFormat, ["Гібрид"]);
-    assert.deepEqual(profile.onboardingApproach, ["Buddy 2 тижні"]);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/finish`, {
+      method: 'POST'
+    })
+    assert.equal(response.status, 200)
+    const profile = fakePrisma.__profiles[0]
+    assert.deepEqual(profile.culture, ['відкритість'])
+    assert.deepEqual(profile.companyDirection, ['EdTech'])
+    assert.deepEqual(profile.policies, ['гнучкий графік'])
+    assert.deepEqual(profile.workFormat, ['Гібрид'])
+    assert.deepEqual(profile.onboardingApproach, ['Buddy 2 тижні'])
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /prep/:vacancyId serializes legacy requirements as desired", async () => {
+test('GET /prep/:vacancyId serializes legacy requirements as desired', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["3+ роки"],
-        culture: ["відкритість"],
-        expectations: ["не вказано"],
-        companyDirection: ["EdTech"],
-        policies: ["гнучкий графік"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['3+ роки'],
+        culture: ['відкритість'],
+        expectations: ['не вказано'],
+        companyDirection: ['EdTech'],
+        policies: ['гнучкий графік'],
+        workFormat: ['Гібрид'],
+        onboardingApproach: ['Buddy 2 тижні'],
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'unused'
+    }
+  }
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
     assert.deepEqual(body.profile.requirements, {
       critical: [],
-      desired: ["3+ роки"],
-    });
+      desired: ['3+ роки']
+    })
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("PATCH /prep/:vacancyId/profile rejects empty critical and desired", async () => {
+test('PATCH /prep/:vacancyId/profile rejects empty critical and desired', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: { critical: ["Node.js"], desired: [] },
-        culture: ["відкритість"],
-        expectations: ["не вказано"],
-        companyDirection: ["EdTech"],
-        policies: ["гнучкий графік"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: { critical: ['Node.js'], desired: [] },
+        culture: ['відкритість'],
+        expectations: ['не вказано'],
+        companyDirection: ['EdTech'],
+        policies: ['гнучкий графік'],
+        workFormat: ['Гібрид'],
+        onboardingApproach: ['Buddy 2 тижні'],
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'unused'
+    }
+  }
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requirements: { critical: [], desired: [] } }),
-    });
-    assert.equal(response.status, 400);
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requirements: { critical: [], desired: [] } })
+    })
+    assert.equal(response.status, 400)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /prep/:vacancyId/confirm rejects empty requirements", async () => {
+test('POST /prep/:vacancyId/confirm rejects empty requirements', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "DRAFT" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'DRAFT' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
         requirements: { critical: [], desired: [] },
-        culture: ["відкритість"],
-        expectations: ["не вказано"],
-        companyDirection: ["EdTech"],
-        policies: ["гнучкий графік"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "unused"; } };
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        culture: ['відкритість'],
+        expectations: ['не вказано'],
+        companyDirection: ['EdTech'],
+        policies: ['гнучкий графік'],
+        workFormat: ['Гібрид'],
+        onboardingApproach: ['Buddy 2 тижні'],
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'unused'
+    }
+  }
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/confirm`, {
-      method: "POST",
-    });
-    assert.equal(response.status, 400);
+      method: 'POST'
+    })
+    assert.equal(response.status, 400)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("PATCH /prep/:vacancyId/profile updates all fields before confirm", async () => {
+test('PATCH /prep/:vacancyId/profile updates all fields before confirm', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "QA Engineer",
-        requirements: ["3+ роки"],
-        culture: ["відкритість"],
-        expectations: ["не вказано"],
-        companyDirection: ["EdTech"],
-        policies: ["гнучкий графік"],
-        workFormat: ["Гібрид"],
-        onboardingApproach: ["Buddy 2 тижні"],
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'QA Engineer',
+        requirements: ['3+ роки'],
+        culture: ['відкритість'],
+        expectations: ['не вказано'],
+        companyDirection: ['EdTech'],
+        policies: ['гнучкий графік'],
+        workFormat: ['Гібрид'],
+        onboardingApproach: ['Buddy 2 тижні'],
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        role: "Senior QA Engineer",
-        requirements: { critical: ["5+ років"], desired: ["Playwright"] },
-        expectations: ["автономність"],
-        culture: ["прозорість"],
-        companyDirection: ["FinTech"],
-        policies: ["remote-first"],
-        workFormat: ["Remote"],
-        onboardingApproach: ["Ментор 1 місяць"],
-      }),
-    });
+        role: 'Senior QA Engineer',
+        requirements: { critical: ['5+ років'], desired: ['Playwright'] },
+        expectations: ['автономність'],
+        culture: ['прозорість'],
+        companyDirection: ['FinTech'],
+        policies: ['remote-first'],
+        workFormat: ['Remote'],
+        onboardingApproach: ['Ментор 1 місяць']
+      })
+    })
 
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.profile.role, "Senior QA Engineer");
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.profile.role, 'Senior QA Engineer')
     assert.deepEqual(body.profile.requirements, {
-      critical: ["5+ років"],
-      desired: ["Playwright"],
-    });
-    assert.deepEqual(body.profile.expectations, ["автономність"]);
-    assert.deepEqual(body.profile.culture, ["прозорість"]);
-    assert.deepEqual(body.profile.companyDirection, ["FinTech"]);
-    assert.deepEqual(body.profile.policies, ["remote-first"]);
-    assert.deepEqual(body.profile.workFormat, ["Remote"]);
-    assert.deepEqual(body.profile.onboardingApproach, ["Ментор 1 місяць"]);
-    assert.equal(body.profile.confirmedAt, null);
+      critical: ['5+ років'],
+      desired: ['Playwright']
+    })
+    assert.deepEqual(body.profile.expectations, ['автономність'])
+    assert.deepEqual(body.profile.culture, ['прозорість'])
+    assert.deepEqual(body.profile.companyDirection, ['FinTech'])
+    assert.deepEqual(body.profile.policies, ['remote-first'])
+    assert.deepEqual(body.profile.workFormat, ['Remote'])
+    assert.deepEqual(body.profile.onboardingApproach, ['Ментор 1 місяць'])
+    assert.equal(body.profile.confirmedAt, null)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("PATCH /prep/:vacancyId/profile updates confirmed profile and bumps confirmedAt", async () => {
-  const oldConfirmedAt = new Date("2026-07-07T09:00:00.000Z");
+test('PATCH /prep/:vacancyId/profile updates confirmed profile and bumps confirmedAt', async () => {
+  const oldConfirmedAt = new Date('2026-07-07T09:00:00.000Z')
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'CONFIRMED' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "Dev",
-        requirements: { critical: ["TS"], desired: [] },
-        culture: ["old"],
-        expectations: ["ship"],
-        confirmedAt: oldConfirmedAt,
-      },
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'Dev',
+        requirements: { critical: ['TS'], desired: [] },
+        culture: ['old'],
+        expectations: ['ship'],
+        confirmedAt: oldConfirmedAt
+      }
     ],
-    interviews: [{ id: "i1", vacancyId: "vacancy_1", status: "AWAITING_CANDIDATE" }],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+    interviews: [{ id: 'i1', vacancyId: 'vacancy_1', status: 'AWAITING_CANDIDATE' }]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        role: "Senior Dev",
-        requirements: { critical: ["TS"], desired: ["Vue"] },
-        expectations: ["ship"],
-        culture: ["new"],
-        compensation: { displayText: "не вказано" },
-      }),
-    });
+        role: 'Senior Dev',
+        requirements: { critical: ['TS'], desired: ['Vue'] },
+        expectations: ['ship'],
+        culture: ['new'],
+        compensation: { displayText: 'не вказано' }
+      })
+    })
 
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.profile.role, "Senior Dev");
-    assert.equal(body.profile.culture[0], "new");
-    assert.notEqual(body.profile.confirmedAt, null);
-    assert.notEqual(new Date(body.profile.confirmedAt).getTime(), oldConfirmedAt.getTime());
-    assert.equal(fakePrisma.__vacancies[0].status, "CONFIRMED");
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.profile.role, 'Senior Dev')
+    assert.equal(body.profile.culture[0], 'new')
+    assert.notEqual(body.profile.confirmedAt, null)
+    assert.notEqual(new Date(body.profile.confirmedAt).getTime(), oldConfirmedAt.getTime())
+    assert.equal(fakePrisma.__vacancies[0].status, 'CONFIRMED')
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("PATCH /prep/:vacancyId/profile returns 409 when READY interview exists", async () => {
+test('PATCH /prep/:vacancyId/profile returns 409 when READY interview exists', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'CONFIRMED' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "Dev",
-        requirements: { critical: ["TS"], desired: [] },
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'Dev',
+        requirements: { critical: ['TS'], desired: [] },
         culture: [],
         expectations: [],
-        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
-      },
+        confirmedAt: new Date('2026-07-07T09:00:00.000Z')
+      }
     ],
-    interviews: [{ id: "i1", vacancyId: "vacancy_1", status: "READY" }],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+    interviews: [{ id: 'i1', vacancyId: 'vacancy_1', status: 'READY' }]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: "X" }),
-    });
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'X' })
+    })
 
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Vacancy has active interviews");
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'Vacancy has active interviews')
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("PATCH /prep/:vacancyId/profile returns 409 when LIVE interview exists", async () => {
+test('PATCH /prep/:vacancyId/profile returns 409 when LIVE interview exists', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1", status: "CONFIRMED" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: true }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1', status: 'CONFIRMED' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: true }],
     hrCompanyProfiles: [makeConfirmedHrProfile()],
     profiles: [
       {
-        id: "profile_1",
-        vacancyId: "vacancy_1",
-        role: "Dev",
-        requirements: { critical: ["TS"], desired: [] },
+        id: 'profile_1',
+        vacancyId: 'vacancy_1',
+        role: 'Dev',
+        requirements: { critical: ['TS'], desired: [] },
         culture: [],
         expectations: [],
-        confirmedAt: new Date("2026-07-07T09:00:00.000Z"),
-      },
+        confirmedAt: new Date('2026-07-07T09:00:00.000Z')
+      }
     ],
-    interviews: [{ id: "i1", vacancyId: "vacancy_1", status: "LIVE" }],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись"; } };
+    interviews: [{ id: 'i1', vacancyId: 'vacancy_1', status: 'LIVE' }]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1/profile`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: "X" }),
-    });
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'X' })
+    })
 
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "Vacancy has active interviews");
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'Vacancy has active interviews')
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /prep/:vacancyId returns missingCompanyProfile false when HR profile exists without confirmedAt", async () => {
+test('GET /prep/:vacancyId returns missingCompanyProfile false when HR profile exists without confirmedAt', async () => {
   const fakePrisma = makeFakePrisma({
-    vacancies: [{ id: "vacancy_1", hrUserId: "hr_1" }],
-    sessions: [{ id: "session_1", vacancyId: "vacancy_1", isClosed: false }],
+    vacancies: [{ id: 'vacancy_1', hrUserId: 'hr_1' }],
+    sessions: [{ id: 'session_1', vacancyId: 'vacancy_1', isClosed: false }],
     hrCompanyProfiles: [
       {
         ...makeConfirmedHrProfile(),
-        confirmedAt: null,
-      },
-    ],
-  });
-  const fakeProvider: LlmProvider = { name: "omlx", async complete() { return "не має викликатись\nREADY:false"; } };
+        confirmedAt: null
+      }
+    ]
+  })
+  const fakeProvider: LlmProvider = {
+    name: 'omlx',
+    async complete() {
+      return 'не має викликатись\nREADY:false'
+    }
+  }
 
-  const app = express();
-  app.use(express.json());
-  app.use(withUser({ id: "hr_1", email: "hr@test.com", role: "HR" }));
-  app.use("/api", createPrepRouter(() => fakePrisma as never, () => fakeProvider));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser({ id: 'hr_1', email: 'hr@test.com', role: 'HR' }))
+  app.use(
+    '/api',
+    createPrepRouter(
+      () => fakePrisma as never,
+      () => fakeProvider
+    )
+  )
 
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.missingCompanyProfile, false);
+    const response = await fetch(`http://127.0.0.1:${port}/api/prep/vacancy_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.missingCompanyProfile, false)
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})

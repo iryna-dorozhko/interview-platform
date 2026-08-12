@@ -1,38 +1,34 @@
-import type { Server } from "socket.io";
-import type { PrismaClient } from "@prisma/client";
-import type { RoomPresence } from "./room-presence";
+import type { Server } from 'socket.io'
+import type { PrismaClient } from '@prisma/client'
+import type { RoomPresence } from './room-presence'
 
-export function shouldTransitionToLive(
-  status: string,
-  presence: RoomPresence,
-): boolean {
-  return (
-    status === "READY" &&
-    presence.hrCount > 0 &&
-    presence.candidateCount > 0
-  );
+// Модуль shouldTransitionToLive.
+export function shouldTransitionToLive(status: string, presence: RoomPresence): boolean {
+  return status === 'READY' && presence.hrCount > 0 && presence.candidateCount > 0
 }
 
+// Модуль roomName.
 export function roomName(interviewId: string): string {
-  return `interview:${interviewId}`;
+  return `interview:${interviewId}`
 }
 
+// Модуль maybeTransitionToLive.
 export async function maybeTransitionToLive(
   io: Server,
   prisma: PrismaClient,
   interviewId: string,
-  presence: RoomPresence,
+  presence: RoomPresence
 ): Promise<boolean> {
-  const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+  const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
   if (!interview || !shouldTransitionToLive(interview.status, presence)) {
-    return false;
+    return false
   }
 
   await prisma.interview.update({
     where: { id: interviewId },
-    data: { status: "LIVE" },
-  });
+    data: { status: 'LIVE' }
+  })
 
-  io.to(roomName(interviewId)).emit("room:status", { status: "LIVE" });
-  return true;
+  io.to(roomName(interviewId)).emit('room:status', { status: 'LIVE' })
+  return true
 }

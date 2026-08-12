@@ -1,192 +1,182 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import express, { type NextFunction, type Request, type Response } from "express";
-import type { AuthUser } from "../auth/middleware";
-import { createHrApplicationsRouter } from "./hr-applications";
+import assert from 'node:assert/strict'
+import { test } from 'vitest'
+import express, { type NextFunction, type Request, type Response } from 'express'
+import type { AuthUser } from '../auth/middleware'
+import { createHrApplicationsRouter } from './hr-applications'
 
 type FakeVacancy = {
-  id: string;
-  hrUserId: string;
-  title: string;
-  status: string;
-  hiddenAt?: Date | null;
-  companyProfile?: { confirmedAt: Date | null } | null;
-};
+  id: string
+  hrUserId: string
+  title: string
+  status: string
+  hiddenAt?: Date | null
+  companyProfile?: { confirmedAt: Date | null } | null
+}
 
-type FakeUser = { id: string; email: string; role: string };
+type FakeUser = { id: string; email: string; role: string }
 
 type FakeApplication = {
-  id: string;
-  candidateUserId: string;
-  vacancyId: string;
-  matchScore: number;
-  matchBreakdown?: unknown;
-  candidateSummary: string;
-  status: string;
-  interviewId: string | null;
-  createdAt: Date;
-};
+  id: string
+  candidateUserId: string
+  vacancyId: string
+  matchScore: number
+  matchBreakdown?: unknown
+  candidateSummary: string
+  status: string
+  interviewId: string | null
+  createdAt: Date
+}
 
 type FakeNotification = {
-  id: string;
-  hrUserId: string;
-  type: string;
-  payload: unknown;
-  readAt: Date | null;
-  createdAt: Date;
-};
+  id: string
+  hrUserId: string
+  type: string
+  payload: unknown
+  readAt: Date | null
+  createdAt: Date
+}
 
 type FakeInterview = {
-  id: string;
-  hrUserId: string;
-  vacancyId: string;
-  displayName: string;
-  joinCode: string;
-  status: string;
-  scheduledAt: Date | null;
-  candidateUserId: string | null;
-  createdAt: Date;
-};
+  id: string
+  hrUserId: string
+  vacancyId: string
+  displayName: string
+  joinCode: string
+  status: string
+  scheduledAt: Date | null
+  candidateUserId: string | null
+  createdAt: Date
+}
 
 type FakeCandidateProfile = {
-  interviewId: string;
-  fullName: string;
-  email: string;
-  confirmedAt: Date | null;
-};
+  interviewId: string
+  fullName: string
+  email: string
+  confirmedAt: Date | null
+}
 
 type FakeQuestionnaireInterview = {
-  id: string;
-  candidateUserId: string | null;
-  displayName: string;
-  status: string;
-  createdAt: Date;
-};
+  id: string
+  candidateUserId: string | null
+  displayName: string
+  status: string
+  createdAt: Date
+}
 
 function makeFakePrisma(seed: {
-  vacancies?: FakeVacancy[];
-  users?: FakeUser[];
-  applications?: FakeApplication[];
-  notifications?: FakeNotification[];
-  interviews?: FakeInterview[];
-  questionnaireInterviews?: FakeQuestionnaireInterview[];
-  candidateProfiles?: FakeCandidateProfile[];
+  vacancies?: FakeVacancy[]
+  users?: FakeUser[]
+  applications?: FakeApplication[]
+  notifications?: FakeNotification[]
+  interviews?: FakeInterview[]
+  questionnaireInterviews?: FakeQuestionnaireInterview[]
+  candidateProfiles?: FakeCandidateProfile[]
 }) {
-  const vacancies = (seed.vacancies ?? []).map((item) => ({ ...item }));
-  const users = (seed.users ?? []).map((item) => ({ ...item }));
-  const applications = (seed.applications ?? []).map((item) => ({ ...item }));
-  const notifications = (seed.notifications ?? []).map((item) => ({ ...item }));
-  const interviews = (seed.interviews ?? []).map((item) => ({ ...item }));
-  const questionnaireInterviews = (seed.questionnaireInterviews ?? []).map((item) => ({ ...item }));
-  const candidateProfiles = (seed.candidateProfiles ?? []).map((item) => ({ ...item }));
-  let interviewSeq = interviews.length;
-  let invSeq = 0;
+  const vacancies = (seed.vacancies ?? []).map(item => ({ ...item }))
+  const users = (seed.users ?? []).map(item => ({ ...item }))
+  const applications = (seed.applications ?? []).map(item => ({ ...item }))
+  const notifications = (seed.notifications ?? []).map(item => ({ ...item }))
+  const interviews = (seed.interviews ?? []).map(item => ({ ...item }))
+  const questionnaireInterviews = (seed.questionnaireInterviews ?? []).map(item => ({ ...item }))
+  const candidateProfiles = (seed.candidateProfiles ?? []).map(item => ({ ...item }))
+  let interviewSeq = interviews.length
+  let invSeq = 0
   const invitations: Array<{
-    id: string;
-    interviewId: string;
-    email: string;
-    status: string;
-  }> = [];
+    id: string
+    interviewId: string
+    email: string
+    status: string
+  }> = []
   const dialogs: Array<{
-    id: string;
-    hrUserId: string;
-    candidateUserId: string;
-    createdAt: Date;
-    updatedAt: Date;
-    candidateHiddenAt: Date | null;
-  }> = [];
+    id: string
+    hrUserId: string
+    candidateUserId: string
+    createdAt: Date
+    updatedAt: Date
+    candidateHiddenAt: Date | null
+  }> = []
   const messages: Array<{
-    id: string;
-    dialogId: string;
-    senderUserId: string;
-    body: string;
-    kind: string;
-    decisionId: string | null;
-    createdAt: Date;
-  }> = [];
+    id: string
+    dialogId: string
+    senderUserId: string
+    body: string
+    kind: string
+    decisionId: string | null
+    createdAt: Date
+  }> = []
   const offerDecisions: Array<{
-    id: string;
-    candidateUserId: string;
-    vacancyId: string;
-    decision: string;
-  }> = [];
-  let dialogSeq = 0;
-  let messageSeq = 0;
+    id: string
+    candidateUserId: string
+    vacancyId: string
+    decision: string
+  }> = []
+  let dialogSeq = 0
+  let messageSeq = 0
 
   const prisma = {
     vacancy: {
-      findUnique: async ({
-        where,
-        include,
-      }: {
-        where: { id: string };
-        include?: { companyProfile?: boolean };
-      }) => {
-        const vacancy = vacancies.find((item) => item.id === where.id) ?? null;
-        if (!vacancy) return null;
+      findUnique: async ({ where, include }: { where: { id: string }; include?: { companyProfile?: boolean } }) => {
+        const vacancy = vacancies.find(item => item.id === where.id) ?? null
+        if (!vacancy) return null
         return {
           ...vacancy,
-          ...(include?.companyProfile
-            ? { companyProfile: vacancy.companyProfile ?? null }
-            : {}),
-        };
-      },
+          ...(include?.companyProfile ? { companyProfile: vacancy.companyProfile ?? null } : {})
+        }
+      }
     },
     user: {
       findUnique: async ({ where }: { where: { id?: string; email?: string } }) => {
-        if (where.id) return users.find((u) => u.id === where.id) ?? null;
-        if (where.email) return users.find((u) => u.email === where.email) ?? null;
-        return null;
-      },
+        if (where.id) return users.find(u => u.id === where.id) ?? null
+        if (where.email) return users.find(u => u.email === where.email) ?? null
+        return null
+      }
     },
     vacancyApplication: {
       findMany: async ({
         where,
         include,
-        orderBy,
+        orderBy
       }: {
-        where?: { vacancy?: { hrUserId: string } };
-        include?: { vacancy?: boolean | { select: { id: true; title: true } } };
-        orderBy?: { createdAt: "desc" | "asc" };
+        where?: { vacancy?: { hrUserId: string } }
+        include?: { vacancy?: boolean | { select: { id: true; title: true } } }
+        orderBy?: { createdAt: 'desc' | 'asc' }
       }) => {
-        let rows = applications.filter((app) => {
+        let rows = applications.filter(app => {
           if (where?.vacancy?.hrUserId != null) {
-            const vacancy = vacancies.find((v) => v.id === app.vacancyId);
-            if (!vacancy || vacancy.hrUserId !== where.vacancy.hrUserId) return false;
+            const vacancy = vacancies.find(v => v.id === app.vacancyId)
+            if (!vacancy || vacancy.hrUserId !== where.vacancy.hrUserId) return false
           }
-          return true;
-        });
-        if (orderBy?.createdAt === "desc") {
-          rows = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          return true
+        })
+        if (orderBy?.createdAt === 'desc') {
+          rows = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         }
-        return rows.map((app) => {
-          const vacancy = vacancies.find((v) => v.id === app.vacancyId);
+        return rows.map(app => {
+          const vacancy = vacancies.find(v => v.id === app.vacancyId)
           return {
             ...app,
             ...(include?.vacancy
               ? {
-                  vacancy: vacancy
-                    ? { id: vacancy.id, title: vacancy.title }
-                    : null,
+                  vacancy: vacancy ? { id: vacancy.id, title: vacancy.title } : null
                 }
-              : {}),
-          };
-        });
+              : {})
+          }
+        })
       },
       findUnique: async ({
         where,
-        include,
+        include
       }: {
-        where: { id: string };
+        where: { id: string }
         include?: {
-          vacancy?: boolean | { select?: Record<string, boolean> };
-          candidateUser?: boolean | { select?: Record<string, boolean> };
-        };
+          vacancy?: boolean | { select?: Record<string, boolean> }
+          candidateUser?: boolean | { select?: Record<string, boolean> }
+        }
       }) => {
-        const app = applications.find((item) => item.id === where.id) ?? null;
-        if (!app) return null;
-        const vacancy = vacancies.find((v) => v.id === app.vacancyId);
-        const candidateUser = users.find((u) => u.id === app.candidateUserId);
+        const app = applications.find(item => item.id === where.id) ?? null
+        if (!app) return null
+        const vacancy = vacancies.find(v => v.id === app.vacancyId)
+        const candidateUser = users.find(u => u.id === app.candidateUserId)
         return {
           ...app,
           ...(include?.vacancy
@@ -198,111 +188,93 @@ function makeFakePrisma(seed: {
                       hrUserId: vacancy.hrUserId,
                       status: vacancy.status,
                       hiddenAt: vacancy.hiddenAt ?? null,
-                      companyProfile: vacancy.companyProfile ?? null,
+                      companyProfile: vacancy.companyProfile ?? null
                     }
-                  : null,
+                  : null
               }
             : {}),
           ...(include?.candidateUser
             ? {
-                candidateUser: candidateUser
-                  ? { id: candidateUser.id, email: candidateUser.email }
-                  : null,
+                candidateUser: candidateUser ? { id: candidateUser.id, email: candidateUser.email } : null
               }
-            : {}),
-        };
+            : {})
+        }
       },
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Partial<FakeApplication>;
-      }) => {
-        const app = applications.find((item) => item.id === where.id);
-        if (!app) throw new Error("application not found");
-        Object.assign(app, data);
-        return { ...app };
+      update: async ({ where, data }: { where: { id: string }; data: Partial<FakeApplication> }) => {
+        const app = applications.find(item => item.id === where.id)
+        if (!app) throw new Error('application not found')
+        Object.assign(app, data)
+        return { ...app }
       },
       updateMany: async ({
         where,
-        data,
+        data
       }: {
-        where: { id: string; status?: string };
-        data: Partial<FakeApplication>;
+        where: { id: string; status?: string }
+        data: Partial<FakeApplication>
       }) => {
-        const app = applications.find((item) => {
-          if (item.id !== where.id) return false;
-          if (where.status != null && item.status !== where.status) return false;
-          return true;
-        });
-        if (!app) return { count: 0 };
-        Object.assign(app, data);
-        return { count: 1 };
+        const app = applications.find(item => {
+          if (item.id !== where.id) return false
+          if (where.status != null && item.status !== where.status) return false
+          return true
+        })
+        if (!app) return { count: 0 }
+        Object.assign(app, data)
+        return { count: 1 }
       },
       delete: async ({ where }: { where: { id: string } }) => {
-        const index = applications.findIndex((item) => item.id === where.id);
-        if (index < 0) throw new Error("application not found");
-        const [removed] = applications.splice(index, 1);
-        return { ...removed };
-      },
+        const index = applications.findIndex(item => item.id === where.id)
+        if (index === -1) throw new Error('application not found')
+        const [removed] = applications.splice(index, 1)
+        return { ...removed }
+      }
     },
     hrNotification: {
       findMany: async ({
         where,
-        orderBy,
+        orderBy
       }: {
-        where?: { hrUserId: string };
-        orderBy?: Array<Record<string, string>> | Record<string, string>;
+        where?: { hrUserId: string }
+        orderBy?: Array<Record<string, string>> | Record<string, string>
       }) => {
-        let rows = notifications.filter((item) =>
-          where?.hrUserId != null ? item.hrUserId === where.hrUserId : true,
-        );
+        let rows = notifications.filter(item => (where?.hrUserId == null ? true : item.hrUserId === where.hrUserId))
         // Unread first (readAt null), then createdAt desc — approximate sort for tests
         rows = [...rows].sort((a, b) => {
-          const aUnread = a.readAt == null ? 0 : 1;
-          const bUnread = b.readAt == null ? 0 : 1;
-          if (aUnread !== bUnread) return aUnread - bUnread;
-          return b.createdAt.getTime() - a.createdAt.getTime();
-        });
-        void orderBy;
-        return rows.map((item) => ({ ...item }));
+          const aUnread = a.readAt == null ? 0 : 1
+          const bUnread = b.readAt == null ? 0 : 1
+          if (aUnread !== bUnread) return aUnread - bUnread
+          return b.createdAt.getTime() - a.createdAt.getTime()
+        })
+        void orderBy
+        return rows.map(item => ({ ...item }))
       },
       findUnique: async ({ where }: { where: { id: string } }) =>
-        notifications.find((item) => item.id === where.id) ?? null,
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: { readAt: Date };
-      }) => {
-        const item = notifications.find((n) => n.id === where.id);
-        if (!item) throw new Error("notification not found");
-        item.readAt = data.readAt;
-        return { ...item };
-      },
+        notifications.find(item => item.id === where.id) ?? null,
+      update: async ({ where, data }: { where: { id: string }; data: { readAt: Date } }) => {
+        const item = notifications.find(n => n.id === where.id)
+        if (!item) throw new Error('notification not found')
+        item.readAt = data.readAt
+        return { ...item }
+      }
     },
     interview: {
       findUnique: async ({
         where,
-        include,
+        include
       }: {
-        where: { id: string };
+        where: { id: string }
         include?: {
-          vacancy?: { include?: { companyProfile?: boolean } };
-          candidateProfile?: boolean;
-        };
+          vacancy?: { include?: { companyProfile?: boolean } }
+          candidateProfile?: boolean
+        }
       }) => {
         const interview =
-          interviews.find((item) => item.id === where.id) ??
-          questionnaireInterviews.find((item) => item.id === where.id) ??
-          null;
-        if (!interview) return null;
+          interviews.find(item => item.id === where.id) ??
+          questionnaireInterviews.find(item => item.id === where.id) ??
+          null
+        if (!interview) return null
         const vacancy =
-          "vacancyId" in interview
-            ? vacancies.find((v) => v.id === (interview as FakeInterview).vacancyId)
-            : null;
+          'vacancyId' in interview ? vacancies.find(v => v.id === (interview as FakeInterview).vacancyId) : null
         return {
           ...interview,
           ...(include?.vacancy
@@ -310,64 +282,51 @@ function makeFakePrisma(seed: {
                 vacancy: vacancy
                   ? {
                       ...vacancy,
-                      companyProfile: vacancy.companyProfile ?? null,
+                      companyProfile: vacancy.companyProfile ?? null
                     }
-                  : null,
+                  : null
               }
             : {}),
           ...(include?.candidateProfile
             ? {
-                candidateProfile:
-                  candidateProfiles.find((p) => p.interviewId === interview.id) ?? null,
+                candidateProfile: candidateProfiles.find(p => p.interviewId === interview.id) ?? null
               }
-            : {}),
-        };
+            : {})
+        }
       },
-      findFirst: async ({
-        where,
-      }: {
-        where: Record<string, unknown>;
-        orderBy?: { createdAt: "desc" | "asc" };
-      }) => {
-        const pool = [...questionnaireInterviews, ...interviews];
-        const matches = pool.filter((item) => {
-          if (
-            where.candidateUserId != null &&
-            item.candidateUserId !== where.candidateUserId
-          ) {
-            return false;
+      findFirst: async ({ where }: { where: Record<string, unknown>; orderBy?: { createdAt: 'desc' | 'asc' } }) => {
+        const pool = [...questionnaireInterviews, ...interviews]
+        const matches = pool.filter(item => {
+          if (where.candidateUserId != null && item.candidateUserId !== where.candidateUserId) {
+            return false
           }
-          if (typeof where.displayName === "string" && item.displayName !== where.displayName) {
-            return false;
+          if (typeof where.displayName === 'string' && item.displayName !== where.displayName) {
+            return false
           }
-          if (
-            where.displayName &&
-            typeof where.displayName === "object" &&
-            "not" in (where.displayName as object)
-          ) {
-            const notVal = (where.displayName as { not: string }).not;
-            if (item.displayName === notVal) return false;
+          if (where.displayName && typeof where.displayName === 'object' && 'not' in (where.displayName as object)) {
+            const notVal = (where.displayName as { not: string }).not
+            if (item.displayName === notVal) return false
           }
-          const statusFilter = where.status as { in: string[] } | undefined;
-          if (statusFilter?.in && !statusFilter.in.includes(item.status)) return false;
-          return true;
-        });
-        return matches[0] ?? null;
+          const statusFilter = where.status as { in: string[] } | undefined
+          if (statusFilter?.in && !statusFilter.in.includes(item.status)) return false
+          return true
+        })
+        return matches[0] ?? null
       },
       create: async ({
-        data,
+        data
       }: {
         data: {
-          hrUserId: string;
-          vacancyId: string;
-          displayName: string;
-          joinCode: string;
-          status: string;
-          scheduledAt?: Date | null;
-          candidateUserId?: string | null;
-        };
+          hrUserId: string
+          vacancyId: string
+          displayName: string
+          joinCode: string
+          status: string
+          scheduledAt?: Date | null
+          candidateUserId?: string | null
+        }
       }) => {
-        interviewSeq += 1;
+        interviewSeq += 1
         const created: FakeInterview = {
           id: `int_${interviewSeq}`,
           hrUserId: data.hrUserId,
@@ -377,111 +336,98 @@ function makeFakePrisma(seed: {
           status: data.status,
           scheduledAt: data.scheduledAt ?? null,
           candidateUserId: data.candidateUserId ?? null,
-          createdAt: new Date(),
-        };
-        interviews.push(created);
-        return created;
+          createdAt: new Date()
+        }
+        interviews.push(created)
+        return created
       },
       update: async ({
         where,
-        data,
+        data
       }: {
-        where: { id: string };
-        data: { status?: string; candidateUserId?: string | null };
+        where: { id: string }
+        data: { status?: string; candidateUserId?: string | null }
       }) => {
-        const interview = interviews.find((item) => item.id === where.id);
-        if (!interview) throw new Error("interview not found");
-        if (data.status !== undefined) interview.status = data.status;
+        const interview = interviews.find(item => item.id === where.id)
+        if (!interview) throw new Error('interview not found')
+        if (data.status !== undefined) interview.status = data.status
         if (data.candidateUserId !== undefined) {
-          interview.candidateUserId = data.candidateUserId;
+          interview.candidateUserId = data.candidateUserId
         }
-        return { ...interview };
-      },
+        return { ...interview }
+      }
     },
     candidateProfile: {
       findUnique: async ({ where }: { where: { interviewId: string } }) =>
-        candidateProfiles.find((item) => item.interviewId === where.interviewId) ?? null,
+        candidateProfiles.find(item => item.interviewId === where.interviewId) ?? null
     },
     invitation: {
-      create: async ({
-        data,
-      }: {
-        data: { interviewId: string; email: string; status: string };
-      }) => {
-        invSeq += 1;
+      create: async ({ data }: { data: { interviewId: string; email: string; status: string } }) => {
+        invSeq += 1
         const created = {
           id: `inv_${invSeq}`,
           interviewId: data.interviewId,
           email: data.email,
-          status: data.status,
-        };
-        invitations.push(created);
-        return created;
-      },
+          status: data.status
+        }
+        invitations.push(created)
+        return created
+      }
     },
     dialog: {
       findUnique: async ({
-        where,
+        where
       }: {
         where: {
-          hrUserId_candidateUserId: { hrUserId: string; candidateUserId: string };
-        };
+          hrUserId_candidateUserId: { hrUserId: string; candidateUserId: string }
+        }
       }) => {
-        const key = where.hrUserId_candidateUserId;
-        return (
-          dialogs.find(
-            (d) =>
-              d.hrUserId === key.hrUserId && d.candidateUserId === key.candidateUserId,
-          ) ?? null
-        );
+        const key = where.hrUserId_candidateUserId
+        return dialogs.find(d => d.hrUserId === key.hrUserId && d.candidateUserId === key.candidateUserId) ?? null
       },
-      create: async ({
-        data,
-      }: {
-        data: { hrUserId: string; candidateUserId: string };
-      }) => {
-        dialogSeq += 1;
-        const now = new Date();
+      create: async ({ data }: { data: { hrUserId: string; candidateUserId: string } }) => {
+        dialogSeq += 1
+        const now = new Date()
         const created = {
           id: `dlg_${dialogSeq}`,
           hrUserId: data.hrUserId,
           candidateUserId: data.candidateUserId,
           createdAt: now,
           updatedAt: now,
-          candidateHiddenAt: null as Date | null,
-        };
-        dialogs.push(created);
-        return created;
+          candidateHiddenAt: null as Date | null
+        }
+        dialogs.push(created)
+        return created
       },
       update: async ({
         where,
-        data,
+        data
       }: {
-        where: { id: string };
-        data: { updatedAt?: Date; candidateHiddenAt?: Date | null };
+        where: { id: string }
+        data: { updatedAt?: Date; candidateHiddenAt?: Date | null }
       }) => {
-        const dialog = dialogs.find((d) => d.id === where.id);
-        if (!dialog) throw new Error("Dialog not found");
-        if (data.updatedAt) dialog.updatedAt = data.updatedAt;
+        const dialog = dialogs.find(d => d.id === where.id)
+        if (!dialog) throw new Error('Dialog not found')
+        if (data.updatedAt) dialog.updatedAt = data.updatedAt
         if (data.candidateHiddenAt !== undefined) {
-          dialog.candidateHiddenAt = data.candidateHiddenAt;
+          dialog.candidateHiddenAt = data.candidateHiddenAt
         }
-        return dialog;
-      },
+        return dialog
+      }
     },
     dialogMessage: {
       create: async ({
-        data,
+        data
       }: {
         data: {
-          dialogId: string;
-          senderUserId: string;
-          body: string;
-          kind: string;
-          decisionId?: string | null;
-        };
+          dialogId: string
+          senderUserId: string
+          body: string
+          kind: string
+          decisionId?: string | null
+        }
       }) => {
-        messageSeq += 1;
+        messageSeq += 1
         const created = {
           id: `msg_${messageSeq}`,
           dialogId: data.dialogId,
@@ -489,206 +435,200 @@ function makeFakePrisma(seed: {
           body: data.body,
           kind: data.kind,
           decisionId: data.decisionId ?? null,
-          createdAt: new Date(),
-        };
-        messages.push(created);
-        return created;
-      },
+          createdAt: new Date()
+        }
+        messages.push(created)
+        return created
+      }
     },
     vacancyOfferDecision: {
       upsert: async ({
         where,
-        create,
+        create
       }: {
         where: {
-          candidateUserId_vacancyId: { candidateUserId: string; vacancyId: string };
-        };
-        create: { candidateUserId: string; vacancyId: string; decision: string };
-        update: { decision: string };
+          candidateUserId_vacancyId: { candidateUserId: string; vacancyId: string }
+        }
+        create: { candidateUserId: string; vacancyId: string; decision: string }
+        update: { decision: string }
       }) => {
-        const key = where.candidateUserId_vacancyId;
+        const key = where.candidateUserId_vacancyId
         const existing = offerDecisions.find(
-          (item) =>
-            item.candidateUserId === key.candidateUserId &&
-            item.vacancyId === key.vacancyId,
-        );
+          item => item.candidateUserId === key.candidateUserId && item.vacancyId === key.vacancyId
+        )
         if (existing) {
-          existing.decision = create.decision;
-          return existing;
+          existing.decision = create.decision
+          return existing
         }
         const created = {
           id: `offer_${offerDecisions.length + 1}`,
           candidateUserId: create.candidateUserId,
           vacancyId: create.vacancyId,
-          decision: create.decision,
-        };
-        offerDecisions.push(created);
-        return created;
-      },
+          decision: create.decision
+        }
+        offerDecisions.push(created)
+        return created
+      }
     },
     $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => {
-      const interviewsSnap = interviews.map((item) => ({ ...item }));
-      const applicationsSnap = applications.map((item) => ({ ...item }));
-      const invitationsSnap = invitations.map((item) => ({ ...item }));
-      const dialogsSnap = dialogs.map((item) => ({ ...item }));
-      const messagesSnap = messages.map((item) => ({ ...item }));
-      const offerSnap = offerDecisions.map((item) => ({ ...item }));
-      const interviewSeqSnap = interviewSeq;
-      const invSeqSnap = invSeq;
-      const dialogSeqSnap = dialogSeq;
-      const messageSeqSnap = messageSeq;
+      const interviewsSnap = interviews.map(item => ({ ...item }))
+      const applicationsSnap = applications.map(item => ({ ...item }))
+      const invitationsSnap = invitations.map(item => ({ ...item }))
+      const dialogsSnap = dialogs.map(item => ({ ...item }))
+      const messagesSnap = messages.map(item => ({ ...item }))
+      const offerSnap = offerDecisions.map(item => ({ ...item }))
+      const interviewSeqSnap = interviewSeq
+      const invSeqSnap = invSeq
+      const dialogSeqSnap = dialogSeq
+      const messageSeqSnap = messageSeq
       try {
-        return await fn(prisma);
+        return await fn(prisma)
       } catch (error) {
-        interviews.length = 0;
-        interviews.push(...interviewsSnap);
-        applications.length = 0;
-        applications.push(...applicationsSnap);
-        invitations.length = 0;
-        invitations.push(...invitationsSnap);
-        dialogs.length = 0;
-        dialogs.push(...dialogsSnap);
-        messages.length = 0;
-        messages.push(...messagesSnap);
-        offerDecisions.length = 0;
-        offerDecisions.push(...offerSnap);
-        interviewSeq = interviewSeqSnap;
-        invSeq = invSeqSnap;
-        dialogSeq = dialogSeqSnap;
-        messageSeq = messageSeqSnap;
-        throw error;
+        interviews.length = 0
+        interviews.push(...interviewsSnap)
+        applications.length = 0
+        applications.push(...applicationsSnap)
+        invitations.length = 0
+        invitations.push(...invitationsSnap)
+        dialogs.length = 0
+        dialogs.push(...dialogsSnap)
+        messages.length = 0
+        messages.push(...messagesSnap)
+        offerDecisions.length = 0
+        offerDecisions.push(...offerSnap)
+        interviewSeq = interviewSeqSnap
+        invSeq = invSeqSnap
+        dialogSeq = dialogSeqSnap
+        messageSeq = messageSeqSnap
+        throw error
       }
     },
     __dialogs: dialogs,
     __messages: messages,
-    __offerDecisions: offerDecisions,
-  };
+    __offerDecisions: offerDecisions
+  }
 
-  return { prisma, applications, interviews, notifications, invitations };
+  return { prisma, applications, interviews, notifications, invitations }
 }
 
 function withUser(user: AuthUser) {
   return (req: Request, _res: Response, next: NextFunction) => {
-    req.user = user;
-    next();
-  };
+    req.user = user
+    next()
+  }
 }
 
-type FakeLlm = { complete: (messages: unknown) => Promise<string> };
-type FakeIo = { to: (room: string) => { emit: (...args: unknown[]) => void } };
+type FakeLlm = { complete: (messages: unknown) => Promise<string> }
+type FakeIo = { to: (room: string) => { emit: (...args: unknown[]) => void } }
 
-const defaultFakeLlm: FakeLlm = { complete: async () => "Лист-відмова" };
+const defaultFakeLlm: FakeLlm = { complete: async () => 'Лист-відмова' }
 const defaultFakeIo: FakeIo = {
-  to: (_room: string) => ({ emit: () => undefined }),
-};
+  to: (_room: string) => ({ emit: () => {} })
+}
 
 function makeApp(
-  fakePrisma: ReturnType<typeof makeFakePrisma>["prisma"],
+  fakePrisma: ReturnType<typeof makeFakePrisma>['prisma'],
   user: AuthUser,
   llm: FakeLlm = defaultFakeLlm,
-  io: FakeIo = defaultFakeIo,
+  io: FakeIo = defaultFakeIo
 ) {
-  const app = express();
-  app.use(express.json());
-  app.use(withUser(user));
+  const app = express()
+  app.use(express.json())
+  app.use(withUser(user))
   app.use(
-    "/api",
+    '/api',
     createHrApplicationsRouter(
       () => fakePrisma as never,
       () => llm as never,
-      () => io as never,
-    ),
-  );
-  return app;
+      () => io as never
+    )
+  )
+  return app
 }
 
-test("GET /hr/applications returns only own vacancy applications", async () => {
+test('GET /hr/applications returns only own vacancy applications', async () => {
   const { prisma } = makeFakePrisma({
     vacancies: [
-      { id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" },
-      { id: "v2", hrUserId: "hr_2", title: "Backend", status: "CONFIRMED" },
+      { id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' },
+      { id: 'v2', hrUserId: 'hr_2', title: 'Backend', status: 'CONFIRMED' }
     ],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date("2026-07-01T10:00:00Z"),
+        createdAt: new Date('2026-07-01T10:00:00Z')
       },
       {
-        id: "app_2",
-        candidateUserId: "cd_2",
-        vacancyId: "v2",
+        id: 'app_2',
+        candidateUserId: 'cd_2',
+        vacancyId: 'v2',
         matchScore: 70,
-        candidateSummary: "Strong BE",
-        status: "PENDING",
+        candidateSummary: 'Strong BE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date("2026-07-02T10:00:00Z"),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date('2026-07-02T10:00:00Z')
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.applications.length, 1);
-    assert.equal(body.applications[0].id, "app_1");
-    assert.equal(body.applications[0].vacancyTitle, "Frontend");
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.applications.length, 1)
+    assert.equal(body.applications[0].id, 'app_1')
+    assert.equal(body.applications[0].vacancyTitle, 'Frontend')
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /hr/applications/:id returns 404 for other HR", async () => {
+test('GET /hr/applications/:id returns 404 for other HR', async () => {
   const { prisma } = makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_other", email: "other@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_other', email: 'other@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`);
-    assert.equal(response.status, 404);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`)
+    assert.equal(response.status, 404)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("GET /hr/applications/:id includes matchBreakdown for owning HR", async () => {
+test('GET /hr/applications/:id includes matchBreakdown for owning HR', async () => {
   const breakdown = {
     assessments: [
       {
-        requirement: "React",
-        priority: "critical",
-        status: "met",
-        evidence: "Є в skills",
-      },
+        requirement: 'React',
+        priority: 'critical',
+        status: 'met',
+        evidence: 'Є в skills'
+      }
     ],
     contextFit: 80,
     criticalFit: 100,
@@ -696,626 +636,579 @@ test("GET /hr/applications/:id includes matchBreakdown for owning HR", async () 
     requirementsFit: 100,
     rawScore: 96,
     cappedByCriticalUnmet: false,
-    matchScore: 96,
-  };
+    matchScore: 96
+  }
   const { prisma } = makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 96,
         matchBreakdown: breakdown,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.deepEqual(body.application.matchBreakdown, breakdown);
-    assert.equal(body.application.candidate.id, "cd_1");
-    assert.equal(body.application.candidate.email, "cd@test.com");
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.deepEqual(body.application.matchBreakdown, breakdown)
+    assert.equal(body.application.candidate.id, 'cd_1')
+    assert.equal(body.application.candidate.email, 'cd@test.com')
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("DELETE /hr/applications/:id removes own non-converted application", async () => {
+test('DELETE /hr/applications/:id removes own non-converted application', async () => {
   const { prisma, applications } = makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`, {
-      method: "DELETE",
-    });
-    assert.equal(response.status, 204);
-    assert.equal(applications.length, 0);
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 204)
+    assert.equal(applications.length, 0)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("DELETE /hr/applications/:id returns 404 for other HR", async () => {
+test('DELETE /hr/applications/:id returns 404 for other HR', async () => {
   const { prisma, applications } = makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_2", email: "hr2@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_2', email: 'hr2@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`, {
-      method: "DELETE",
-    });
-    assert.equal(response.status, 404);
-    assert.equal(applications.length, 1);
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 404)
+    assert.equal(applications.length, 1)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("DELETE /hr/applications/:id returns 409 when linked interview exists", async () => {
+test('DELETE /hr/applications/:id returns 409 when linked interview exists', async () => {
   const { prisma, applications } = makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "CONVERTED",
-        interviewId: "int_1",
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        candidateSummary: 'Strong FE',
+        status: 'CONVERTED',
+        interviewId: 'int_1',
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1`, {
-      method: "DELETE",
-    });
-    assert.equal(response.status, 409);
-    const body = (await response.json()) as { error: string };
-    assert.equal(body.error, "Cannot delete application linked to interview");
-    assert.equal(applications.length, 1);
+      method: 'DELETE'
+    })
+    assert.equal(response.status, 409)
+    const body = (await response.json()) as { error: string }
+    assert.equal(body.error, 'Cannot delete application linked to interview')
+    assert.equal(applications.length, 1)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/notifications/:id/read marks readAt", async () => {
+test('POST /hr/notifications/:id/read marks readAt', async () => {
   const { prisma, notifications } = makeFakePrisma({
     notifications: [
       {
-        id: "n1",
-        hrUserId: "hr_1",
-        type: "VACANCY_APPLICATION",
-        payload: { applicationId: "app_1" },
+        id: 'n1',
+        hrUserId: 'hr_1',
+        type: 'VACANCY_APPLICATION',
+        payload: { applicationId: 'app_1' },
         readAt: null,
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/hr/notifications/n1/read`, {
-      method: "POST",
-    });
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.ok(body.notification.readAt);
-    assert.ok(notifications[0].readAt instanceof Date);
+      method: 'POST'
+    })
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.ok(body.notification.readAt)
+    assert.ok(notifications[0].readAt instanceof Date)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/create-interview converts PENDING and links interview", async () => {
+test('POST /hr/applications/:id/create-interview converts PENDING and links interview', async () => {
   const { prisma, applications, interviews } = makeFakePrisma({
     vacancies: [
       {
-        id: "v1",
-        hrUserId: "hr_1",
-        title: "Frontend",
-        status: "CONFIRMED",
-        companyProfile: { confirmedAt: new Date() },
-      },
+        id: 'v1',
+        hrUserId: 'hr_1',
+        title: 'Frontend',
+        status: 'CONFIRMED',
+        companyProfile: { confirmedAt: new Date() }
+      }
     ],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
+        createdAt: new Date()
+      }
     ],
     questionnaireInterviews: [
       {
-        id: "q1",
-        candidateUserId: "cd_1",
-        displayName: "Моя анкета",
-        status: "READY",
-        createdAt: new Date(),
-      },
+        id: 'q1',
+        candidateUserId: 'cd_1',
+        displayName: 'Моя анкета',
+        status: 'READY',
+        createdAt: new Date()
+      }
     ],
     candidateProfiles: [
       {
-        interviewId: "q1",
-        fullName: "Anna Candidate",
-        email: "cd@test.com",
-        confirmedAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        interviewId: 'q1',
+        fullName: 'Anna Candidate',
+        email: 'cd@test.com',
+        confirmedAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      },
-    );
-    assert.equal(response.status, 201);
-    const body = await response.json();
-    assert.equal(applications[0].status, "CONVERTED");
-    assert.ok(applications[0].interviewId);
-    assert.equal(body.interview.id, applications[0].interviewId);
-    assert.equal(interviews[0].candidateUserId, "cd_1");
-    assert.equal(interviews[0].vacancyId, "v1");
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    assert.equal(response.status, 201)
+    const body = await response.json()
+    assert.equal(applications[0].status, 'CONVERTED')
+    assert.ok(applications[0].interviewId)
+    assert.equal(body.interview.id, applications[0].interviewId)
+    assert.equal(interviews[0].candidateUserId, 'cd_1')
+    assert.equal(interviews[0].vacancyId, 'v1')
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/create-interview returns 409 when vacancy hidden", async () => {
+test('POST /hr/applications/:id/create-interview returns 409 when vacancy hidden', async () => {
   const { prisma } = makeFakePrisma({
     vacancies: [
       {
-        id: "v1",
-        hrUserId: "hr_1",
-        title: "Frontend",
-        status: "CONFIRMED",
-        hiddenAt: new Date("2026-07-22T12:00:00.000Z"),
-        companyProfile: { confirmedAt: new Date() },
-      },
+        id: 'v1',
+        hrUserId: 'hr_1',
+        title: 'Frontend',
+        status: 'CONFIRMED',
+        hiddenAt: new Date('2026-07-22T12:00:00.000Z'),
+        companyProfile: { confirmedAt: new Date() }
+      }
     ],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      },
-    );
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.error, "VACANCY_HIDDEN");
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    assert.equal(response.status, 409)
+    const body = await response.json()
+    assert.equal(body.error, 'VACANCY_HIDDEN')
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/create-interview returns 409 when candidate has active interview", async () => {
+test('POST /hr/applications/:id/create-interview returns 409 when candidate has active interview', async () => {
   const { prisma, interviews } = makeFakePrisma({
     vacancies: [
       {
-        id: "v1",
-        hrUserId: "hr_1",
-        title: "Frontend",
-        status: "CONFIRMED",
-        companyProfile: { confirmedAt: new Date() },
-      },
+        id: 'v1',
+        hrUserId: 'hr_1',
+        title: 'Frontend',
+        status: 'CONFIRMED',
+        companyProfile: { confirmedAt: new Date() }
+      }
     ],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
+        createdAt: new Date()
+      }
     ],
     interviews: [
       {
-        id: "int_live",
-        hrUserId: "hr_1",
-        vacancyId: "v1",
-        candidateUserId: "cd_1",
-        displayName: "Product Manager",
-        joinCode: "LIVE01",
-        status: "LIVE",
+        id: 'int_live',
+        hrUserId: 'hr_1',
+        vacancyId: 'v1',
+        candidateUserId: 'cd_1',
+        displayName: 'Product Manager',
+        joinCode: 'LIVE01',
+        status: 'LIVE',
         createdAt: new Date(),
-        scheduledAt: null,
-      },
+        scheduledAt: null
+      }
     ],
     questionnaireInterviews: [
       {
-        id: "q1",
-        candidateUserId: "cd_1",
-        displayName: "Моя анкета",
-        status: "READY",
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        id: 'q1',
+        candidateUserId: 'cd_1',
+        displayName: 'Моя анкета',
+        status: 'READY',
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
-    );
-    assert.equal(response.status, 409);
-    const body = (await response.json()) as { error: string };
-    assert.equal(body.error, "Candidate already has active interview");
-    assert.equal(interviews.length, 1);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    assert.equal(response.status, 409)
+    const body = (await response.json()) as { error: string }
+    assert.equal(body.error, 'Candidate already has active interview')
+    assert.equal(interviews.length, 1)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/create-interview returns 409 when not PENDING", async () => {
+test('POST /hr/applications/:id/create-interview returns 409 when not PENDING', async () => {
   const { prisma } = makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "CONVERTED",
-        interviewId: "int_old",
-        createdAt: new Date(),
-      },
-    ],
-  });
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+        candidateSummary: 'Strong FE',
+        status: 'CONVERTED',
+        interviewId: 'int_old',
+        createdAt: new Date()
+      }
+    ]
+  })
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
-    );
-    assert.equal(response.status, 409);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    assert.equal(response.status, 409)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/create-interview double-convert returns 409 without orphan", async () => {
+test('POST /hr/applications/:id/create-interview double-convert returns 409 without orphan', async () => {
   const { prisma, applications, interviews } = makeFakePrisma({
     vacancies: [
       {
-        id: "v1",
-        hrUserId: "hr_1",
-        title: "Frontend",
-        status: "CONFIRMED",
-        companyProfile: { confirmedAt: new Date() },
-      },
+        id: 'v1',
+        hrUserId: 'hr_1',
+        title: 'Frontend',
+        status: 'CONFIRMED',
+        companyProfile: { confirmedAt: new Date() }
+      }
     ],
-    users: [{ id: "cd_1", email: "cd@test.com", role: "CANDIDATE" }],
+    users: [{ id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Strong FE",
-        status: "PENDING",
+        candidateSummary: 'Strong FE',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date(),
-      },
+        createdAt: new Date()
+      }
     ],
     questionnaireInterviews: [
       {
-        id: "q1",
-        candidateUserId: "cd_1",
-        displayName: "Моя анкета",
-        status: "READY",
-        createdAt: new Date(),
-      },
+        id: 'q1',
+        candidateUserId: 'cd_1',
+        displayName: 'Моя анкета',
+        status: 'READY',
+        createdAt: new Date()
+      }
     ],
     candidateProfiles: [
       {
-        interviewId: "q1",
-        fullName: "Anna Candidate",
-        email: "cd@test.com",
-        confirmedAt: new Date(),
-      },
-    ],
-  });
+        interviewId: 'q1',
+        fullName: 'Anna Candidate',
+        email: 'cd@test.com',
+        confirmedAt: new Date()
+      }
+    ]
+  })
 
   // Simulate race: second request still sees PENDING after first convert.
-  const originalFindUnique = prisma.vacancyApplication.findUnique.bind(prisma.vacancyApplication);
-  let findCalls = 0;
-  prisma.vacancyApplication.findUnique = async (args) => {
-    findCalls += 1;
-    const row = await originalFindUnique(args);
+  const originalFindUnique = prisma.vacancyApplication.findUnique.bind(prisma.vacancyApplication)
+  let findCalls = 0
+  prisma.vacancyApplication.findUnique = async args => {
+    findCalls += 1
+    const row = await originalFindUnique(args)
     if (findCalls > 1 && row) {
-      return { ...row, status: "PENDING", interviewId: null };
+      return { ...row, status: 'PENDING', interviewId: null }
     }
-    return row;
-  };
+    return row
+  }
 
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
 
   try {
-    const first = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      },
-    );
-    assert.equal(first.status, 201);
-    assert.equal(interviews.length, 1);
-    assert.equal(applications[0].status, "CONVERTED");
+    const first = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    assert.equal(first.status, 201)
+    assert.equal(interviews.length, 1)
+    assert.equal(applications[0].status, 'CONVERTED')
 
-    const second = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      },
-    );
-    assert.equal(second.status, 409);
-    assert.equal(interviews.length, 1);
-    assert.equal(applications[0].status, "CONVERTED");
-    assert.equal(applications[0].interviewId, interviews[0].id);
+    const second = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/create-interview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    assert.equal(second.status, 409)
+    assert.equal(interviews.length, 1)
+    assert.equal(applications[0].status, 'CONVERTED')
+    assert.equal(applications[0].interviewId, interviews[0].id)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
 const declineSeed = () =>
   makeFakePrisma({
-    vacancies: [{ id: "v1", hrUserId: "hr_1", title: "Frontend", status: "CONFIRMED" }],
+    vacancies: [{ id: 'v1', hrUserId: 'hr_1', title: 'Frontend', status: 'CONFIRMED' }],
     users: [
-      { id: "hr_1", email: "hr@test.com", role: "HR" },
-      { id: "cd_1", email: "cd@test.com", role: "CANDIDATE" },
+      { id: 'hr_1', email: 'hr@test.com', role: 'HR' },
+      { id: 'cd_1', email: 'cd@test.com', role: 'CANDIDATE' }
     ],
     applications: [
       {
-        id: "app_1",
-        candidateUserId: "cd_1",
-        vacancyId: "v1",
+        id: 'app_1',
+        candidateUserId: 'cd_1',
+        vacancyId: 'v1',
         matchScore: 80,
-        candidateSummary: "Сильний фронтенд",
-        status: "PENDING",
+        candidateSummary: 'Сильний фронтенд',
+        status: 'PENDING',
         interviewId: null,
-        createdAt: new Date("2026-07-01T10:00:00.000Z"),
-      },
-    ],
-  });
+        createdAt: new Date('2026-07-01T10:00:00.000Z')
+      }
+    ]
+  })
 
-test("POST /hr/applications/:id/decline/draft returns letter body", async () => {
-  const { prisma } = declineSeed();
-  const fakeLlm = { complete: async () => "Шановний кандидате, на жаль..." };
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" }, fakeLlm);
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+test('POST /hr/applications/:id/decline/draft returns letter body', async () => {
+  const { prisma } = declineSeed()
+  const fakeLlm = { complete: async () => 'Шановний кандидате, на жаль...' }
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' }, fakeLlm)
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline/draft`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
-    );
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as { body: string };
-    assert.match(body.body, /Шановний кандидате/);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/decline/draft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    assert.equal(response.status, 200)
+    const body = (await response.json()) as { body: string }
+    assert.match(body.body, /Шановний кандидате/)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/decline sets DECLINED_BY_HR, posts DECISION_LETTER, upserts offer", async () => {
-  const { prisma, applications } = declineSeed();
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+test('POST /hr/applications/:id/decline sets DECLINED_BY_HR, posts DECISION_LETTER, upserts offer', async () => {
+  const { prisma, applications } = declineSeed()
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ letterBody: "Дякуємо, наразі відмовляємо." }),
-      },
-    );
-    assert.equal(response.status, 201);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/decline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ letterBody: 'Дякуємо, наразі відмовляємо.' })
+    })
+    assert.equal(response.status, 201)
     const body = (await response.json()) as {
-      application: { id: string; status: string };
-      dialogId: string;
-    };
-    assert.equal(body.application.status, "DECLINED_BY_HR");
-    assert.equal(applications[0].status, "DECLINED_BY_HR");
-    assert.ok(body.dialogId);
-    assert.equal(prisma.__messages.length, 1);
-    assert.equal(prisma.__messages[0].kind, "DECISION_LETTER");
-    assert.equal(prisma.__messages[0].decisionId, null);
-    assert.equal(prisma.__offerDecisions.length, 1);
-    assert.equal(prisma.__offerDecisions[0].decision, "REJECTED");
-    assert.equal(prisma.__offerDecisions[0].vacancyId, "v1");
+      application: { id: string; status: string }
+      dialogId: string
+    }
+    assert.equal(body.application.status, 'DECLINED_BY_HR')
+    assert.equal(applications[0].status, 'DECLINED_BY_HR')
+    assert.ok(body.dialogId)
+    assert.equal(prisma.__messages.length, 1)
+    assert.equal(prisma.__messages[0].kind, 'DECISION_LETTER')
+    assert.equal(prisma.__messages[0].decisionId, null)
+    assert.equal(prisma.__offerDecisions.length, 1)
+    assert.equal(prisma.__offerDecisions[0].decision, 'REJECTED')
+    assert.equal(prisma.__offerDecisions[0].vacancyId, 'v1')
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/decline returns 409 when not PENDING", async () => {
-  const { prisma, applications } = declineSeed();
-  applications[0].status = "CONVERTED";
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+test('POST /hr/applications/:id/decline returns 409 when not PENDING', async () => {
+  const { prisma, applications } = declineSeed()
+  applications[0].status = 'CONVERTED'
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ letterBody: "Текст" }),
-      },
-    );
-    assert.equal(response.status, 409);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/decline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ letterBody: 'Текст' })
+    })
+    assert.equal(response.status, 409)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/decline returns 400 for empty letterBody", async () => {
-  const { prisma } = declineSeed();
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" });
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
+test('POST /hr/applications/:id/decline returns 400 for empty letterBody', async () => {
+  const { prisma } = declineSeed()
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' })
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ letterBody: "   " }),
-      },
-    );
-    assert.equal(response.status, 400);
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/decline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ letterBody: '   ' })
+    })
+    assert.equal(response.status, 400)
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
   }
-});
+})
 
-test("POST /hr/applications/:id/decline/draft returns 502 when LLM throws", async () => {
-  const { prisma } = declineSeed();
+test('POST /hr/applications/:id/decline/draft returns 502 when LLM throws', async () => {
+  const { prisma } = declineSeed()
   const fakeLlm = {
     complete: async () => {
-      throw new Error("llm down");
-    },
-  };
-  const app = makeApp(prisma, { id: "hr_1", email: "hr@test.com", role: "HR" }, fakeLlm);
-  const server = app.listen(0);
-  const port = (server.address() as { port: number }).port;
-  try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}/api/hr/applications/app_1/decline/draft`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
-    );
-    assert.equal(response.status, 502);
-  } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+      throw new Error('llm down')
+    }
   }
-});
+  const app = makeApp(prisma, { id: 'hr_1', email: 'hr@test.com', role: 'HR' }, fakeLlm)
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/hr/applications/app_1/decline/draft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    assert.equal(response.status, 502)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(err => (err ? reject(err) : resolve())))
+  }
+})

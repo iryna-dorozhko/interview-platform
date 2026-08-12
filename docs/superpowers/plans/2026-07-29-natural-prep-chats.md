@@ -21,10 +21,12 @@
 ### Task 1: Candidate Agent Prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-agent.uk.ts`
 - Test: `backend/src/agents/candidate-agent.test.ts` (verify existing tests still pass)
 
 **Interfaces:**
+
 - Produces: `CANDIDATE_AGENT_SYSTEM_PROMPT_UK` — same export name, same READY:true/false contract
 
 - [ ] **Step 1: Read the current prompt and existing tests**
@@ -123,10 +125,12 @@ git commit -m "refactor: rewrite candidate prep prompt for natural conversation 
 ### Task 2: Company Agent Prompt (Vacancy Prep)
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-agent.uk.ts`
 - Test: `backend/src/agents/company-agent.test.ts` (verify existing tests still pass)
 
 **Interfaces:**
+
 - Produces: `COMPANY_AGENT_SYSTEM_PROMPT_UK` — same export name, same READY:true/false contract
 
 - [ ] **Step 1: Read the current prompt and existing tests**
@@ -199,10 +203,12 @@ git commit -m "refactor: rewrite company (vacancy) prep prompt for natural conve
 ### Task 3: Company Profile Agent Prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-profile-agent.uk.ts`
 - Test: `backend/src/agents/company-profile-agent.test.ts` (verify existing tests still pass, if file exists)
 
 **Interfaces:**
+
 - Produces: `COMPANY_PROFILE_AGENT_SYSTEM_PROMPT_UK` — same export name, same READY:true/false contract
 
 - [ ] **Step 1: Read the current prompt and check for existing tests**

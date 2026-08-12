@@ -39,9 +39,11 @@ No new files.
 ### Task 1: `viewingHistory` + read-only history panel on candidate profile
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateProfileView.vue`
 
 **Interfaces:**
+
 - Consumes: `prepState.messages`, `isClosed`, `profile`, `PrepChatPanel` props (`loadState`, `messages`, `sending`, `isClosed`, `input`, `errorMessage`, `lastFailedAction`, `isUserMessage`)
 - Produces: `viewingHistory: Ref<boolean>`; `backToChat()` / `backToProfile()`; history UI branch
 

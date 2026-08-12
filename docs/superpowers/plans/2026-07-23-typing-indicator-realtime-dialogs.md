@@ -51,11 +51,13 @@
 ### Task 1: Shared typing helper (frontend)
 
 **Files:**
+
 - Create: `frontend/src/utils/typing-indicator.ts`
 - Create: `frontend/src/utils/typing-indicator.test.ts`
 - Modify: `frontend/package.json` (`test` script — append new test file)
 
 **Interfaces:**
+
 - Consumes: none
 - Produces:
   - `typingLabelFor(role: "HR" | "CANDIDATE"): string`
@@ -212,11 +214,13 @@ git commit -m "feat(fe): add shared typing indicator helper"
 ### Task 2: Backend `room:typing`
 
 **Files:**
+
 - Modify: `backend/src/socket/types.ts`
 - Modify: `backend/src/socket/room.ts`
 - Modify: `backend/src/socket/room.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing room join + `getSocketData().roomRole` / `interviewId`
 - Produces:
   - Client→server: `room:typing` `{ interviewId, isTyping: boolean }`
@@ -377,11 +381,13 @@ git commit -m "feat(api): relay room typing indicator over socket"
 ### Task 3: Live chat UI wiring
 
 **Files:**
+
 - Modify: `frontend/src/composables/useInterviewRoom.ts`
 - Modify: `frontend/src/components/LiveChatPanel.vue`
 - Modify: `frontend/src/components/InterviewRoomContent.vue`
 
 **Interfaces:**
+
 - Consumes: `createTypingEmitter`, `typingLabelFor`, `room:typing` events
 - Produces:
   - `peerTypingLabel: Ref<string | null>` (or `peerTypingRole`)
@@ -476,6 +482,7 @@ git commit -m "feat(fe): show peer typing in live interview chat"
 ### Task 4: Backend dialog socket handlers
 
 **Files:**
+
 - Create: `backend/src/socket/dialogs.ts`
 - Create: `backend/src/socket/dialogs.test.ts`
 - Modify: `backend/src/socket/types.ts`
@@ -483,6 +490,7 @@ git commit -m "feat(fe): show peer typing in live interview chat"
 - Modify: `backend/package.json` (`test` script — append `src/socket/dialogs.test.ts`)
 
 **Interfaces:**
+
 - Consumes: `attachSocketAuth` / `getSocketUser`, Prisma `dialog.findUnique`
 - Produces:
   - `dialogRoomName(dialogId: string): string` → `dialog:${dialogId}`
@@ -669,11 +677,13 @@ git commit -m "feat(api): add dialog socket join and typing relay"
 ### Task 5: Broadcast on `POST /dialogs/:id/messages`
 
 **Files:**
+
 - Modify: `backend/src/routes/dialogs.ts`
 - Modify: `backend/src/routes/dialogs.test.ts`
 - Modify: `backend/src/server.ts`
 
 **Interfaces:**
+
 - Consumes: `emitDialogMessage`, `getIo: () => Server`
 - Produces: `createDialogsRouter(getPrisma, getIo)` — after create, `emitDialogMessage(getIo(), dialog.id, dto)`
 
@@ -764,11 +774,13 @@ git commit -m "feat(api): broadcast dialog messages over socket after POST"
 ### Task 6: Broadcast decision letter from reports
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts`
 - Modify: `backend/src/routes/reports.test.ts`
 - Modify: `backend/src/server.ts`
 
 **Interfaces:**
+
 - Consumes: `emitDialogMessage`, `getIo`
 - Produces: `createReportsRouter(getPrisma, getLlmProvider, getIo)` emits after transaction with DTO including `decision: { type }`
 
@@ -834,10 +846,12 @@ git commit -m "feat(api): broadcast decision letters to dialog socket room"
 ### Task 7: Frontend dialog thread realtime + typing
 
 **Files:**
+
 - Create: `frontend/src/composables/useDialogThread.ts`
 - Modify: `frontend/src/views/DialogThreadView.vue`
 
 **Interfaces:**
+
 - Consumes: `connectSocket`, `createTypingEmitter`, `typingLabelFor`, dialog REST APIs, `emitDialogMessage` event shape `{ message: BackendDialogMessage }`
 - Produces: composable API used by `DialogThreadView`:
   - `messages`, `peerTypingLabel`, `loadState`, `send`, `notifyTypingInput`, `dispose`/lifecycle

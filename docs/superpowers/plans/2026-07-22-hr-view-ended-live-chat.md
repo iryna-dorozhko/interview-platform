@@ -36,9 +36,11 @@ No new files. No frontend unit-test harness in this repo — verify manually in 
 ### Task 1: Link on `InterviewDetailView`
 
 **Files:**
+
 - Modify: `frontend/src/views/InterviewDetailView.vue`
 
 **Interfaces:**
+
 - Consumes: `interview.status`, `interview.id` from existing `InterviewDetail` load
 - Produces: `RouterLink` visible only when `interview.status === 'ENDED'`
 
@@ -80,9 +82,11 @@ EOF
 ### Task 2: Link on `ReportView`
 
 **Files:**
+
 - Modify: `frontend/src/views/ReportView.vue`
 
 **Interfaces:**
+
 - Consumes: `report.interviewId` from existing `FinalReport` (`frontend/src/api/reports.ts`)
 - Produces: `RouterLink` to `interview-room` whenever the report is loaded
 

@@ -56,11 +56,13 @@
 ### Task 1: `withLlmRetry` helper
 
 **Files:**
+
 - Create: `backend/src/llm/retry.ts`
 - Create: `backend/src/llm/retry.test.ts`
 - Modify: `backend/package.json` (`test` script — append `src/llm/retry.test.ts`)
 
 **Interfaces:**
+
 - Consumes: `LlmUnavailableError`, `LlmEmptyResponseError` from `./errors`; `isGeminiRateLimitError`, `parseGeminiRetryDelayMs` from `./gemini.provider`
 - Produces:
   - `SAFE_LLM_ERROR_UK: string`
@@ -294,10 +296,12 @@ EOF
 ### Task 2: Gemini — single attempt per `complete()`
 
 **Files:**
+
 - Modify: `backend/src/llm/gemini.provider.ts`
 - Modify: `backend/src/llm/gemini.provider.test.ts` (only if tests assume multi-attempt loop)
 
 **Interfaces:**
+
 - Consumes: unchanged public helpers `isGeminiRateLimitError`, `parseGeminiRetryDelayMs`
 - Produces: `complete()` performs one send; rate-limit errors propagate for `withLlmRetry`
 
@@ -330,12 +334,14 @@ EOF
 ### Task 3: Wrap live agent turns in `withLlmRetry`
 
 **Files:**
+
 - Modify: `backend/src/agents/arbiter-agent.ts`
 - Modify: `backend/src/agents/company-live-agent.ts`
 - Modify: `backend/src/agents/candidate-live-agent.ts`
 - Modify tests only if they assert single `complete` call counts in a way that breaks (update expected call counts × retries when injecting failing providers — usually agent unit tests mock success once)
 
 **Interfaces:**
+
 - Consumes: `withLlmRetry` from `../llm/retry`
 - Produces: same public `run*Turn` signatures; parse/unavailable errors retried; `*ContextError` still fail once
 
@@ -385,6 +391,7 @@ EOF
 ### Task 4: Prep routes — retry + safe UK errors
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-prep.ts`
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/company-prep.ts`
@@ -393,6 +400,7 @@ EOF
 - Modify: `backend/src/routes/company-prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: `withLlmRetry`, `toSafeLlmErrorMessage` from `../llm/retry`
 - Produces: on LLM failure after retries → status 502/503 with `{ error: toSafeLlmErrorMessage(err) }` (no raw provider body in `error`). Optional: omit `detail` from JSON responses for these paths (log only).
 
@@ -461,6 +469,7 @@ EOF
 ### Task 5: Prep frontend — retry button + prefer `error`
 
 **Files:**
+
 - Modify: `frontend/src/api/candidate-prep.ts`
 - Modify: `frontend/src/api/prep.ts`
 - Modify: `frontend/src/api/company-prep.ts`
@@ -470,6 +479,7 @@ EOF
 - Modify: `frontend/src/views/CompanyProfilePrepView.vue`
 
 **Interfaces:**
+
 - Consumes: existing `send*Message(id)` without text; `finish*Chat`
 - Produces: `lastFailedAction: "message" | "finish" | "greeting" | null`; `retryLastFailed()`
 
@@ -574,10 +584,12 @@ EOF
 ### Task 6: Live orchestrator — `lastFailedTurn` + `onAgentRetry`
 
 **Files:**
+
 - Modify: `backend/src/socket/orchestrator.ts`
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `runArbiter` / `runCompany` / `runCandidate`, `emitAgentError`, `toSafeLlmErrorMessage`
 - Produces:
   - `RoomOrchestrator.onAgentRetry(io, interviewId, sessionId): void`
@@ -687,12 +699,14 @@ EOF
 ### Task 7: Socket `room:agent-retry` (HR only)
 
 **Files:**
+
 - Modify: `backend/src/socket/room.ts`
 - Modify: `backend/src/socket/types.ts` (payload type if used)
 - Modify: `backend/src/socket/room.test.ts`
 - Modify: noop orchestrator stubs in tests to include `onAgentRetry: () => {}`
 
 **Interfaces:**
+
 - Consumes: `orchestrator.onAgentRetry`
 - Produces: socket event `room:agent-retry` with `{ interviewId: string }`
 
@@ -756,10 +770,12 @@ EOF
 ### Task 8: Live frontend — HR retry button
 
 **Files:**
+
 - Modify: `frontend/src/composables/useInterviewRoom.ts`
 - Modify: `frontend/src/components/InterviewRoomContent.vue`
 
 **Interfaces:**
+
 - Consumes: socket `room:agent-retry`
 - Produces: `retryAgent(): void` exported from composable; button only when `currentRole === "HR" && agentError`
 

@@ -39,10 +39,12 @@
 ### Task 1: Промпт фінального звіту з пріоритетами
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/final-report.uk.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts` (assert на вміст промпту через імпорт константи)
 
 **Interfaces:**
+
 - Produces: оновлений `FINAL_REPORT_SYSTEM_PROMPT_UK` з контрактом `contextFit` + `assessments`, без `matchScore`
 
 - [ ] **Step 1: Write the failing test**
@@ -124,10 +126,12 @@ EOF
 ### Task 2: `parseFinalReport` з assessments + `computeMatchScore`
 
 **Files:**
+
 - Modify: `backend/src/agents/final-report-agent.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `VacancyRequirements` з `../utils/vacancy-requirements`; `computeMatchScore`, `RequirementAssessment`, `RequirementStatus` з `../services/match-score`
 - Produces:
   - `parseFinalReport(rawText: string, requirements: VacancyRequirements): ExtractedFinalReport`
@@ -321,7 +325,7 @@ import { computeMatchScore } from "../services/match-score";
 import type { VacancyRequirements } from "../utils/vacancy-requirements";
 ```
 
-2. Додай хелпери (локально, за зразком vacancy-match-agent):
+1. Додай хелпери (локально, за зразком vacancy-match-agent):
 
 ```typescript
 const VALID_STATUSES = new Set<RequirementStatus>(["met", "unknown", "unmet"]);
@@ -398,7 +402,7 @@ function validateAssessments(
 }
 ```
 
-3. Заміни `parseFinalReport`:
+1. Заміни `parseFinalReport`:
 
 ```typescript
 export function parseFinalReport(
@@ -474,10 +478,12 @@ EOF
 ### Task 3: Явний блок вимог у `buildFinalReportMessages`
 
 **Files:**
+
 - Modify: `backend/src/agents/final-report-agent.ts` (`buildFinalReportMessages`)
 - Modify: `backend/src/agents/final-report-agent.test.ts`
 
 **Interfaces:**
+
 - Produces: `buildFinalReportMessages(input: { transcript: string; companyProfile: unknown; candidateProfile: unknown; requirements: VacancyRequirements }): ChatMessage[]`
 
 - [ ] **Step 1: Write the failing test**
@@ -562,10 +568,12 @@ EOF
 ### Task 4: Wire `POST /interviews/:id/end`
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 
 **Interfaces:**
+
 - Consumes: `normalizeVacancyRequirements` з `../utils/vacancy-requirements`; оновлені `buildFinalReportMessages` / `parseFinalReport`
 
 - [ ] **Step 1: Update the end-route test mock + assertions**
@@ -585,7 +593,7 @@ const validReport = JSON.stringify({
 });
 ```
 
-2. Додай тест з пріоритетами (скопіюй каркас `makeFakePrisma` / `findUnique` / `$transaction` з сусіднього end-тесту):
+1. Додай тест з пріоритетами (скопіюй каркас `makeFakePrisma` / `findUnique` / `$transaction` з сусіднього end-тесту):
 
 ```typescript
 test("POST /interviews/:id/end computes matchScore from assessments with critical unmet cap", async () => {
@@ -636,7 +644,7 @@ Expected: FAIL — route ще не нормалізує requirements / стар�
 import { normalizeVacancyRequirements } from "../utils/vacancy-requirements";
 ```
 
-2. Після отримання `companyProfile` / `candidateProfile`:
+1. Після отримання `companyProfile` / `candidateProfile`:
 
 ```typescript
 const requirements =
@@ -659,7 +667,7 @@ const llmMessages = buildFinalReportMessages({
 });
 ```
 
-3. Парсинг:
+1. Парсинг:
 
 ```typescript
 extracted = parseFinalReport(rawReply, requirements);
@@ -689,6 +697,7 @@ EOF
 ### Task 5: README
 
 **Files:**
+
 - Modify: `README.md` (секція Final Report API / Day 20)
 
 - [ ] **Step 1: Update docs**

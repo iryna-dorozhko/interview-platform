@@ -49,10 +49,12 @@
 ### Task 1: Prisma enum — `ACCEPTED` + `ADDITIONAL_MEETING`
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_application_status_hr_letters/migration.sql` (via migrate)
 
 **Interfaces:**
+
 - Consumes: existing `VacancyApplicationStatus`
 - Produces: enum values usable as `"ACCEPTED" | "ADDITIONAL_MEETING"` in Prisma client
 
@@ -91,11 +93,13 @@ git commit -m "feat(db): add ACCEPTED and ADDITIONAL_MEETING application statuse
 ### Task 2: Shared helper — map + apply HR terminal status
 
 **Files:**
+
 - Create: `backend/src/services/application-hr-decision.ts`
 - Create: `backend/src/services/application-hr-decision.test.ts`
 - Modify: `backend/package.json` — append test path to `test` script if not globbed
 
 **Interfaces:**
+
 - Consumes: Prisma transaction client with `vacancyApplication.update` / `updateMany` and `vacancyOfferDecision.upsert`
 - Produces:
 
@@ -283,12 +287,14 @@ git commit -m "feat: shared helper for terminal application HR status"
 ### Task 3: Application decline letter agent
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/application-decline-letter.uk.ts`
 - Create: `backend/src/agents/application-decline-letter-agent.ts`
 - Create: `backend/src/agents/application-decline-letter-agent.test.ts`
 - Modify: `backend/package.json` — register test
 
 **Interfaces:**
+
 - Consumes: `LlmProvider`, reuse `normalizeDecisionLetter` from `./decision-letter-agent` (export it if not already exported — it already is)
 - Produces:
 
@@ -362,11 +368,13 @@ git commit -m "feat: add application decline letter LLM agent"
 ### Task 4: HR applications — decline draft + send
 
 **Files:**
+
 - Modify: `backend/src/routes/hr-applications.ts`
 - Modify: `backend/src/routes/hr-applications.test.ts`
 - Modify: `backend/src/server.ts` — wire LLM + io
 
 **Interfaces:**
+
 - Consumes: `generateApplicationDeclineLetter`, `applyTerminalApplicationStatus`, `emitDialogMessage`
 - Change factory to:
 
@@ -459,10 +467,12 @@ git commit -m "feat: HR decline application with letter to dialogs"
 ### Task 5: Sync application status on report decision send
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts` — inside `POST /reports/:id/decisions` transaction
 - Modify: `backend/src/routes/reports.test.ts`
 
 **Interfaces:**
+
 - Consumes: `applicationStatusFromDecisionType`, `applyTerminalApplicationStatus`
 - Produces: same HTTP as today; side effect updates linked `VacancyApplication` when `interviewId` matches
 
@@ -527,11 +537,13 @@ git commit -m "feat: sync vacancy application status from interview decisions"
 ### Task 6: Frontend API + status labels + decline modal
 
 **Files:**
+
 - Modify: `frontend/src/api/hr-applications.ts`
 - Modify: `frontend/src/api/candidate-matches.ts` — status union
 - Modify: `frontend/src/views/HrApplicationsView.vue`
 
 **Interfaces:**
+
 - Produces:
 
 ```typescript

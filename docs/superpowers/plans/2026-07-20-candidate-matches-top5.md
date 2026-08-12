@@ -35,10 +35,12 @@
 ### Task 1: `pickTopOffers` service function
 
 **Files:**
+
 - Modify: `backend/src/services/vacancy-match.ts`
 - Test: `backend/src/services/vacancy-match.test.ts`
 
 **Interfaces:**
+
 - Consumes: `sortScoresDesc`, `CandidateMatchOffer` (already exported)
 - Produces: `pickTopOffers(scores, rejectedVacancyIds, limit?) → CandidateMatchOffer[]`
 
@@ -140,10 +142,12 @@ git commit -m "feat: add pickTopOffers for candidate match list"
 ### Task 2: `getTopMatchOffers` service function
 
 **Files:**
+
 - Modify: `backend/src/services/vacancy-match.ts`
 - Test: `backend/src/services/vacancy-match.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ensureMatchScores`, `getRejectedVacancyIds`, `pickTopOffers`
 - Produces: `getTopMatchOffers(prisma, llm, candidateUserId) → Promise<CandidateMatchOffer[]>`
 
@@ -284,10 +288,12 @@ git commit -m "feat: replace getNextMatchOffer with getTopMatchOffers"
 ### Task 3: Candidate matches routes — `{ offers: [...] }` response
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-matches.ts`
 - Test: `backend/src/routes/candidate-matches.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getTopMatchOffers` from `../services/vacancy-match`
 - Produces: `GET /matches/next` and `POST /matches/:id/reject` return `{ offers: CandidateMatchOffer[] }`
 
@@ -513,9 +519,11 @@ git commit -m "feat: return top-5 offers from candidate matches API"
 ### Task 4: Frontend API client
 
 **Files:**
+
 - Modify: `frontend/src/api/candidate-matches.ts`
 
 **Interfaces:**
+
 - Consumes: backend `{ offers: [...] }` from Task 3
 - Produces: `fetchNextMatch(): Promise<CandidateMatchOffersResponse>`, `rejectMatch(vacancyId): Promise<CandidateMatchOffersResponse>`
 
@@ -585,9 +593,11 @@ git commit -m "feat: update candidate matches API client for offers array"
 ### Task 5: Candidate matches list UI
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateMatchesView.vue`
 
 **Interfaces:**
+
 - Consumes: `CandidateMatchOffersResponse`, `fetchNextMatch`, `rejectMatch`, `acceptMatch`
 - Produces: list UI with up to 5 rows, per-row Accept/Reject
 
@@ -768,6 +778,7 @@ git commit -m "feat: show top-5 vacancy matches in candidate UI"
 ### Task 6: README update
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update Vacancy match section**

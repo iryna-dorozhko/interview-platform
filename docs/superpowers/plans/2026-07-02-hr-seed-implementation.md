@@ -24,6 +24,7 @@
 ### Task 1: Винести seed-логіку HR у тестований модуль
 
 **Files:**
+
 - Create: `backend/src/seed/hr-user.test.js`
 - Create: `backend/src/seed/hr-user.js`
 - Test: `backend/src/seed/hr-user.test.js`
@@ -150,6 +151,7 @@ git commit -m "feat: extract testable HR seed helpers"
 ### Task 2: Спростити Prisma seed entry point
 
 **Files:**
+
 - Modify: `backend/prisma/seed.js`
 - Test: `backend/src/seed/hr-user.test.js` (regression)
 
@@ -223,6 +225,7 @@ git commit -m "refactor: delegate prisma seed entrypoint to hr-user module"
 ### Task 3: Ручна верифікація seed проти живої БД
 
 **Files:**
+
 - Verify: `README.md` (секція database bootstrap, рядки з `db:seed` і `hr@test.com` / `123456`)
 - Test: ручний smoke через Prisma seed
 

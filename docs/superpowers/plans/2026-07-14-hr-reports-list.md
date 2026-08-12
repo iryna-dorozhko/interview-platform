@@ -28,6 +28,7 @@
 ### Task 1: Failing list tests + fake `findMany`
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.test.ts`
 
 - [ ] **Step 1: Extend `FakeReport` and `makeFakePrisma` for list**
@@ -251,6 +252,7 @@ git commit -m "test: add failing GET /api/reports list cases"
 ### Task 2: Implement `GET /api/reports` (no filters yet)
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts`
 
 - [ ] **Step 1: Add list handler before `:id`**
@@ -313,6 +315,7 @@ git commit -m "feat: add GET /api/reports list for HR"
 ### Task 3: Filter query params (TDD)
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.test.ts`
 - Modify: `backend/src/routes/reports.ts`
 
@@ -597,6 +600,7 @@ git commit -m "feat: filter GET /api/reports by vacancy, recommendation, email, 
 ### Task 4: Frontend API `fetchReports`
 
 **Files:**
+
 - Modify: `frontend/src/api/reports.ts`
 
 - [ ] **Step 1: Add types and `fetchReports`**
@@ -654,6 +658,7 @@ git commit -m "feat: add fetchReports API client"
 ### Task 5: `ReportListView` + route + sidebar
 
 **Files:**
+
 - Create: `frontend/src/views/ReportListView.vue`
 - Modify: `frontend/src/router/index.ts`
 - Modify: `frontend/src/components/HrSidebar.vue`
@@ -989,7 +994,7 @@ In `frontend/src/router/index.ts`:
 import ReportListView from "../views/ReportListView.vue";
 ```
 
-2. Inside `HrLayout` children, after the interviews routes (before or after `report/:id`), add:
+1. Inside `HrLayout` children, after the interviews routes (before or after `report/:id`), add:
 
 ```typescript
 {

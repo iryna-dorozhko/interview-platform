@@ -37,6 +37,7 @@
 ### Task 1: `GET /api/reports/:id` endpoint
 
 **Files:**
+
 - Create: `backend/src/routes/reports.ts`
 - Create: `backend/src/routes/reports.test.ts`
 - Modify: `backend/src/server.ts`
@@ -275,6 +276,7 @@ git commit -m "feat: add GET /api/reports/:id endpoint"
 ### Task 2: `reportId` in interview responses
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts:32,56,45,78`
 - Modify: `backend/src/routes/interviews.test.ts` (FakeFinalReport type, makeFakePrisma, key assertions)
 
@@ -423,6 +425,7 @@ git commit -m "feat: expose reportId in interview list and detail API"
 ### Task 3: Frontend dependencies and API client
 
 **Files:**
+
 - Modify: `frontend/package.json`
 - Create: `frontend/src/api/reports.ts`
 - Modify: `frontend/src/api/interviews.ts`
@@ -502,6 +505,7 @@ git commit -m "feat: add frontend report API client and reportId type"
 ### Task 4: ReportView page and router
 
 **Files:**
+
 - Create: `frontend/src/views/ReportView.vue`
 - Modify: `frontend/src/router/index.ts`
 
@@ -753,6 +757,7 @@ git commit -m "feat: add structured report page at /report/:id"
 ### Task 5: Navigation links from list, room, and detail
 
 **Files:**
+
 - Modify: `frontend/src/views/InterviewListView.vue`
 - Modify: `frontend/src/components/InterviewRoomContent.vue`
 - Modify: `frontend/src/views/HrInterviewRoomView.vue`
@@ -956,6 +961,7 @@ git commit -m "feat: add report navigation links from list, room, and detail"
 ### Task 6: README and .env.example documentation
 
 **Files:**
+
 - Modify: `README.md` (Day 21 section, ~lines 1372–1385)
 - Modify: `backend/.env.example` (optional clarity tweak)
 
@@ -1006,6 +1012,7 @@ GEMINI_MODEL=gemini-2.0-flash
 ```
 
 Після зміни `.env` — рестарт backend. Тест: `npm run llm:test --workspace backend`.
+
 ```
 
 - [ ] **Step 2: Clarify .env.example Gemini block**

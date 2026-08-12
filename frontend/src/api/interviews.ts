@@ -1,183 +1,184 @@
-import { fetchWithAuth } from "./client";
+import { fetchWithAuth } from './client'
 
 export type InterviewInvitation = {
-  id: string;
-  email: string;
-  status: string;
-};
+  id: string
+  email: string
+  status: string
+}
 
-export type InterviewKind = "STANDARD" | "ADDITIONAL_MEETING";
+export type InterviewKind = 'STANDARD' | 'ADDITIONAL_MEETING'
 
 export type InterviewSummary = {
-  id: string;
-  vacancyId: string;
-  vacancyTitle: string;
-  displayName: string;
-  joinCode: string;
-  status: string;
-  createdAt: string;
-  scheduledAt: string | null;
-  invitation: InterviewInvitation | null;
-  candidateLinked: boolean;
-  candidateUserId: string | null;
-  reportId: string | null;
-  reportSummary: string | null;
-  kind: InterviewKind;
-  followUpFromFinalReportId: string | null;
-};
+  id: string
+  vacancyId: string
+  vacancyTitle: string
+  displayName: string
+  joinCode: string
+  status: string
+  createdAt: string
+  scheduledAt: string | null
+  invitation: InterviewInvitation | null
+  candidateLinked: boolean
+  candidateUserId: string | null
+  reportId: string | null
+  reportSummary: string | null
+  kind: InterviewKind
+  followUpFromFinalReportId: string | null
+}
 
-export type InterviewDetail = InterviewSummary;
+export type InterviewDetail = InterviewSummary
 
 export type CreatedInterview = {
-  id: string;
-  vacancyId: string;
-  displayName: string;
-  joinCode: string;
-  status: string;
-  kind: InterviewKind;
-  followUpFromFinalReportId: string | null;
-  createdAt: string;
-  scheduledAt: string | null;
-  invitation: InterviewInvitation | null;
-};
+  id: string
+  vacancyId: string
+  displayName: string
+  joinCode: string
+  status: string
+  kind: InterviewKind
+  followUpFromFinalReportId: string | null
+  createdAt: string
+  scheduledAt: string | null
+  invitation: InterviewInvitation | null
+}
 
-type ErrorBody = { error?: string; detail?: string };
+type ErrorBody = { error?: string; detail?: string }
 
 async function parseError(response: Response, fallback: string): Promise<Error> {
-  let body: ErrorBody = {};
+  let body: ErrorBody = {}
   try {
-    body = (await response.json()) as ErrorBody;
+    body = (await response.json()) as ErrorBody
   } catch {
     // ignore parse errors
   }
-  const detail = body.detail ?? body.error;
-  return new Error(detail ? `${fallback}: ${detail}` : fallback);
+  const detail = body.detail ?? body.error
+  return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
 
 export async function fetchInterview(id: string): Promise<InterviewDetail> {
-  const response = await fetchWithAuth(`/api/interviews/${id}`);
+  const response = await fetchWithAuth(`/api/interviews/${id}`)
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити співбесіду");
+    throw await parseError(response, 'Не вдалося завантажити співбесіду')
   }
-  const body = (await response.json()) as { interview: InterviewDetail };
-  return body.interview;
+  const body = (await response.json()) as { interview: InterviewDetail }
+  return body.interview
 }
 
 export async function fetchMyInterviews(): Promise<InterviewSummary[]> {
-  const response = await fetchWithAuth("/api/interviews/mine");
+  const response = await fetchWithAuth('/api/interviews/mine')
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити список співбесід");
+    throw await parseError(response, 'Не вдалося завантажити список співбесід')
   }
-  const body = (await response.json()) as { interviews: InterviewSummary[] };
-  return body.interviews;
+  const body = (await response.json()) as { interviews: InterviewSummary[] }
+  return body.interviews
 }
 
 export async function createInterview(
   vacancyId: string,
-  options?: { candidateEmail?: string; scheduledAt?: string | null },
+  options?: { candidateEmail?: string; scheduledAt?: string | null }
 ): Promise<CreatedInterview> {
-  const response = await fetchWithAuth("/api/interviews", {
-    method: "POST",
+  const response = await fetchWithAuth('/api/interviews', {
+    method: 'POST',
     body: JSON.stringify({
       vacancyId,
       ...(options?.candidateEmail ? { candidateEmail: options.candidateEmail } : {}),
-      ...(options?.scheduledAt !== undefined ? { scheduledAt: options.scheduledAt } : {}),
-    }),
-  });
+      ...(options?.scheduledAt === undefined ? {} : { scheduledAt: options.scheduledAt })
+    })
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося створити співбесіду");
+    throw await parseError(response, 'Не вдалося створити співбесіду')
   }
-  const body = (await response.json()) as { interview: CreatedInterview };
-  return body.interview;
+  const body = (await response.json()) as { interview: CreatedInterview }
+  return body.interview
 }
 
 export type AdditionalMeetingCandidate = {
-  candidateUserId: string;
-  candidateEmail: string;
-  vacancyId: string;
-  vacancyTitle: string;
-};
+  candidateUserId: string
+  candidateEmail: string
+  vacancyId: string
+  vacancyTitle: string
+}
 
 export async function fetchAdditionalMeetingCandidates(): Promise<AdditionalMeetingCandidate[]> {
-  const response = await fetchWithAuth("/api/hr/additional-meeting-candidates");
+  const response = await fetchWithAuth('/api/hr/additional-meeting-candidates')
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити кандидатів для додаткової зустрічі");
+    throw await parseError(response, 'Не вдалося завантажити кандидатів для додаткової зустрічі')
   }
-  const body = (await response.json()) as { candidates: AdditionalMeetingCandidate[] };
-  return body.candidates;
+  const body = (await response.json()) as { candidates: AdditionalMeetingCandidate[] }
+  return body.candidates
 }
 
 export async function createAdditionalInterview(input: {
-  candidateUserId: string;
-  scheduledAt?: string | null;
+  candidateUserId: string
+  scheduledAt?: string | null
 }): Promise<CreatedInterview> {
-  const response = await fetchWithAuth("/api/hr/interviews/additional", {
-    method: "POST",
+  const response = await fetchWithAuth('/api/hr/interviews/additional', {
+    method: 'POST',
     body: JSON.stringify({
       candidateUserId: input.candidateUserId,
-      ...(input.scheduledAt !== undefined ? { scheduledAt: input.scheduledAt } : {}),
-    }),
-  });
+      ...(input.scheduledAt === undefined ? {} : { scheduledAt: input.scheduledAt })
+    })
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося створити додаткову зустріч");
+    throw await parseError(response, 'Не вдалося створити додаткову зустріч')
   }
-  const body = (await response.json()) as { interview: CreatedInterview };
-  return body.interview;
+  const body = (await response.json()) as { interview: CreatedInterview }
+  return body.interview
 }
 
-export async function updateInterviewSchedule(
-  id: string,
-  scheduledAt: string | null,
-): Promise<InterviewDetail> {
+export async function updateInterviewSchedule(id: string, scheduledAt: string | null): Promise<InterviewDetail> {
   const response = await fetchWithAuth(`/api/interviews/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ scheduledAt }),
-  });
+    method: 'PATCH',
+    body: JSON.stringify({ scheduledAt })
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося оновити час співбесіди");
+    throw await parseError(response, 'Не вдалося оновити час співбесіди')
   }
-  const body = (await response.json()) as { interview: InterviewDetail };
-  return body.interview;
+  const body = (await response.json()) as { interview: InterviewDetail }
+  return body.interview
 }
 
 export async function updateInterviewInvitation(
   id: string,
-  candidateEmail: string | null,
+  candidateEmail: string | null
 ): Promise<{ invitation: InterviewInvitation | null }> {
   const response = await fetchWithAuth(`/api/interviews/${id}/invitation`, {
-    method: "PATCH",
-    body: JSON.stringify({ candidateEmail }),
-  });
+    method: 'PATCH',
+    body: JSON.stringify({ candidateEmail })
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося оновити запрошення");
+    throw await parseError(response, 'Не вдалося оновити запрошення')
   }
-  return (await response.json()) as { invitation: InterviewInvitation | null };
+  return (await response.json()) as { invitation: InterviewInvitation | null }
 }
 
 export async function deleteInterview(id: string): Promise<void> {
-  const response = await fetchWithAuth(`/api/interviews/${id}`, { method: "DELETE" });
+  const response = await fetchWithAuth(`/api/interviews/${id}`, { method: 'DELETE' })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося видалити співбесіду");
+    throw await parseError(response, 'Не вдалося видалити співбесіду')
   }
 }
 
 export type EndInterviewResult = {
-  reportId: string;
-  recommendation: "HIRE" | "MAYBE" | "REJECT";
-  matchScore: number;
-};
+  reportId: string
+  recommendation: 'HIRE' | 'MAYBE' | 'REJECT'
+  matchScore: number
+}
 
 export async function endInterview(id: string): Promise<EndInterviewResult> {
-  const response = await fetchWithAuth(`/api/interviews/${id}/end`, { method: "POST" });
+  const response = await fetchWithAuth(`/api/interviews/${id}/end`, { method: 'POST' })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завершити співбесіду");
+    throw await parseError(response, 'Не вдалося завершити співбесіду')
   }
   const body = (await response.json()) as {
-    report: { id: string; recommendation: EndInterviewResult["recommendation"]; matchScore: number };
-  };
+    report: {
+      id: string
+      recommendation: EndInterviewResult['recommendation']
+      matchScore: number
+    }
+  }
   return {
     reportId: body.report.id,
     recommendation: body.report.recommendation,
-    matchScore: body.report.matchScore,
-  };
+    matchScore: body.report.matchScore
+  }
 }

@@ -36,9 +36,11 @@ No new files. No frontend unit-test harness required — verify manually in brow
 ### Task 1: Secondary button on `ReportView`
 
 **Files:**
+
 - Modify: `frontend/src/views/ReportView.vue`
 
 **Interfaces:**
+
 - Consumes: `report.interviewId` from existing `fetchReport` / `FinalReport`
 - Produces: `RouterLink` with classes `btn-secondary` (and optional layout class), text `Переглянути співбесіду`
 

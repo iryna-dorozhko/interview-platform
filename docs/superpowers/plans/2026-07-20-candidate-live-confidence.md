@@ -47,10 +47,12 @@
 ### Task 1: Prisma schema — `CandidateConfidence`
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: migration via `db:migrate`
 
 **Interfaces:**
+
 - Produces: Prisma enum `CandidateConfidence`; поле `LiveMessage.candidateConfidence?: CandidateConfidence | null`
 
 - [ ] **Step 1: Add enum and field to schema**
@@ -106,12 +108,15 @@ git commit -m "feat(db): add CandidateConfidence to LiveMessage"
 ### Task 2: `parseCandidateLiveReply` — парсер confidence
 
 **Files:**
+
 - Modify: `backend/src/agents/candidate-live-agent.ts`
 - Modify: `backend/src/agents/candidate-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AgentPostReplyParseError` з `./agent-post-reply`
 - Produces:
+
   ```typescript
   export type CandidateConfidenceLevel = "confirmed" | "inferred" | "unknown";
 
@@ -302,11 +307,13 @@ git commit -m "feat: parse candidate live confidence levels"
 ### Task 3: Candidate Live prompt + nudge + runCandidateLiveTurn
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-live-agent.uk.ts`
 - Modify: `backend/src/agents/candidate-live-agent.ts` (nudge + `runCandidateLiveTurn`)
 - Modify: `backend/src/agents/candidate-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `parseCandidateLiveReply(raw, { requireConfidence })`
 - Produces: оновлений промпт; `runCandidateLiveTurn` повертає `ParsedCandidateLiveReply` з `confidence`
 
@@ -407,14 +414,17 @@ git commit -m "feat: candidate live agent confidence prompt and nudges"
 ### Task 4: Socket layer — DTO, orchestrator, room
 
 **Files:**
+
 - Modify: `backend/src/socket/types.ts`
 - Modify: `backend/src/socket/orchestrator.ts`
 - Modify: `backend/src/socket/room.ts`
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ParsedCandidateLiveReply.confidence`, `toPrismaCandidateConfidence()`
 - Produces:
+
   ```typescript
   // types.ts
   candidateConfidence?: "CONFIRMED" | "INFERRED" | "UNKNOWN" | null;
@@ -587,10 +597,12 @@ git commit -m "feat: persist and emit candidate confidence in live room"
 ### Task 5: Arbiter prompt — WAIT лише для unknown
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/arbiter-agent.uk.ts`
 - Modify: `backend/src/agents/arbiter-agent.test.ts`
 
 **Interfaces:**
+
 - Produces: оновлене правило черги в `ARBITER_AGENT_SYSTEM_PROMPT_UK`
 
 - [ ] **Step 1: Write failing arbiter prompt test**
@@ -645,14 +657,17 @@ git commit -m "feat: arbiter WAIT only after unknown candidate confidence"
 ### Task 6: Final report — transcript + prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/final-report-agent.ts`
 - Modify: `backend/src/agents/prompts/final-report.uk.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts`
 - Modify: `backend/src/routes/interviews.ts`
 
 **Interfaces:**
+
 - Consumes: `LiveMessage.candidateConfidence` з Prisma
 - Produces:
+
   ```typescript
   export type LiveTranscriptItem = {
     authorType: LiveAuthorType;
@@ -770,13 +785,16 @@ git commit -m "feat: final report transcript includes candidate confidence"
 ### Task 7: Frontend — confidence badges in live chat
 
 **Files:**
+
 - Modify: `frontend/src/composables/useInterviewRoom.ts`
 - Modify: `frontend/src/utils/live-message-styles.ts`
 - Modify: `frontend/src/components/LiveChatPanel.vue`
 
 **Interfaces:**
+
 - Consumes: `candidateConfidence` з `room:messages` DTO
 - Produces:
+
   ```typescript
   export type CandidateConfidence = "CONFIRMED" | "INFERRED" | "UNKNOWN";
 

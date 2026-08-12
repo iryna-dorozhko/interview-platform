@@ -1,0 +1,21 @@
+{
+  "licenses": {
+    "spdx": [
+      "MIT",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "Apache-2.0",
+      "ISC",
+      "BlueOak-1.0.0",
+      "0BSD",
+      "MPL-2.0",
+      "Unlicense"
+    ]
+  },
+  "packages": {
+    "optimist": "<=0.6.1",
+    "seq-queue": "*",
+    "xmlhttprequest-ssl": "*"
+  },
+  "corrections": false
+}

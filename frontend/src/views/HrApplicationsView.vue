@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+
 import {
   createInterviewFromApplication,
   deleteHrApplication,
@@ -11,302 +10,283 @@ import {
   markNotificationRead,
   sendApplicationDecline,
   type HrApplicationDetail,
-  type MatchBreakdown,
-} from "../api/hr-applications";
+  type MatchBreakdown
+} from '../api/hr-applications'
 
-type ListState = "loading" | "ready" | "error";
-type DetailState = "idle" | "loading" | "ready" | "error";
+type ListState = 'loading' | 'ready' | 'error'
+type DetailState = 'idle' | 'loading' | 'ready' | 'error'
 
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Очікує",
-  CONVERTED: "Створено співбесіду",
-  WITHDRAWN: "Відкликано",
-  DECLINED_BY_HR: "Відхилено HR",
-  ACCEPTED: "Прийнято",
-  ADDITIONAL_MEETING: "Потрібна додаткова зустріч",
-};
+  PENDING: 'Очікує',
+  CONVERTED: 'Створено співбесіду',
+  WITHDRAWN: 'Відкликано',
+  DECLINED_BY_HR: 'Відхилено HR',
+  ACCEPTED: 'Прийнято',
+  ADDITIONAL_MEETING: 'Потрібна додаткова зустріч'
+}
 
-const router = useRouter();
+const router = useRouter()
 
-const applications = ref<HrApplicationDetail[]>([]);
-const listState = ref<ListState>("loading");
-const listError = ref<string | null>(null);
+const applications = ref<HrApplicationDetail[]>([])
+const listState = ref<ListState>('loading')
+const listError = ref<string | null>(null)
 
-const selectedId = ref<string | null>(null);
-const detail = ref<HrApplicationDetail | null>(null);
-const detailState = ref<DetailState>("idle");
-const detailError = ref<string | null>(null);
+const selectedId = ref<string | null>(null)
+const detail = ref<HrApplicationDetail | null>(null)
+const detailState = ref<DetailState>('idle')
+const detailError = ref<string | null>(null)
 
-const scheduledAtLocal = ref("");
-const creating = ref(false);
-const deleting = ref(false);
-const createError = ref<string | null>(null);
-const createdJoinCode = ref<string | null>(null);
+const scheduledAtLocal = ref('')
+const creating = ref(false)
+const deleting = ref(false)
+const createError = ref<string | null>(null)
+const createdJoinCode = ref<string | null>(null)
 
-const declineModalOpen = ref(false);
-const declineDraftBody = ref("");
-const declineModalState = ref<"loading" | "edit" | "error" | "sent">("loading");
-const declineModalError = ref<string | null>(null);
-const declineSentDialogId = ref<string | null>(null);
-const declining = ref(false);
+const declineModalOpen = ref(false)
+const declineDraftBody = ref('')
+const declineModalState = ref<'loading' | 'edit' | 'error' | 'sent'>('loading')
+const declineModalError = ref<string | null>(null)
+const declineSentDialogId = ref<string | null>(null)
+const declining = ref(false)
 
 const canCreateInterview = computed(
-  () => detail.value?.status === "PENDING" && !creating.value && !declining.value && !deleting.value,
-);
+  () => detail.value?.status === 'PENDING' && !creating.value && !declining.value && !deleting.value
+)
 
 function isMatchBreakdown(value: unknown): value is MatchBreakdown {
-  return (
-    value != null &&
-    typeof value === "object" &&
-    Array.isArray((value as MatchBreakdown).assessments)
-  );
+  return value != null && typeof value === 'object' && Array.isArray((value as MatchBreakdown).assessments)
 }
 
 const matchBreakdown = computed(() => {
-  const value = detail.value?.matchBreakdown;
-  return isMatchBreakdown(value) ? value : null;
-});
+  const value = detail.value?.matchBreakdown
+  return isMatchBreakdown(value) ? value : null
+})
 
 const criticalAssessments = computed(
-  () => matchBreakdown.value?.assessments.filter((a) => a.priority === "critical") ?? [],
-);
+  () => matchBreakdown.value?.assessments.filter(a => a.priority === 'critical') ?? []
+)
 
-const desiredAssessments = computed(
-  () => matchBreakdown.value?.assessments.filter((a) => a.priority === "desired") ?? [],
-);
+const desiredAssessments = computed(() => matchBreakdown.value?.assessments.filter(a => a.priority === 'desired') ?? [])
 
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  return STATUS_LABELS[status] ?? status
 }
 
 function statusLabelUk(status: string): string {
-  if (status === "met") return "Відповідає";
-  if (status === "unknown") return "Не підтверджено";
-  return "Не відповідає";
+  if (status === 'met') return 'Відповідає'
+  if (status === 'unknown') return 'Не підтверджено'
+  return 'Не відповідає'
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("uk-UA");
+  return new Date(iso).toLocaleDateString('uk-UA')
 }
 
 function candidateName(app: HrApplicationDetail): string {
-  return app.candidate.fullName?.trim() || "—";
+  return app.candidate.fullName?.trim() || '—'
 }
 
 function candidateEmail(app: HrApplicationDetail): string {
-  return app.candidate.email?.trim() || "—";
+  return app.candidate.email?.trim() || '—'
 }
 
 async function loadList(): Promise<void> {
-  listState.value = "loading";
-  listError.value = null;
+  listState.value = 'loading'
+  listError.value = null
   try {
-    const summaries = await fetchHrApplications();
-    applications.value = await Promise.all(
-      summaries.map((item) => fetchHrApplication(item.id)),
-    );
-    listState.value = "ready";
+    const summaries = await fetchHrApplications()
+    applications.value = await Promise.all(summaries.map(item => fetchHrApplication(item.id)))
+    listState.value = 'ready'
     if (applications.value.length > 0 && !selectedId.value) {
-      selectedId.value = applications.value[0].id;
+      selectedId.value = applications.value[0].id
     } else if (selectedId.value) {
-      const stillExists = applications.value.some((item) => item.id === selectedId.value);
-      if (!stillExists) {
-        selectedId.value = applications.value[0]?.id ?? null;
+      const stillExists = applications.value.some(item => item.id === selectedId.value)
+      if (stillExists) {
+        void loadDetail(selectedId.value)
       } else {
-        void loadDetail(selectedId.value);
+        selectedId.value = applications.value[0]?.id ?? null
       }
     }
   } catch (error) {
-    listState.value = "error";
-    listError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити заявки";
+    listState.value = 'error'
+    listError.value = error instanceof Error ? error.message : 'Не вдалося завантажити заявки'
   }
 }
 
 async function loadDetail(id: string): Promise<void> {
-  const cached = applications.value.find((item) => item.id === id) ?? null;
+  const cached = applications.value.find(item => item.id === id) ?? null
   if (cached) {
-    detail.value = cached;
-    detailState.value = "ready";
-    createError.value = null;
-    createdJoinCode.value = null;
-    scheduledAtLocal.value = "";
-    return;
+    detail.value = cached
+    detailState.value = 'ready'
+    createError.value = null
+    createdJoinCode.value = null
+    scheduledAtLocal.value = ''
+    return
   }
 
-  detailState.value = "loading";
-  detailError.value = null;
-  detail.value = null;
-  createError.value = null;
-  createdJoinCode.value = null;
-  scheduledAtLocal.value = "";
+  detailState.value = 'loading'
+  detailError.value = null
+  detail.value = null
+  createError.value = null
+  createdJoinCode.value = null
+  scheduledAtLocal.value = ''
 
   try {
-    detail.value = await fetchHrApplication(id);
-    detailState.value = "ready";
+    detail.value = await fetchHrApplication(id)
+    detailState.value = 'ready'
   } catch (error) {
-    detailState.value = "error";
-    detailError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити заявку";
+    detailState.value = 'error'
+    detailError.value = error instanceof Error ? error.message : 'Не вдалося завантажити заявку'
   }
 }
 
 function selectApplication(id: string): void {
-  if (selectedId.value === id) return;
-  selectedId.value = id;
+  if (selectedId.value === id) return
+  selectedId.value = id
 }
 
 async function onCreateInterview(): Promise<void> {
-  if (!detail.value || detail.value.status !== "PENDING" || creating.value) return;
+  if (!detail.value || detail.value.status !== 'PENDING' || creating.value) return
 
-  creating.value = true;
-  createError.value = null;
-  createdJoinCode.value = null;
+  creating.value = true
+  createError.value = null
+  createdJoinCode.value = null
   try {
-    const scheduledAt = scheduledAtLocal.value
-      ? new Date(scheduledAtLocal.value).toISOString()
-      : null;
-    const result = await createInterviewFromApplication(detail.value.id, { scheduledAt });
-    createdJoinCode.value = result.interview.joinCode;
+    const scheduledAt = scheduledAtLocal.value ? new Date(scheduledAtLocal.value).toISOString() : null
+    const result = await createInterviewFromApplication(detail.value.id, { scheduledAt })
+    createdJoinCode.value = result.interview.joinCode
     const updated: HrApplicationDetail = {
       ...detail.value,
       status: result.application.status,
-      interviewId: result.application.interviewId,
-    };
-    detail.value = updated;
-    applications.value = applications.value.map((item) =>
-      item.id === updated.id ? updated : item,
-    );
+      interviewId: result.application.interviewId
+    }
+    detail.value = updated
+    applications.value = applications.value.map(item => (item.id === updated.id ? updated : item))
   } catch (error) {
-    createError.value =
-      error instanceof Error ? error.message : "Не вдалося створити співбесіду";
+    createError.value = error instanceof Error ? error.message : 'Не вдалося створити співбесіду'
     // #region agent log
-    fetch("http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "66c73a" },
+    fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '66c73a' },
       body: JSON.stringify({
-        sessionId: "66c73a",
-        runId: "post-fix",
-        hypothesisId: "D",
-        location: "HrApplicationsView.vue:onCreateInterview:catch",
-        message: "UI create interview error shown to HR",
+        sessionId: '66c73a',
+        runId: 'post-fix',
+        hypothesisId: 'D',
+        location: 'HrApplicationsView.vue:onCreateInterview:catch',
+        message: 'UI create interview error shown to HR',
         data: {
           applicationIdSuffix: detail.value?.id?.slice(-6) ?? null,
-          errorMessage: createError.value,
+          errorMessage: createError.value
         },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
     // #endregion
   } finally {
-    creating.value = false;
+    creating.value = false
   }
 }
 
 async function onDeleteApplication(): Promise<void> {
-  if (!detail.value || deleting.value) return;
+  if (!detail.value || deleting.value) return
 
-  deleting.value = true;
-  createError.value = null;
+  deleting.value = true
+  createError.value = null
   try {
-    await deleteHrApplication(detail.value.id);
-    const deletedId = detail.value.id;
-    applications.value = applications.value.filter((item) => item.id !== deletedId);
+    await deleteHrApplication(detail.value.id)
+    const deletedId = detail.value.id
+    applications.value = applications.value.filter(item => item.id !== deletedId)
     if (selectedId.value === deletedId) {
-      selectedId.value = applications.value[0]?.id ?? null;
+      selectedId.value = applications.value[0]?.id ?? null
     }
     if (!selectedId.value) {
-      detailState.value = "idle";
-      detail.value = null;
+      detailState.value = 'idle'
+      detail.value = null
     }
   } catch (error) {
-    createError.value = error instanceof Error ? error.message : "Не вдалося видалити заявку";
+    createError.value = error instanceof Error ? error.message : 'Не вдалося видалити заявку'
   } finally {
-    deleting.value = false;
+    deleting.value = false
   }
 }
 
 function goToInterview(): void {
-  if (!detail.value?.interviewId) return;
-  router.push({ name: "interview-detail", params: { id: detail.value.interviewId } });
+  if (!detail.value?.interviewId) return
+  router.push({ name: 'interview-detail', params: { id: detail.value.interviewId } })
 }
 
 function closeDeclineModal(): void {
-  declineModalOpen.value = false;
-  declining.value = false;
+  declineModalOpen.value = false
+  declining.value = false
 }
 
 async function openDeclineModal(): Promise<void> {
-  if (!detail.value || detail.value.status !== "PENDING" || declining.value) return;
-  declineModalOpen.value = true;
-  declineModalState.value = "loading";
-  declineModalError.value = null;
-  declineDraftBody.value = "";
-  declineSentDialogId.value = null;
-  declining.value = true;
+  if (!detail.value || detail.value.status !== 'PENDING' || declining.value) return
+  declineModalOpen.value = true
+  declineModalState.value = 'loading'
+  declineModalError.value = null
+  declineDraftBody.value = ''
+  declineSentDialogId.value = null
+  declining.value = true
   try {
-    const draft = await draftApplicationDecline(detail.value.id);
-    declineDraftBody.value = draft.body;
-    declineModalState.value = "edit";
+    const draft = await draftApplicationDecline(detail.value.id)
+    declineDraftBody.value = draft.body
+    declineModalState.value = 'edit'
   } catch (error) {
-    declineModalState.value = "error";
-    declineModalError.value =
-      error instanceof Error ? error.message : "Не вдалося згенерувати лист";
+    declineModalState.value = 'error'
+    declineModalError.value = error instanceof Error ? error.message : 'Не вдалося згенерувати лист'
   } finally {
-    declining.value = false;
+    declining.value = false
   }
 }
 
 async function submitDecline(): Promise<void> {
-  if (!detail.value || detail.value.status !== "PENDING" || declining.value) return;
-  const letterBody = declineDraftBody.value.trim();
-  if (!letterBody) return;
+  if (!detail.value || detail.value.status !== 'PENDING' || declining.value) return
+  const letterBody = declineDraftBody.value.trim()
+  if (!letterBody) return
 
-  declining.value = true;
-  declineModalError.value = null;
+  declining.value = true
+  declineModalError.value = null
   try {
-    const result = await sendApplicationDecline(detail.value.id, letterBody);
+    const result = await sendApplicationDecline(detail.value.id, letterBody)
     const updated: HrApplicationDetail = {
       ...detail.value,
-      status: result.application.status,
-    };
-    detail.value = updated;
-    applications.value = applications.value.map((item) =>
-      item.id === updated.id ? updated : item,
-    );
-    declineSentDialogId.value = result.dialogId;
-    declineModalState.value = "sent";
+      status: result.application.status
+    }
+    detail.value = updated
+    applications.value = applications.value.map(item => (item.id === updated.id ? updated : item))
+    declineSentDialogId.value = result.dialogId
+    declineModalState.value = 'sent'
   } catch (error) {
-    declineModalError.value =
-      error instanceof Error ? error.message : "Не вдалося надіслати відмову";
+    declineModalError.value = error instanceof Error ? error.message : 'Не вдалося надіслати відмову'
   } finally {
-    declining.value = false;
+    declining.value = false
   }
 }
 
 async function markUnreadNotifications(): Promise<void> {
   try {
-    const notifications = await fetchHrNotifications();
-    const unread = notifications.filter((item) => item.readAt == null);
-    if (unread.length === 0) return;
-    await Promise.all(unread.map((item) => markNotificationRead(item.id)));
+    const notifications = await fetchHrNotifications()
+    const unread = notifications.filter(item => item.readAt == null)
+    if (unread.length === 0) return
+    await Promise.all(unread.map(item => markNotificationRead(item.id)))
   } catch {
     // Non-fatal: inbox still works if mark-read fails.
   }
 }
 
-watch(selectedId, (id) => {
-  if (id) void loadDetail(id);
+watch(selectedId, id => {
+  if (id) void loadDetail(id)
   else {
-    detailState.value = "idle";
-    detail.value = null;
+    detailState.value = 'idle'
+    detail.value = null
   }
-});
+})
 
 onMounted(() => {
-  void loadList();
-  void markUnreadNotifications();
-});
+  void loadList()
+  void markUnreadNotifications()
+})
 </script>
 
 <template>
@@ -384,21 +364,13 @@ onMounted(() => {
 
           <div v-if="matchBreakdown" class="breakdown-block">
             <h4>Розбір відповідності</h4>
-            <p
-              v-if="matchBreakdown.cappedByCriticalUnmet"
-              class="cap-banner"
-              role="status"
-            >
+            <p v-if="matchBreakdown.cappedByCriticalUnmet" class="cap-banner" role="status">
               Оцінку обмежено до 69%, бо є критична вимога зі статусом «Не відповідає».
             </p>
 
             <h5>Критичні вимоги</h5>
             <ul v-if="criticalAssessments.length > 0" class="assessment-list">
-              <li
-                v-for="(item, i) in criticalAssessments"
-                :key="'c' + i"
-                :class="'status-' + item.status"
-              >
+              <li v-for="(item, i) in criticalAssessments" :key="'c' + i" :class="'status-' + item.status">
                 <strong>{{ statusLabelUk(item.status) }}</strong> — {{ item.requirement }}:
                 {{ item.evidence }}
               </li>
@@ -407,11 +379,7 @@ onMounted(() => {
 
             <h5>Бажані вимоги</h5>
             <ul v-if="desiredAssessments.length > 0" class="assessment-list">
-              <li
-                v-for="(item, i) in desiredAssessments"
-                :key="'d' + i"
-                :class="'status-' + item.status"
-              >
+              <li v-for="(item, i) in desiredAssessments" :key="'d' + i" :class="'status-' + item.status">
                 <strong>{{ statusLabelUk(item.status) }}</strong> — {{ item.requirement }}:
                 {{ item.evidence }}
               </li>
@@ -420,30 +388,17 @@ onMounted(() => {
           </div>
           <p v-else class="muted breakdown-fallback">Деталізація недоступна</p>
 
-          <form
-            v-if="detail.status === 'PENDING'"
-            class="create-form"
-            @submit.prevent="onCreateInterview"
-          >
+          <form v-if="detail.status === 'PENDING'" class="create-form" @submit.prevent="onCreateInterview">
             <label class="field">
               <span>Запланований час (необовʼязково)</span>
-              <input
-                v-model="scheduledAtLocal"
-                type="datetime-local"
-                :disabled="creating"
-              />
+              <input v-model="scheduledAtLocal" type="datetime-local" :disabled="creating" />
             </label>
             <p v-if="createError" class="fail" role="alert">{{ createError }}</p>
             <div class="pending-actions">
               <button type="submit" class="btn-primary" :disabled="!canCreateInterview">
-                {{ creating ? "Створення…" : "Створити співбесіду" }}
+                {{ creating ? 'Створення…' : 'Створити співбесіду' }}
               </button>
-              <button
-                type="button"
-                class="btn-secondary"
-                :disabled="creating || declining"
-                @click="openDeclineModal"
-              >
+              <button type="button" class="btn-secondary" :disabled="creating || declining" @click="openDeclineModal">
                 Відхилити
               </button>
               <button
@@ -452,7 +407,7 @@ onMounted(() => {
                 :disabled="creating || declining || deleting"
                 @click="onDeleteApplication"
               >
-                {{ deleting ? "Видалення…" : "Видалити заявку" }}
+                {{ deleting ? 'Видалення…' : 'Видалити заявку' }}
               </button>
             </div>
           </form>
@@ -462,25 +417,12 @@ onMounted(() => {
             <p v-else-if="detail.status === 'DECLINED_BY_HR'" class="muted">
               Заявку відхилено. Лист надіслано кандидату в «Діалоги».
             </p>
-            <p v-else-if="detail.interviewId" class="muted">
-              Співбесіду вже створено з цієї заявки.
-            </p>
-            <button
-              v-if="detail.interviewId"
-              type="button"
-              class="btn-secondary"
-              @click="goToInterview"
-            >
+            <p v-else-if="detail.interviewId" class="muted">Співбесіду вже створено з цієї заявки.</p>
+            <button v-if="detail.interviewId" type="button" class="btn-secondary" @click="goToInterview">
               Відкрити співбесіду
             </button>
-            <button
-              v-else
-              type="button"
-              class="btn-danger"
-              :disabled="deleting"
-              @click="onDeleteApplication"
-            >
-              {{ deleting ? "Видалення…" : "Видалити заявку" }}
+            <button v-else type="button" class="btn-danger" :disabled="deleting" @click="onDeleteApplication">
+              {{ deleting ? 'Видалення…' : 'Видалити заявку' }}
             </button>
           </div>
         </template>
@@ -496,9 +438,7 @@ onMounted(() => {
         <template v-else-if="declineModalState === 'error'">
           <p class="fail" role="alert">{{ declineModalError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeDeclineModal">
-              Закрити
-            </button>
+            <button type="button" class="btn-secondary" @click="closeDeclineModal">Закрити</button>
           </div>
         </template>
 
@@ -513,9 +453,7 @@ onMounted(() => {
             Відкрити діалог
           </RouterLink>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeDeclineModal">
-              Закрити
-            </button>
+            <button type="button" class="btn-secondary" @click="closeDeclineModal">Закрити</button>
           </div>
         </template>
 
@@ -526,9 +464,7 @@ onMounted(() => {
           </label>
           <p v-if="declineModalError" class="fail" role="alert">{{ declineModalError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeDeclineModal">
-              Скасувати
-            </button>
+            <button type="button" class="btn-secondary" @click="closeDeclineModal">Скасувати</button>
             <button
               type="button"
               class="btn-primary"
@@ -549,32 +485,39 @@ onMounted(() => {
   width: 100%;
   min-width: 0;
 }
+
 .page-title {
   margin: 0 0 1.25rem;
   font-size: 1.375rem;
 }
+
 .muted {
   color: #6b7280;
 }
+
 .fail {
   color: var(--danger);
 }
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(22rem, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 900px) {
+
+@media (width <= 900px) {
   .layout {
     grid-template-columns: 1fr;
   }
 }
+
 .apps-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9375rem;
 }
+
 .apps-table th,
 .apps-table td {
   text-align: left;
@@ -582,59 +525,72 @@ onMounted(() => {
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
+
 .apps-table th {
   font-size: 0.75rem;
   color: #555;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
 .apps-table tbody tr {
   cursor: pointer;
 }
+
 .apps-table tbody tr:hover {
   background: #f9fafb;
 }
+
 .apps-table tbody tr.selected {
   background: var(--accent-soft);
 }
+
 .hint {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;
   color: #6b7280;
 }
+
 .detail-panel {
   padding: 1.25rem;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
 }
+
 .detail-title {
   margin: 0 0 0.75rem;
   font-size: 1.05rem;
 }
+
 .meta {
   display: grid;
   gap: 0.5rem;
   margin: 0 0 1rem;
 }
+
 .meta div {
   display: grid;
   grid-template-columns: 7rem 1fr;
   gap: 0.5rem;
   font-size: 0.875rem;
 }
+
 .meta dt {
   margin: 0;
   color: #6b7280;
 }
+
 .meta dd {
   margin: 0;
   font-weight: 500;
 }
+
 .summary-block h4 {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
 }
+
 .summary-text {
   margin: 0 0 1rem;
   font-size: 0.875rem;
@@ -642,13 +598,16 @@ onMounted(() => {
   color: #374151;
   white-space: pre-wrap;
 }
+
 .breakdown-block {
   margin: 0 0 1rem;
 }
+
 .breakdown-block h4 {
   margin: 0 0 0.5rem;
   font-size: 0.9rem;
 }
+
 .breakdown-block h5 {
   margin: 0.75rem 0 0.35rem;
   font-size: 0.8rem;
@@ -656,6 +615,7 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
 .cap-banner {
   margin: 0 0 0.75rem;
   padding: 0.55rem 0.75rem;
@@ -665,6 +625,7 @@ onMounted(() => {
   background: var(--warning-soft);
   border-radius: 0.375rem;
 }
+
 .assessment-list {
   margin: 0;
   padding-left: 1.1rem;
@@ -672,33 +633,41 @@ onMounted(() => {
   line-height: 1.45;
   color: #374151;
 }
+
 .assessment-list li {
   margin-bottom: 0.4rem;
 }
+
 .assessment-list li.status-met strong {
   color: var(--accent);
 }
+
 .assessment-list li.status-unknown strong {
   color: var(--warning);
 }
+
 .assessment-list li.status-unmet strong {
   color: var(--danger);
 }
+
 .breakdown-fallback {
   margin: 0 0 1rem;
   font-size: 0.875rem;
 }
+
 .create-form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   font-size: 0.875rem;
 }
+
 .field input {
   font-family: inherit;
   font-size: 0.875rem;
@@ -707,12 +676,14 @@ onMounted(() => {
   border-radius: 0.375rem;
   background: #fff;
 }
+
 .converted {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   align-items: flex-start;
 }
+
 .join-code {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -720,6 +691,7 @@ onMounted(() => {
   font-weight: 600;
   letter-spacing: 0.1em;
 }
+
 .btn-primary,
 .btn-secondary,
 .btn-danger {
@@ -731,59 +703,70 @@ onMounted(() => {
   cursor: pointer;
   width: fit-content;
 }
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
 }
+
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .btn-secondary {
   background: #f3f4f6;
   color: #374151;
   border-color: #d1d5db;
 }
+
 .btn-secondary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .btn-danger {
   background: var(--danger-soft, #fee2e2);
   color: var(--danger, #b91c1c);
   border-color: #fecaca;
 }
+
 .btn-danger:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .pending-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgb(0 0 0 / 40%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   padding: 1rem;
 }
+
 .modal {
   background: var(--surface, #fff);
   border-radius: 0.5rem;
   padding: 1.25rem;
   width: 100%;
   max-width: 32rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 25px rgb(0 0 0 / 15%);
 }
+
 .modal h2 {
   margin: 0 0 1rem;
   font-size: 1.125rem;
 }
+
 .field textarea {
   font-family: inherit;
   font-size: 0.9375rem;
@@ -793,9 +776,11 @@ onMounted(() => {
   resize: vertical;
   min-height: 10rem;
 }
+
 .success-message {
   margin: 0 0 0.75rem;
 }
+
 .dialog-link {
   display: inline-block;
   margin-bottom: 1rem;
@@ -803,9 +788,11 @@ onMounted(() => {
   text-decoration: none;
   font-size: 0.9375rem;
 }
+
 .dialog-link:hover {
   text-decoration: underline;
 }
+
 .actions {
   display: flex;
   justify-content: flex-end;

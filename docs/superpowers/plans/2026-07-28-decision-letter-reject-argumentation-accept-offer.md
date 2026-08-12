@@ -36,10 +36,12 @@
 ### Task 1: `extractVacancyOffer` + тести
 
 **Files:**
+
 - Modify: `backend/src/agents/decision-letter-agent.ts`
 - Modify: `backend/src/agents/decision-letter-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `parseVacancyCompensation`, `parseWorkConditionsArray`, `formatSalaryDisplay` from `../utils/vacancy-work-conditions`
 - Produces:
   - `export type VacancyOfferExtraction = { offerAvailable: boolean; offerLines: string[] }`
@@ -186,13 +188,16 @@ git commit -m "feat(api): extract vacancy offer lines for decision letters"
 ### Task 2: Контекст, промпт і збірка messages
 
 **Files:**
+
 - Modify: `backend/src/agents/decision-letter-agent.ts`
 - Modify: `backend/src/agents/prompts/decision-letter.uk.ts`
 - Modify: `backend/src/agents/decision-letter-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `VacancyOfferExtraction` fields
 - Produces: оновлений
+
   ```ts
   export type DecisionLetterContext = {
     type: DecisionLetterType;
@@ -340,10 +345,12 @@ git commit -m "feat(api): require reject argumentation and accept offer in decis
 ### Task 3: Wire draft endpoint
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts`
 - Modify: `backend/src/routes/reports.test.ts` (якщо є тести draft, що викликають generate з повним ctx — оновити; якщо mock цілого agent — можливо змін не треба)
 
 **Interfaces:**
+
 - Consumes: `extractVacancyOffer`, оновлений `generateDecisionLetter` ctx
 - Produces: той самий HTTP `{ type, body }`
 

@@ -37,6 +37,7 @@
 ### Task 1: Candidate Prep API Client
 
 **Files:**
+
 - Create: `frontend/src/api/candidate-prep.ts`
 - Reference: `frontend/src/api/prep.ts`
 
@@ -135,6 +136,7 @@ git commit -m "feat(frontend): add candidate prep API client"
 ### Task 2: Router Route + Vite Env Type
 
 **Files:**
+
 - Modify: `frontend/src/router/index.ts`
 - Modify: `frontend/src/vite-env.d.ts`
 - Create: `frontend/src/views/CandidatePrepView.vue` (stub for build)
@@ -208,6 +210,7 @@ git commit -m "feat(router): add candidate prep route stub"
 ### Task 3: Candidate Prep Chat View
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidatePrepView.vue`
 - Reference: `frontend/src/views/VacancyPrepView.vue` (chat section only)
 
@@ -551,6 +554,7 @@ git commit -m "feat(frontend): add candidate prep chat view"
 ### Task 4: Candidate Home — «Моя анкета» Button
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateHomeView.vue`
 
 - [ ] **Step 1: Update home view with prep navigation**
@@ -673,6 +677,7 @@ git commit -m "feat(frontend): add questionnaire entry on candidate home"
 ### Task 5: README + Final Verification
 
 **Files:**
+
 - Modify: `README.md` (section «День 12»)
 
 - [ ] **Step 1: Update Day 12 DoD checkboxes and add Quick Start**
@@ -734,6 +739,7 @@ npm run dev
 **4. API (для порівняння з UI):**
 
 Див. [Candidate Prep Quick Start (Day 11)](#candidate-prep-quick-start) — ті самі endpoint-и, UI викликає їх через `fetchWithAuth`.
+
 ```
 
 - [ ] **Step 2: Run full build**

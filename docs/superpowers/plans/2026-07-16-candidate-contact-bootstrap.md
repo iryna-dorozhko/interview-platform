@@ -40,12 +40,14 @@
 ### Task 1: Data Model and API Contract
 
 **Files:**
+
 - Create: `backend/prisma/migrations/<timestamp>_candidate_profile_contact_fields/migration.sql`
 - Modify: `backend/prisma/schema.prisma`
 - Modify: `frontend/src/api/candidate-prep.ts`
 - Test: `backend/src/routes/candidate-prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: існуючий `CandidateProfile` (`experience`, `skills`, `goals`, `summary`, `confirmedAt`)
 - Produces:
   - Prisma model:
@@ -120,12 +122,14 @@ git commit -m "feat(profile): add candidate contact fields to candidate profile 
 ### Task 2: Candidate Agent Prompt + Extraction Parsing
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-agent.uk.ts`
 - Modify: `backend/src/agents/prompts/candidate-profile-extraction.uk.ts`
 - Modify: `backend/src/agents/candidate-agent.ts`
 - Test: `backend/src/agents/candidate-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `buildCandidateAgentMessages(history)` and `parseCandidateProfileExtraction(rawText)`
 - Produces:
   - `ExtractedCandidateProfile`:
@@ -209,10 +213,12 @@ git commit -m "feat(candidate-agent): add contact bootstrap and extraction field
 ### Task 3: Finish Route Persistence + Email Fallback
 
 **Files:**
+
 - Modify: `backend/src/routes/candidate-prep.ts`
 - Test: `backend/src/routes/candidate-prep.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ExtractedCandidateProfile` from Task 2, `req.user.email`
 - Produces:
   - `finish` response:
@@ -279,11 +285,13 @@ git commit -m "fix(candidate-prep): persist contact fields with auth email fallb
 ### Task 4: Candidate Profile UI Contact Block
 
 **Files:**
+
 - Modify: `frontend/src/views/CandidateProfileView.vue`
 - Modify: `frontend/src/api/candidate-prep.ts`
 - Test: `frontend` component test file if present; otherwise manual verification in `docs/manual-test-dialogues.uk.md`
 
 **Interfaces:**
+
 - Consumes: `CandidateProfile` with new contact fields
 - Produces: UI section "Контактні дані" with graceful fallback for `phone: null`
 
@@ -336,10 +344,12 @@ git commit -m "feat(candidate-ui): show contact details in candidate profile vie
 ### Task 5: Docs and Final Verification
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `docs/manual-test-dialogues.uk.md`
 
 **Interfaces:**
+
 - Consumes: implemented behavior from Tasks 1-4
 - Produces: актуальна документація та repeatable verification commands
 
@@ -393,4 +403,3 @@ git commit -m "docs: document candidate contact bootstrap flow"
   - тести й документація -> Tasks 1-5
 - **Placeholder scan:** "TBD/TODO/implement later" відсутні; кожен кодовий крок має конкретні фрагменти.
 - **Type consistency:** `fullName/email/phone` використовуються однаково в Prisma, parse-типі, route persistence і frontend API типі.
-

@@ -41,6 +41,7 @@
 ### Task 1: hashPassword (backend)
 
 **Files:**
+
 - Create: `backend/src/auth/password.ts`
 - Create: `backend/src/auth/password.test.ts`
 - Modify: `backend/package.json` (додати тест у script `test`)
@@ -97,6 +98,7 @@ git commit -m "feat(backend): add hashPassword helper for auth"
 ### Task 2: JWT helpers (backend)
 
 **Files:**
+
 - Create: `backend/src/auth/jwt.ts`
 - Create: `backend/src/auth/jwt.test.ts`
 - Modify: `backend/package.json` — додати `jsonwebtoken`, `@types/jsonwebtoken`
@@ -219,6 +221,7 @@ git commit -m "feat(backend): add JWT sign and verify helpers"
 ### Task 3: Auth middleware (backend)
 
 **Files:**
+
 - Create: `backend/src/auth/middleware.ts`
 - Create: `backend/src/auth/middleware.test.ts`
 
@@ -384,6 +387,7 @@ git commit -m "feat(backend): add requireAuth and requireHr middleware"
 ### Task 4: Auth routes (backend)
 
 **Files:**
+
 - Create: `backend/src/routes/auth.ts`
 - Create: `backend/src/routes/auth.test.ts`
 
@@ -654,6 +658,7 @@ git commit -m "feat(backend): add auth login and me routes"
 ### Task 5: Підключити auth у server + захистити LLM
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 - Modify: `backend/src/routes/llm.test.ts`
 - Modify: `backend/.env.example`
@@ -754,6 +759,7 @@ git commit -m "feat(backend): wire auth routes and protect LLM endpoint"
 ### Task 6: Frontend dependencies
 
 **Files:**
+
 - Modify: `frontend/package.json`
 
 - [ ] **Step 1: Install dependencies**
@@ -780,6 +786,7 @@ git commit -m "chore(frontend): add vue-router and pinia"
 ### Task 7: API client + auth API (frontend)
 
 **Files:**
+
 - Create: `frontend/src/api/client.ts`
 - Create: `frontend/src/api/auth.ts`
 
@@ -924,6 +931,7 @@ git commit -m "feat(frontend): add auth API client and fetchWithAuth"
 ### Task 8: Pinia auth store
 
 **Files:**
+
 - Create: `frontend/src/stores/auth.ts`
 
 - [ ] **Step 1: Create store**
@@ -995,6 +1003,7 @@ git commit -m "feat(frontend): add Pinia auth store"
 ### Task 9: Router + views
 
 **Files:**
+
 - Create: `frontend/src/router/index.ts`
 - Create: `frontend/src/views/LoginView.vue`
 - Create: `frontend/src/views/HomeView.vue`
@@ -1297,6 +1306,7 @@ git commit -m "feat(frontend): add login flow with router guard and home view"
 ### Task 10: README + фінальна верифікація
 
 **Files:**
+
 - Modify: `README.md` — секція День 3
 
 - [ ] **Step 1: Update README Day 3 section**
@@ -1309,7 +1319,9 @@ git commit -m "feat(frontend): add login flow with router guard and home view"
 **1. Env** (`backend/.env`):
 
 ```
+
 JWT_SECRET=dev-secret-min-8-chars
+
 ```
 
 **2. Логін через UI:**
@@ -1341,6 +1353,7 @@ curl -X POST http://localhost:3000/api/llm/complete \
 ```
 
 Без токена → `401`.
+
 ```
 
 Позначити DoD чекліст Дня 3 як виконаний після ручної перевірки.

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/capture-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/capture-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/capture-decisions.sh\"'",
+        "timeout": 180
+      },
+      {
+        "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/normalize-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/normalize-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/normalize-decisions.sh\"'",
+        "timeout": 600
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "bash -lc 'command -v rtk >/dev/null 2>&1 && exec rtk hook cursor; echo \"{}\"'",
+        "matcher": "Shell",
+        "timeout": 30
+      }
+    ]
+  }
+}

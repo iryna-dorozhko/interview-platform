@@ -32,11 +32,13 @@
 ### Task 1: Candidate Live prompt — третя особа + три режими
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-live-agent.uk.ts`
 - Modify: `backend/src/agents/candidate-live-agent.ts` (nudge constants)
 - Modify: `backend/src/agents/candidate-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: існуючий `CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK`, `ANSWER_NUDGE_UK`, `COMPANY_QUESTION_NUDGE_UK`
 - Produces: оновлений текст промпту/nudge (без зміни сигнатур функцій)
 
@@ -149,10 +151,12 @@ EOF
 ### Task 2: Arbiter WAIT після assumption + confirm
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/arbiter-agent.uk.ts`
 - Modify: `backend/src/agents/arbiter-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ARBITER_AGENT_SYSTEM_PROMPT_UK`
 - Produces: оновлене правило черги WAIT (без зміни `parseArbiterCommand`)
 

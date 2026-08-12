@@ -1,129 +1,127 @@
-import type { PrismaClient } from "@prisma/client";
-import {
-  rankVacanciesWithLlm,
-  type CandidateMatchInput,
-  type VacancyMatchInput,
-} from "../agents/vacancy-match-agent";
-import type { LlmProvider } from "../llm/types";
-import { getConfirmedQuestionnaireProfile } from "../utils/interview-readiness";
-import {
-  assertNonEmptyRequirements,
-  normalizeVacancyRequirements,
-} from "../utils/vacancy-requirements";
-import {
-  formatSalaryDisplay,
-  formatWorkFormatDisplay,
-} from "../utils/vacancy-work-conditions";
-import { computeMatchScore, type MatchBreakdown } from "./match-score";
+import type { PrismaClient } from '@prisma/client'
+import { rankVacanciesWithLlm } from '../agents/vacancy-match-agent'
+import type { CandidateMatchInput, VacancyMatchInput } from '../agents/vacancy-match-agent'
+import type { LlmProvider } from '../llm/types'
+import { getConfirmedQuestionnaireProfile } from '../utils/interview-readiness'
+import { assertNonEmptyRequirements, normalizeVacancyRequirements } from '../utils/vacancy-requirements'
+import { formatSalaryDisplay, formatWorkFormatDisplay } from '../utils/vacancy-work-conditions'
+import { computeMatchScore } from './match-score'
+import type { MatchBreakdown } from './match-score'
 
 export type CandidateMatchOffer = {
-  vacancyId: string;
-  title: string;
-  matchScore: number;
-  salaryDisplay: string | null;
-  workFormatDisplay: string | null;
-  companyName: string | null;
+  vacancyId: string
+  title: string
+  matchScore: number
+  salaryDisplay: string | null
+  workFormatDisplay: string | null
+  companyName: string | null
   /** Internal only — not exposed in candidate-facing serializers. */
-  breakdown?: MatchBreakdown;
-};
+  breakdown?: MatchBreakdown
+}
 
-export type VacancyMatchErrorCode = "QUESTIONNAIRE_NOT_CONFIRMED" | "MATCH_UNAVAILABLE";
+export type VacancyMatchErrorCode = 'QUESTIONNAIRE_NOT_CONFIRMED' | 'MATCH_UNAVAILABLE'
 
 export class VacancyMatchServiceError extends Error {
-  readonly code: VacancyMatchErrorCode;
+  readonly code: VacancyMatchErrorCode
 
   constructor(code: VacancyMatchErrorCode, message?: string) {
-    super(message ?? code);
-    this.name = "VacancyMatchServiceError";
-    this.code = code;
+    super(message ?? code)
+    this.name = 'VacancyMatchServiceError'
+    this.code = code
   }
 }
 
-type MatchableVacancy = VacancyMatchInput & { confirmedAt: Date };
+type MatchableVacancy = VacancyMatchInput & { confirmedAt: Date }
 
 type OfferBase = {
-  vacancyId: string;
-  title: string;
-  matchScore: number;
-  companyName?: string | null;
-  breakdown?: MatchBreakdown;
-};
-
-export function sortScoresDesc<T extends { matchScore: number }>(items: T[]): T[] {
-  return [...items].sort((a, b) => b.matchScore - a.matchScore);
+  vacancyId: string
+  title: string
+  matchScore: number
+  companyName?: string | null
+  breakdown?: MatchBreakdown
 }
 
+// Сортує за matchScore спадаючим.
+export function sortScoresDesc<T extends { matchScore: number }>(items: T[]): T[] {
+  return [...items].sort((a, b) => b.matchScore - a.matchScore)
+}
+
+// Модуль pickNextOffer.
 export function pickNextOffer<T extends { vacancyId: string; matchScore: number }>(
   scores: T[],
-  rejectedVacancyIds: Set<string>,
+  rejectedVacancyIds: Set<string>
 ): T | null {
-  const ordered = sortScoresDesc(scores);
+  const ordered = sortScoresDesc(scores)
   for (const item of ordered) {
-    if (!rejectedVacancyIds.has(item.vacancyId)) return item;
+    if (!rejectedVacancyIds.has(item.vacancyId)) return item
   }
-  return null;
+  return null
 }
 
+// Модуль pickTopOffers.
 export function pickTopOffers<T extends { vacancyId: string; matchScore: number }>(
   scores: T[],
   rejectedVacancyIds: Set<string>,
-  limit = 5,
+  limit = 5
 ): T[] {
-  const ordered = sortScoresDesc(scores);
-  const result: T[] = [];
+  const ordered = sortScoresDesc(scores)
+  const result: T[] = []
   for (const item of ordered) {
-    if (rejectedVacancyIds.has(item.vacancyId)) continue;
-    result.push(item);
-    if (result.length >= limit) break;
+    if (rejectedVacancyIds.has(item.vacancyId)) continue
+    result.push(item)
+    if (result.length >= limit) break
   }
-  return result;
+  return result
 }
 
+// Модуль enrichOfferWithDisplays.
 export function enrichOfferWithDisplays(
   base: OfferBase,
   profile: { workConditions: unknown; compensation: unknown } | null,
-  companyName: string | null = base.companyName ?? null,
+  companyName: string | null = base.companyName ?? null
 ): CandidateMatchOffer {
   return {
     ...base,
     companyName,
     salaryDisplay: formatSalaryDisplay(profile?.compensation ?? null),
-    workFormatDisplay: formatWorkFormatDisplay(profile?.workConditions ?? null),
-  };
+    workFormatDisplay: formatWorkFormatDisplay(profile?.workConditions ?? null)
+  }
 }
 
+// Модуль attachDisplaysToOffers.
 export async function attachDisplaysToOffers(
   prisma: PrismaClient,
-  offers: OfferBase[],
+  offers: OfferBase[]
 ): Promise<CandidateMatchOffer[]> {
-  if (offers.length === 0) return [];
+  if (offers.length === 0) return []
 
-  const vacancyIds = offers.map((offer) => offer.vacancyId);
+  const vacancyIds = offers.map(offer => offer.vacancyId)
   const vacancies = await prisma.vacancy.findMany({
     where: { id: { in: vacancyIds } },
     include: {
       companyProfile: true,
-      hrUser: { include: { hrCompanyProfile: true } },
-    },
-  });
-  const vacancyById = new Map(vacancies.map((vacancy) => [vacancy.id, vacancy]));
+      hrUser: { include: { hrCompanyProfile: true } }
+    }
+  })
+  const vacancyById = new Map(vacancies.map(vacancy => [vacancy.id, vacancy]))
 
-  return offers.map((offer) => {
-    const vacancy = vacancyById.get(offer.vacancyId);
-    const companyProfile = vacancy?.companyProfile;
+  return offers.map(offer => {
+    const vacancy = vacancyById.get(offer.vacancyId)
+    const companyProfile = vacancy?.companyProfile
     return enrichOfferWithDisplays(
       offer,
       companyProfile
         ? {
             workConditions: companyProfile.workConditions,
-            compensation: companyProfile.compensation,
+            compensation: companyProfile.compensation
           }
         : null,
-      vacancy?.hrUser.hrCompanyProfile?.companyName ?? null,
-    );
-  });
+      vacancy?.hrUser.hrCompanyProfile?.companyName ?? null
+    )
+  })
 }
 
+// Модуль toCandidateOfferPayload.
 export function toCandidateOfferPayload(offer: CandidateMatchOffer): CandidateMatchOffer {
   return {
     vacancyId: offer.vacancyId,
@@ -131,16 +129,17 @@ export function toCandidateOfferPayload(offer: CandidateMatchOffer): CandidateMa
     matchScore: offer.matchScore,
     salaryDisplay: offer.salaryDisplay,
     workFormatDisplay: offer.workFormatDisplay,
-    companyName: offer.companyName,
-  };
+    companyName: offer.companyName
+  }
 }
 
+// Повертає ConfirmedCandidateProfile.
 export async function getConfirmedCandidateProfile(
   prisma: PrismaClient,
-  candidateUserId: string,
+  candidateUserId: string
 ): Promise<(CandidateMatchInput & { confirmedAt: Date }) | null> {
-  const profile = await getConfirmedQuestionnaireProfile(prisma, candidateUserId);
-  if (!profile || profile.confirmedAt == null) return null;
+  const profile = await getConfirmedQuestionnaireProfile(prisma, candidateUserId)
+  if (!profile || profile.confirmedAt == null) return null
 
   return {
     fullName: profile.fullName,
@@ -149,25 +148,26 @@ export async function getConfirmedCandidateProfile(
     skills: profile.skills,
     goals: profile.goals,
     summary: profile.summary,
-    confirmedAt: profile.confirmedAt,
-  };
+    confirmedAt: profile.confirmedAt
+  }
 }
 
+// Модуль listMatchableVacancies.
 export async function listMatchableVacancies(prisma: PrismaClient): Promise<MatchableVacancy[]> {
   const vacancies = await prisma.vacancy.findMany({
     where: {
-      status: "CONFIRMED",
+      status: 'CONFIRMED',
       hiddenAt: null,
-      companyProfile: { confirmedAt: { not: null } },
+      companyProfile: { confirmedAt: { not: null } }
     },
-    include: { companyProfile: true },
-  });
+    include: { companyProfile: true }
+  })
 
-  const result: MatchableVacancy[] = [];
+  const result: MatchableVacancy[] = []
   for (const vacancy of vacancies) {
-    if (!vacancy.companyProfile || vacancy.companyProfile.confirmedAt == null) continue;
-    const requirements = normalizeVacancyRequirements(vacancy.companyProfile.requirements);
-    if (!requirements || !assertNonEmptyRequirements(requirements)) continue;
+    if (!vacancy.companyProfile || vacancy.companyProfile.confirmedAt == null) continue
+    const requirements = normalizeVacancyRequirements(vacancy.companyProfile.requirements)
+    if (!requirements || !assertNonEmptyRequirements(requirements)) continue
     result.push({
       vacancyId: vacancy.id,
       title: vacancy.title,
@@ -175,26 +175,26 @@ export async function listMatchableVacancies(prisma: PrismaClient): Promise<Matc
       requirements,
       culture: vacancy.companyProfile.culture,
       expectations: vacancy.companyProfile.expectations,
-      confirmedAt: vacancy.companyProfile.confirmedAt,
-    });
+      confirmedAt: vacancy.companyProfile.confirmedAt
+    })
   }
-  return result;
+  return result
 }
 
-export async function getRejectedVacancyIds(
-  prisma: PrismaClient,
-  candidateUserId: string,
-): Promise<Set<string>> {
+// Повертає RejectedVacancyIds.
+export async function getRejectedVacancyIds(prisma: PrismaClient, candidateUserId: string): Promise<Set<string>> {
   const decisions = await prisma.vacancyOfferDecision.findMany({
-    where: { candidateUserId, decision: "REJECTED" },
-  });
-  return new Set(decisions.map((item) => item.vacancyId));
+    where: { candidateUserId, decision: 'REJECTED' }
+  })
+  return new Set(decisions.map(item => item.vacancyId))
 }
 
+// Модуль sameInstant.
 function sameInstant(a: Date, b: Date): boolean {
-  return a.getTime() === b.getTime();
+  return a.getTime() === b.getTime()
 }
 
+// Модуль toVacancyMatchInput.
 function toVacancyMatchInput(vacancy: MatchableVacancy): VacancyMatchInput {
   return {
     vacancyId: vacancy.vacancyId,
@@ -202,126 +202,124 @@ function toVacancyMatchInput(vacancy: MatchableVacancy): VacancyMatchInput {
     role: vacancy.role,
     requirements: vacancy.requirements,
     culture: vacancy.culture,
-    expectations: vacancy.expectations,
-  };
+    expectations: vacancy.expectations
+  }
 }
 
+// Модуль toOffersFromCachedScores.
 function toOffersFromCachedScores(
   scores: Array<{
-    vacancyId: string;
-    matchScore: number;
-    breakdown?: unknown;
-    vacancy: { title: string } | null;
-  }>,
+    vacancyId: string
+    matchScore: number
+    breakdown?: unknown
+    vacancy: { title: string } | null
+  }>
 ): OfferBase[] {
-  const offers: OfferBase[] = [];
+  const offers: OfferBase[] = []
   for (const score of scores) {
-    if (!score.vacancy) continue;
+    if (!score.vacancy) continue
     offers.push({
       vacancyId: score.vacancyId,
       title: score.vacancy.title,
       matchScore: score.matchScore,
-      ...(score.breakdown != null ? { breakdown: score.breakdown as MatchBreakdown } : {}),
-    });
+      ...(score.breakdown == null ? {} : { breakdown: score.breakdown as MatchBreakdown })
+    })
   }
-  return offers;
+  return offers
 }
 
+// Модуль ensureMatchScores.
 export async function ensureMatchScores(
   prisma: PrismaClient,
   llm: LlmProvider,
-  candidateUserId: string,
+  candidateUserId: string
 ): Promise<CandidateMatchOffer[]> {
-  const profile = await getConfirmedCandidateProfile(prisma, candidateUserId);
+  const profile = await getConfirmedCandidateProfile(prisma, candidateUserId)
   if (!profile) {
-    throw new VacancyMatchServiceError("QUESTIONNAIRE_NOT_CONFIRMED");
+    throw new VacancyMatchServiceError('QUESTIONNAIRE_NOT_CONFIRMED')
   }
 
-  const vacancies = await listMatchableVacancies(prisma);
-  if (vacancies.length === 0) return [];
+  const vacancies = await listMatchableVacancies(prisma)
+  if (vacancies.length === 0) return []
 
   const cached = await prisma.vacancyMatchScore.findMany({
     where: {
       candidateUserId,
-      rankedForConfirmedAt: profile.confirmedAt,
+      rankedForConfirmedAt: profile.confirmedAt
     },
-    include: { vacancy: { include: { companyProfile: true } } },
-  });
+    include: { vacancy: { include: { companyProfile: true } } }
+  })
 
-  const cachedHits: typeof cached = [];
-  const toRank: MatchableVacancy[] = [];
+  const cachedHits: typeof cached = []
+  const toRank: MatchableVacancy[] = []
 
   for (const vacancy of vacancies) {
     const hit = cached.find(
-      (row) =>
-        row.vacancyId === vacancy.vacancyId &&
-        sameInstant(row.rankedForVacancyConfirmedAt, vacancy.confirmedAt),
-    );
+      row => row.vacancyId === vacancy.vacancyId && sameInstant(row.rankedForVacancyConfirmedAt, vacancy.confirmedAt)
+    )
     if (hit) {
-      cachedHits.push(hit);
+      cachedHits.push(hit)
     } else {
-      toRank.push(vacancy);
+      toRank.push(vacancy)
     }
   }
 
   if (toRank.length === 0) {
-    return attachDisplaysToOffers(prisma, toOffersFromCachedScores(cachedHits));
+    return attachDisplaysToOffers(prisma, toOffersFromCachedScores(cachedHits))
   }
 
-  let ranked;
+  let ranked
   try {
-    ranked = await rankVacanciesWithLlm(llm, profile, toRank.map(toVacancyMatchInput));
+    ranked = await rankVacanciesWithLlm(llm, profile, toRank.map(toVacancyMatchInput))
   } catch {
-    throw new VacancyMatchServiceError("MATCH_UNAVAILABLE");
+    throw new VacancyMatchServiceError('MATCH_UNAVAILABLE')
   }
 
-  const vacancyById = new Map(toRank.map((item) => [item.vacancyId, item]));
-  const newOffers: OfferBase[] = [];
+  const vacancyById = new Map(toRank.map(item => [item.vacancyId, item]))
+  const newOffers: OfferBase[] = []
   const createData: Array<{
-    candidateUserId: string;
-    vacancyId: string;
-    matchScore: number;
-    breakdown: MatchBreakdown;
-    rankedForConfirmedAt: Date;
-    rankedForVacancyConfirmedAt: Date;
-  }> = [];
+    candidateUserId: string
+    vacancyId: string
+    matchScore: number
+    breakdown: MatchBreakdown
+    rankedForConfirmedAt: Date
+    rankedForVacancyConfirmedAt: Date
+  }> = []
 
   for (const item of ranked) {
-    const vacancy = vacancyById.get(item.vacancyId);
-    if (!vacancy) continue;
-    const breakdown = computeMatchScore(item.assessments, item.contextFit);
+    const vacancy = vacancyById.get(item.vacancyId)
+    if (!vacancy) continue
+    const breakdown = computeMatchScore(item.assessments, item.contextFit)
     createData.push({
       candidateUserId,
       vacancyId: item.vacancyId,
       matchScore: breakdown.matchScore,
       breakdown,
       rankedForConfirmedAt: profile.confirmedAt,
-      rankedForVacancyConfirmedAt: vacancy.confirmedAt,
-    });
+      rankedForVacancyConfirmedAt: vacancy.confirmedAt
+    })
     newOffers.push({
       vacancyId: item.vacancyId,
       title: vacancy.title,
       matchScore: breakdown.matchScore,
-      breakdown,
-    });
+      breakdown
+    })
   }
 
   if (createData.length > 0) {
-    await prisma.vacancyMatchScore.createMany({ data: createData });
+    await prisma.vacancyMatchScore.createMany({ data: createData })
   }
 
-  return attachDisplaysToOffers(prisma, [
-    ...toOffersFromCachedScores(cachedHits),
-    ...newOffers,
-  ]);
+  return attachDisplaysToOffers(prisma, [...toOffersFromCachedScores(cachedHits), ...newOffers])
 }
 
+// Повертає TopMatchOffers.
 export async function getTopMatchOffers(
   prisma: PrismaClient,
   llm: LlmProvider,
-  candidateUserId: string,
+  candidateUserId: string
 ): Promise<CandidateMatchOffer[]> {
-  const offers = await ensureMatchScores(prisma, llm, candidateUserId);
-  const rejected = await getRejectedVacancyIds(prisma, candidateUserId);
-  return pickTopOffers(offers, rejected, 5);
+  const offers = await ensureMatchScores(prisma, llm, candidateUserId)
+  const rejected = await getRejectedVacancyIds(prisma, candidateUserId)
+  return pickTopOffers(offers, rejected, 5)
 }

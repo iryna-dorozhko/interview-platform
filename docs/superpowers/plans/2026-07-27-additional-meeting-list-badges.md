@@ -36,10 +36,12 @@
 ### Task 1: Expose `interviewKind` on GET /api/reports
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts`
 - Modify: `backend/src/routes/reports.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Interview.kind`
 - Produces: list item field `interviewKind: "STANDARD" | "ADDITIONAL_MEETING"`
 
@@ -115,11 +117,13 @@ git commit -m "feat(api): include interviewKind in reports list"
 ### Task 2: Frontend badges on interview and report lists
 
 **Files:**
+
 - Modify: `frontend/src/api/reports.ts`
 - Modify: `frontend/src/views/ReportListView.vue`
 - Modify: `frontend/src/views/InterviewListView.vue`
 
 **Interfaces:**
+
 - Consumes: `ReportSummary.interviewKind`, `InterviewSummary.kind`
 - Produces: visible badge «Додаткова»
 

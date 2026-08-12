@@ -26,6 +26,7 @@
 ### Task 1: Підготувати backend для Prisma
 
 **Files:**
+
 - Modify: `backend/package.json`
 - Create: `backend/.gitignore`
 - Create: `backend/.env.example`
@@ -101,6 +102,7 @@ git commit -m "chore: prepare backend prisma scripts and env templates"
 ### Task 2: Додати Prisma-схему з MVP-моделями
 
 **Files:**
+
 - Create: `backend/prisma/schema.prisma`
 - Test: `backend/prisma/schema.prisma` via `db:validate`
 
@@ -324,6 +326,7 @@ git commit -m "feat: add prisma schema for interview mvp data model"
 ### Task 3: Додати seed тестового HR
 
 **Files:**
+
 - Create: `backend/prisma/seed.js`
 - Modify: `backend/package.json` (if seed script path changed)
 - Test: `backend/prisma/seed.js`
@@ -392,6 +395,7 @@ git commit -m "feat: add prisma seed for default hr user"
 ### Task 4: Підняти PostgreSQL у Docker Compose
 
 **Files:**
+
 - Create: `docker-compose.yml`
 - Create: `.env.example`
 - Modify: `README.md`
@@ -457,6 +461,7 @@ git commit -m "chore: add docker compose postgres service for local db"
 ### Task 5: Застосувати міграцію й перевірити індекси/обмеження
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma` (if migration feedback requires)
 - Create: `backend/prisma/migrations/*`
 - Test: migration SQL and runtime constraints
@@ -507,6 +512,7 @@ git commit -m "feat: apply initial prisma migration for interview mvp schema"
 ### Task 6: Додати healthcheck-перевірку підключення до БД
 
 **Files:**
+
 - Create: `backend/src/db/healthcheck.js`
 - Create: `backend/src/db/healthcheck.test.js`
 - Modify: `backend/package.json` (test script)
@@ -573,6 +579,7 @@ git commit -m "test: add database healthcheck smoke test"
 ### Task 7: Документувати запуск і Day 1 checklist
 
 **Files:**
+
 - Modify: `README.md`
 - Test: manual command checklist from README
 
@@ -622,6 +629,7 @@ git commit -m "docs: add day1 database bootstrap and seed workflow"
 ### Task 8: Фінальна верифікація Day 1 сценарію
 
 **Files:**
+
 - Modify: none (verification only)
 - Test: full command chain
 

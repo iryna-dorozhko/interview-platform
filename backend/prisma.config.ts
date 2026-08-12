@@ -1,16 +1,15 @@
-import "dotenv/config";
-import { defineConfig } from "prisma/config";
+import { env } from 'node:process'
+import { defineConfig } from 'prisma/config'
 
-const defaultDatabaseUrl =
-  "postgresql://postgres:postgres@localhost:5432/interview_platform?schema=public";
+const defaultDatabaseUrl = 'postgresql://postgres:postgres@localhost:5432/interview_platform?schema=public'
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: 'prisma/schema.prisma',
   migrations: {
-    path: "prisma/migrations",
-    seed: "node prisma/seed.js",
+    path: 'prisma/migrations',
+    seed: 'bun --env-file=.env prisma/seed.js'
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? defaultDatabaseUrl,
-  },
-});
+    url: env.DATABASE_URL ?? defaultDatabaseUrl
+  }
+})

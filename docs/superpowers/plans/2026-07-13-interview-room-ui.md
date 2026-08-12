@@ -36,6 +36,7 @@
 ### Task 1: Final Report Agent
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/final-report.uk.ts`
 - Create: `backend/src/agents/final-report-agent.ts`
 - Create: `backend/src/agents/final-report-agent.test.ts`
@@ -268,6 +269,7 @@ git commit -m "feat: add final report agent for interview end flow"
 ### Task 2: POST /api/interviews/:id/end
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 - Modify: `backend/src/server.ts`
@@ -647,6 +649,7 @@ git commit -m "feat: add POST /interviews/:id/end with final report generation"
 ### Task 3: Live message colors
 
 **Files:**
+
 - Create: `frontend/src/utils/live-message-styles.ts`
 - Modify: `frontend/src/components/LiveChatPanel.vue`
 
@@ -765,6 +768,7 @@ import { labelFor, messageStyles } from "../utils/live-message-styles";
 ```
 
 У CSS:
+
 - Видалити `.message.own .message-text`, `.message.agent .message-text` (кольори тепер inline)
 - Додати для `.message-label`: `display: inline-block; padding: 0.1rem 0.5rem; border-radius: 9999px; margin-bottom: 0.25rem;`
 
@@ -786,6 +790,7 @@ git commit -m "feat: distinct colors for each live chat participant"
 ### Task 4: Join buttons
 
 **Files:**
+
 - Modify: `frontend/src/views/InterviewListView.vue`
 - Modify: `frontend/src/views/CandidateInterviewView.vue`
 
@@ -832,6 +837,7 @@ git commit -m "feat: add join interview buttons for HR and candidate"
 ### Task 5: End interview UI
 
 **Files:**
+
 - Modify: `frontend/src/api/interviews.ts`
 - Modify: `frontend/src/components/InterviewRoomContent.vue`
 
@@ -962,6 +968,7 @@ git commit -m "feat: HR end interview button with final report API call"
 ### Task 6: README and full verification
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update README Day 19 section**

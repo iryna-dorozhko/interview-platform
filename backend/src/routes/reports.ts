@@ -1,78 +1,68 @@
-import { Router, type Request, type Response } from "express";
-import type { PrismaClient } from "@prisma/client";
-import type { Server } from "socket.io";
-import { extractVacancyOffer, generateDecisionLetter } from "../agents/decision-letter-agent";
-import type { LlmProvider } from "../llm/types";
-import {
-  applicationStatusFromDecisionType,
-  applyTerminalApplicationStatus,
-} from "../services/application-hr-decision";
-import { emitDialogMessage } from "../socket/dialogs";
+import { Router } from 'express'
+import type { Request, Response } from 'express'
+import type { PrismaClient } from '@prisma/client'
+import type { Server } from 'socket.io'
+import { extractVacancyOffer, generateDecisionLetter } from '../agents/decision-letter-agent'
+import type { LlmProvider } from '../llm/types'
+import { applicationStatusFromDecisionType, applyTerminalApplicationStatus } from '../services/application-hr-decision'
+import { emitDialogMessage } from '../socket/dialogs'
 
-const DECISION_TYPES = new Set(["ACCEPT", "REJECT", "ADDITIONAL_MEETING"]);
+const DECISION_TYPES = new Set(['ACCEPT', 'REJECT', 'ADDITIONAL_MEETING'])
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-type DecisionType = "ACCEPT" | "REJECT" | "ADDITIONAL_MEETING";
+type DecisionType = 'ACCEPT' | 'REJECT' | 'ADDITIONAL_MEETING'
 
+// Парсить DecisionType.
 function parseDecisionType(raw: unknown): DecisionType | null {
-  return typeof raw === "string" && DECISION_TYPES.has(raw)
-    ? (raw as DecisionType)
-    : null;
+  return typeof raw === 'string' && DECISION_TYPES.has(raw) ? (raw as DecisionType) : null
 }
 
+// Створює ReportsRouter.
 export function createReportsRouter(
   getPrisma: () => PrismaClient,
   getLlmProvider: () => LlmProvider,
-  getIo: () => Server,
+  getIo: () => Server
 ): Router {
-  const router = Router();
+  const router = Router()
 
-  router.get("/reports", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
-    const hrUserId = req.user!.id;
+  router.get('/reports', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
+    const hrUserId = req.user!.id
 
-    const recommendationRaw = typeof req.query.recommendation === "string"
-      ? req.query.recommendation
-      : undefined;
+    const recommendationRaw = typeof req.query.recommendation === 'string' ? req.query.recommendation : undefined
     const vacancyId =
-      typeof req.query.vacancyId === "string" && req.query.vacancyId.length > 0
-        ? req.query.vacancyId
-        : undefined;
+      typeof req.query.vacancyId === 'string' && req.query.vacancyId.length > 0 ? req.query.vacancyId : undefined
     const email =
-      typeof req.query.email === "string" && req.query.email.trim().length > 0
-        ? req.query.email.trim()
-        : undefined;
-    const dateFromRaw =
-      typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
-    const dateToRaw =
-      typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
+      typeof req.query.email === 'string' && req.query.email.trim().length > 0 ? req.query.email.trim() : undefined
+    const dateFromRaw = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined
+    const dateToRaw = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined
 
-    const ALLOWED = new Set(["HIRE", "MAYBE", "REJECT"]);
+    const ALLOWED = new Set(['HIRE', 'MAYBE', 'REJECT'])
     if (recommendationRaw !== undefined && !ALLOWED.has(recommendationRaw)) {
-      res.status(400).json({ error: "Invalid recommendation" });
-      return;
+      res.status(400).json({ error: 'Invalid recommendation' })
+      return
     }
 
-    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-    let createdAt: { gte?: Date; lte?: Date } | undefined;
+    let createdAt: { gte?: Date; lte?: Date } | undefined
     if (dateFromRaw !== undefined) {
-      if (!DATE_RE.test(dateFromRaw)) {
-        res.status(400).json({ error: "Invalid dateFrom" });
-        return;
+      if (!ISO_DATE_RE.test(dateFromRaw)) {
+        res.status(400).json({ error: 'Invalid dateFrom' })
+        return
       }
       createdAt = {
         ...createdAt,
-        gte: new Date(`${dateFromRaw}T00:00:00.000Z`),
-      };
+        gte: new Date(`${dateFromRaw}T00:00:00.000Z`)
+      }
     }
     if (dateToRaw !== undefined) {
-      if (!DATE_RE.test(dateToRaw)) {
-        res.status(400).json({ error: "Invalid dateTo" });
-        return;
+      if (!ISO_DATE_RE.test(dateToRaw)) {
+        res.status(400).json({ error: 'Invalid dateTo' })
+        return
       }
       createdAt = {
         ...createdAt,
-        lte: new Date(`${dateToRaw}T23:59:59.999Z`),
-      };
+        lte: new Date(`${dateToRaw}T23:59:59.999Z`)
+      }
     }
 
     const reports = await prisma.finalReport.findMany({
@@ -80,14 +70,10 @@ export function createReportsRouter(
         interview: {
           hrUserId,
           ...(vacancyId ? { vacancyId } : {}),
-          ...(email
-            ? { candidateUser: { email: { contains: email, mode: "insensitive" } } }
-            : {}),
+          ...(email ? { candidateUser: { email: { contains: email, mode: 'insensitive' } } } : {})
         },
-        ...(recommendationRaw
-          ? { recommendation: recommendationRaw as "HIRE" | "MAYBE" | "REJECT" }
-          : {}),
-        ...(createdAt ? { createdAt } : {}),
+        ...(recommendationRaw ? { recommendation: recommendationRaw as 'HIRE' | 'MAYBE' | 'REJECT' } : {}),
+        ...(createdAt ? { createdAt } : {})
       },
       include: {
         interview: {
@@ -95,15 +81,15 @@ export function createReportsRouter(
             vacancyId: true,
             kind: true,
             candidateUser: { select: { email: true } },
-            vacancy: { select: { id: true, title: true } },
-          },
-        },
+            vacancy: { select: { id: true, title: true } }
+          }
+        }
       },
-      orderBy: { createdAt: "desc" },
-    });
+      orderBy: { createdAt: 'desc' }
+    })
 
     res.status(200).json({
-      reports: reports.map((report) => ({
+      reports: reports.map(report => ({
         id: report.id,
         interviewId: report.interviewId,
         candidateEmail: report.interview.candidateUser?.email ?? null,
@@ -112,34 +98,34 @@ export function createReportsRouter(
         matchScore: report.matchScore,
         recommendation: report.recommendation,
         interviewKind: report.interview.kind,
-        createdAt: report.createdAt,
-      })),
-    });
-  });
+        createdAt: report.createdAt
+      }))
+    })
+  })
 
-  router.get("/reports/:id", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
+  router.get('/reports/:id', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
     const report = await prisma.finalReport.findUnique({
       where: { id: req.params.id },
       include: {
-        interview: { select: { hrUserId: true } },
-      },
-    });
+        interview: { select: { hrUserId: true } }
+      }
+    })
 
     if (!report) {
-      res.status(404).json({ error: "Report not found" });
-      return;
+      res.status(404).json({ error: 'Report not found' })
+      return
     }
     if (report.interview.hrUserId !== req.user?.id) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+      res.status(403).json({ error: 'Forbidden' })
+      return
     }
 
     const latestDecision = await prisma.interviewDecision.findFirst({
       where: { interviewId: report.interviewId },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, type: true, createdAt: true },
-    });
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, type: true, createdAt: true }
+    })
 
     res.status(200).json({
       report: {
@@ -153,10 +139,10 @@ export function createReportsRouter(
         overrideKind: report.overrideKind,
         overrideReason: report.overrideReason,
         createdAt: report.createdAt,
-        latestDecision,
-      },
-    });
-  });
+        latestDecision
+      }
+    })
+  })
 
   async function loadReportForDecision(prisma: PrismaClient, reportId: string) {
     return prisma.finalReport.findUnique({
@@ -169,41 +155,41 @@ export function createReportsRouter(
             vacancy: {
               select: {
                 title: true,
-                companyProfile: true,
-              },
+                companyProfile: true
+              }
             },
-            candidateProfile: true,
-          },
-        },
-      },
-    });
+            candidateProfile: true
+          }
+        }
+      }
+    })
   }
 
-  router.post("/reports/:id/decisions/draft", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
-    const report = await loadReportForDecision(prisma, req.params.id);
+  router.post('/reports/:id/decisions/draft', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
+    const report = await loadReportForDecision(prisma, req.params.id)
 
     if (!report) {
-      res.status(404).json({ error: "Report not found" });
-      return;
+      res.status(404).json({ error: 'Report not found' })
+      return
     }
     if (report.interview.hrUserId !== req.user?.id) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+      res.status(403).json({ error: 'Forbidden' })
+      return
     }
     if (!report.interview.candidateUserId) {
-      res.status(400).json({ error: "Candidate user required" });
-      return;
+      res.status(400).json({ error: 'Candidate user required' })
+      return
     }
 
-    const type = parseDecisionType(req.body?.type);
+    const type = parseDecisionType(req.body?.type)
     if (!type) {
-      res.status(400).json({ error: "Invalid decision type" });
-      return;
+      res.status(400).json({ error: 'Invalid decision type' })
+      return
     }
 
     try {
-      const offer = extractVacancyOffer(report.interview.vacancy.companyProfile);
+      const offer = extractVacancyOffer(report.interview.vacancy.companyProfile)
       const body = await generateDecisionLetter(getLlmProvider(), {
         type,
         vacancyTitle: report.interview.vacancy.title,
@@ -215,129 +201,129 @@ export function createReportsRouter(
         companyProfileJson: JSON.stringify(report.interview.vacancy.companyProfile ?? {}),
         candidateProfileJson: JSON.stringify(report.interview.candidateProfile ?? {}),
         offerAvailable: offer.offerAvailable,
-        offerLines: offer.offerLines,
-      });
-      res.status(200).json({ type, body });
+        offerLines: offer.offerLines
+      })
+      res.status(200).json({ type, body })
     } catch {
-      res.status(502).json({ error: "Failed to generate letter" });
+      res.status(502).json({ error: 'Failed to generate letter' })
     }
-  });
+  })
 
-  router.post("/reports/:id/decisions", async (req: Request, res: Response) => {
-    const prisma = getPrisma();
-    const hrUserId = req.user!.id;
-    const report = await loadReportForDecision(prisma, req.params.id);
+  router.post('/reports/:id/decisions', async (req: Request, res: Response) => {
+    const prisma = getPrisma()
+    const hrUserId = req.user!.id
+    const report = await loadReportForDecision(prisma, req.params.id)
 
     if (!report) {
-      res.status(404).json({ error: "Report not found" });
-      return;
+      res.status(404).json({ error: 'Report not found' })
+      return
     }
     if (report.interview.hrUserId !== hrUserId) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+      res.status(403).json({ error: 'Forbidden' })
+      return
     }
     if (!report.interview.candidateUserId) {
-      res.status(400).json({ error: "Candidate user required" });
-      return;
+      res.status(400).json({ error: 'Candidate user required' })
+      return
     }
 
-    const type = parseDecisionType(req.body?.type);
+    const type = parseDecisionType(req.body?.type)
     if (!type) {
-      res.status(400).json({ error: "Invalid decision type" });
-      return;
+      res.status(400).json({ error: 'Invalid decision type' })
+      return
     }
 
-    const letterBodyRaw = req.body?.letterBody;
-    if (typeof letterBodyRaw !== "string" || letterBodyRaw.trim().length === 0) {
-      res.status(400).json({ error: "letterBody required" });
-      return;
+    const letterBodyRaw = req.body?.letterBody
+    if (typeof letterBodyRaw !== 'string' || letterBodyRaw.trim().length === 0) {
+      res.status(400).json({ error: 'letterBody required' })
+      return
     }
-    const letterBody = letterBodyRaw.trim();
-    const candidateUserId = report.interview.candidateUserId;
+    const letterBody = letterBodyRaw.trim()
+    const candidateUserId = report.interview.candidateUserId
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async tx => {
       const decision = await tx.interviewDecision.create({
         data: {
           interviewId: report.interviewId,
           finalReportId: report.id,
           decidedByUserId: hrUserId,
           type,
-          letterBody,
-        },
-      });
+          letterBody
+        }
+      })
 
       const existing = await tx.dialog.findUnique({
         where: {
           hrUserId_candidateUserId: {
             hrUserId,
-            candidateUserId,
-          },
-        },
-      });
+            candidateUserId
+          }
+        }
+      })
 
       const dialog =
         existing ??
         (await tx.dialog.create({
           data: {
             hrUserId,
-            candidateUserId,
-          },
-        }));
+            candidateUserId
+          }
+        }))
 
       const message = await tx.dialogMessage.create({
         data: {
           dialogId: dialog.id,
           senderUserId: hrUserId,
           body: letterBody,
-          kind: "DECISION_LETTER",
-          decisionId: decision.id,
-        },
-      });
+          kind: 'DECISION_LETTER',
+          decisionId: decision.id
+        }
+      })
 
       await tx.interviewDecision.update({
         where: { id: decision.id },
-        data: { dialogMessageId: message.id },
-      });
+        data: { dialogMessageId: message.id }
+      })
 
       await tx.dialog.update({
         where: { id: dialog.id },
-        data: { updatedAt: new Date(), candidateHiddenAt: null },
-      });
+        data: { updatedAt: new Date(), candidateHiddenAt: null }
+      })
 
       const linked = await tx.vacancyApplication.findFirst({
-        where: { interviewId: report.interviewId },
-      });
+        where: { interviewId: report.interviewId }
+      })
       if (linked) {
         await applyTerminalApplicationStatus(tx, {
           applicationId: linked.id,
           candidateUserId: linked.candidateUserId,
           vacancyId: linked.vacancyId,
-          status: applicationStatusFromDecisionType(type),
-        });
+          status: applicationStatusFromDecisionType(type)
+        })
       }
 
-      return { decision, dialogId: dialog.id, message };
-    });
+      return { decision, dialogId: dialog.id, message }
+    })
 
     emitDialogMessage(getIo(), result.dialogId, {
       id: result.message.id,
       dialogId: result.dialogId,
       senderUserId: result.message.senderUserId,
       body: result.message.body,
-      kind: "DECISION_LETTER",
+      kind: 'DECISION_LETTER',
       createdAt: result.message.createdAt.toISOString(),
-      decision: { type: result.decision.type as DecisionType },
-    });
+      decision: { type: result.decision.type as DecisionType }
+    })
 
     res.status(201).json({
       decision: {
         id: result.decision.id,
         type: result.decision.type,
-        createdAt: result.decision.createdAt,
+        createdAt: result.decision.createdAt
       },
-      dialogId: result.dialogId,
-    });
-  });
+      dialogId: result.dialogId
+    })
+  })
 
-  return router;
+  return router
 }

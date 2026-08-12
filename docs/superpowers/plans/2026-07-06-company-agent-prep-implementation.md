@@ -37,6 +37,7 @@
 ### Task 1: Company Agent — промпт і чиста логіка
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/company-agent.uk.ts`
 - Create: `backend/src/agents/company-agent.ts`
 - Create: `backend/src/agents/company-agent.test.ts`
@@ -220,6 +221,7 @@ git commit -m "feat(backend): add company agent prompt and reply parsing"
 ### Task 2: Prep router — `POST /prep/:interviewId/message`
 
 **Files:**
+
 - Create: `backend/src/routes/prep.ts`
 - Create: `backend/src/routes/prep.test.ts`
 - Modify: `backend/package.json` (додати тест у script `test`)
@@ -764,6 +766,7 @@ git commit -m "feat(backend): add prep message endpoint for company agent"
 ### Task 3: Підключити prep router у server.ts
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 
 - [ ] **Step 1: Update server.ts**
@@ -809,6 +812,7 @@ git commit -m "feat(backend): wire prep router into server"
 ### Task 4: seedHrUser повертає id (потрібно для FK тестового Interview)
 
 **Files:**
+
 - Modify: `backend/src/seed/hr-user.js`
 - Modify: `backend/src/seed/hr-user.test.js`
 
@@ -910,6 +914,7 @@ git commit -m "fix(backend): return id from seedHrUser for downstream seeds"
 ### Task 5: Seed тестового Interview
 
 **Files:**
+
 - Create: `backend/src/seed/hr-interview.js`
 - Create: `backend/src/seed/hr-interview.test.js`
 - Modify: `backend/package.json` (додати тест у script `test`)
@@ -1012,6 +1017,7 @@ git commit -m "feat(backend): add seed for test interview"
 ### Task 6: Підключити seed тестового Interview у prisma/seed.js
 
 **Files:**
+
 - Modify: `backend/prisma/seed.js`
 
 - [ ] **Step 1: Update seed.js**
@@ -1081,6 +1087,7 @@ git commit -m "feat(backend): seed test interview alongside HR user"
 ### Task 7: README — Company Agent Quick Start (День 4)
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Додати секцію після "День 4 — Company Agent (серверна частина)"**
@@ -1142,6 +1149,7 @@ curl -X POST "http://localhost:3000/api/prep/$INTERVIEW_ID/message" \
 Повторити з наступними відповідями про вимоги, культуру й очікування. Коли даних достатньо, відповідь міститиме `"readyForConfirmation": true`.
 
 **5. Перевірка в базі:** повідомлення зберігаються в таблицях `PrepSessionHr` і `PrepMessageHr`, прив'язаних до `interviewId`.
+
 ```
 
 - [ ] **Step 2: Позначити DoD Дня 4 як виконаний**
@@ -1191,6 +1199,7 @@ npm run dev
 ```
 
 В окремому терміналі — виконати кроки 2–4 з README Company Agent Quick Start (мінімум 3 обміни), перевірити:
+
 1. Кожна відповідь — `200` з полями `message` і `readyForConfirmation`.
 2. Останній обмін повертає `readyForConfirmation: true`.
 3. У базі є один `PrepSessionHr` для інтерв'ю і всі повідомлення в `PrepMessageHr` у правильному порядку.

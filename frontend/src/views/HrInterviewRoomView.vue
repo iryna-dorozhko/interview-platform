@@ -1,30 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { RouterLink, useRoute } from "vue-router";
-import InterviewRoomContent from "../components/InterviewRoomContent.vue";
-import { fetchInterview, type InterviewKind } from "../api/interviews";
 
-const route = useRoute();
-const interviewId = computed(() => String(route.params.id));
-const joinCode = ref<string | null>(null);
-const reportId = ref<string | null>(null);
-const interviewKind = ref<InterviewKind | null>(null);
-const loadState = ref<"loading" | "ready" | "error">("loading");
-const loadError = ref<string | null>(null);
+import InterviewRoomContent from '../components/InterviewRoomContent.vue'
+import { fetchInterview, type InterviewKind } from '../api/interviews'
+
+const route = useRoute()
+const interviewId = computed(() => String(route.params.id))
+const joinCode = ref<string | null>(null)
+const reportId = ref<string | null>(null)
+const interviewKind = ref<InterviewKind | null>(null)
+const loadState = ref<'loading' | 'ready' | 'error'>('loading')
+const loadError = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    const interview = await fetchInterview(interviewId.value);
-    joinCode.value = interview.joinCode;
-    reportId.value = interview.reportId;
-    interviewKind.value = interview.kind;
-    loadState.value = "ready";
+    const interview = await fetchInterview(interviewId.value)
+    joinCode.value = interview.joinCode
+    reportId.value = interview.reportId
+    interviewKind.value = interview.kind
+    loadState.value = 'ready'
   } catch (error) {
-    loadState.value = "error";
-    loadError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити співбесіду";
+    loadState.value = 'error'
+    loadError.value = error instanceof Error ? error.message : 'Не вдалося завантажити співбесіду'
   }
-});
+})
 </script>
 
 <template>
@@ -53,21 +51,26 @@ onMounted(async () => {
   font-family: var(--font);
   max-width: 100%;
 }
+
 .header {
   margin-bottom: 1rem;
 }
+
 .back-link {
   color: var(--accent);
   text-decoration: none;
   font-size: 0.875rem;
 }
+
 .back-link:hover {
   text-decoration: underline;
 }
+
 h1 {
   margin: 0 0 1rem;
   font-size: 1.25rem;
 }
+
 .error-banner {
   margin: 0;
   padding: 0.5rem 0.75rem;

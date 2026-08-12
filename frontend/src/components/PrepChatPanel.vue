@@ -1,53 +1,53 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
-import type { PrepChatMessage, PrepFailedAction } from "../composables/usePrepChat";
+
+import type { PrepChatMessage, PrepFailedAction } from '../composables/usePrepChat'
 
 const props = defineProps<{
-  title: string;
-  loadState: "loading" | "ready" | "error";
-  messages: PrepChatMessage[];
-  sending: boolean;
-  isClosed: boolean;
-  input: string;
-  errorMessage: string | null;
-  lastFailedAction: PrepFailedAction | null;
-  isUserMessage: (msg: PrepChatMessage) => boolean;
-  deleteDisabled?: boolean;
-  deleteTitle?: string;
-  setMessagesEl?: (el: HTMLElement | null) => void;
-}>();
+  title: string
+  loadState: 'loading' | 'ready' | 'error'
+  messages: PrepChatMessage[]
+  sending: boolean
+  isClosed: boolean
+  input: string
+  errorMessage: string | null
+  lastFailedAction: PrepFailedAction | null
+  isUserMessage: (msg: PrepChatMessage) => boolean
+  deleteDisabled?: boolean
+  deleteTitle?: string
+  setMessagesEl?: (el: HTMLElement | null) => void
+}>()
 
 const emit = defineEmits<{
-  "update:input": [value: string];
-  send: [];
-  retry: [];
-  finish: [];
-  delete: [];
-  keydown: [event: KeyboardEvent];
-}>();
+  'update:input': [value: string]
+  send: []
+  retry: []
+  finish: []
+  delete: []
+  keydown: [event: KeyboardEvent]
+}>()
 
-const composerInputEl = ref<HTMLTextAreaElement | null>(null);
+const composerInputEl = ref<HTMLTextAreaElement | null>(null)
 
 function resizeComposer(): void {
-  const el = composerInputEl.value;
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  const el = composerInputEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 function onComposerInput(event: Event): void {
-  emit("update:input", (event.target as HTMLTextAreaElement).value);
-  resizeComposer();
+  emit('update:input', (event.target as HTMLTextAreaElement).value)
+  resizeComposer()
 }
 
 watch(
   () => props.input,
   async () => {
-    await nextTick();
-    resizeComposer();
+    await nextTick()
+    resizeComposer()
   },
-  { immediate: true },
-);
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -69,25 +69,14 @@ watch(
             >
               Видалити чат
             </button>
-            <button
-              v-if="!isClosed"
-              type="button"
-              class="btn-primary"
-              :disabled="sending"
-              @click="emit('finish')"
-            >
+            <button v-if="!isClosed" type="button" class="btn-primary" :disabled="sending" @click="emit('finish')">
               Завершити чат
             </button>
           </slot>
         </div>
       </div>
 
-      <div
-        :ref="(el) => setMessagesEl?.(el as HTMLElement | null)"
-        class="messages"
-        role="log"
-        aria-live="polite"
-      >
+      <div :ref="el => setMessagesEl?.(el as HTMLElement | null)" class="messages" role="log" aria-live="polite">
         <div
           v-for="message in messages"
           :key="message.id"
@@ -95,7 +84,7 @@ watch(
           :class="isUserMessage(message) ? 'user' : 'assistant'"
         >
           <span class="message-label">
-            {{ isUserMessage(message) ? "Ви" : "Агент" }}
+            {{ isUserMessage(message) ? 'Ви' : 'Агент' }}
           </span>
           <p class="message-text">{{ message.content }}</p>
         </div>
@@ -104,12 +93,7 @@ watch(
 
       <p v-if="errorMessage && lastFailedAction" class="error-banner" role="alert">
         {{ errorMessage }}
-        <button
-          type="button"
-          class="btn-secondary"
-          :disabled="sending || !lastFailedAction"
-          @click="emit('retry')"
-        >
+        <button type="button" class="btn-secondary" :disabled="sending || !lastFailedAction" @click="emit('retry')">
           Спробувати ще раз
         </button>
       </p>
@@ -125,9 +109,7 @@ watch(
           @input="onComposerInput"
           @keydown="emit('keydown', $event)"
         />
-        <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">
-          Надіслати
-        </button>
+        <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">Надіслати</button>
       </form>
     </template>
   </section>
@@ -141,16 +123,19 @@ watch(
   margin-bottom: 1rem;
   gap: 0.5rem;
 }
+
 .chat-header h2 {
   margin: 0;
   font-size: 1rem;
 }
+
 .chat-actions {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
 }
+
 .messages {
   max-height: 24rem;
   overflow-y: auto;
@@ -160,24 +145,29 @@ watch(
   background: #fafafa;
   margin-bottom: 0.75rem;
 }
+
 .message {
   margin-bottom: 0.75rem;
   max-width: 85%;
 }
+
 .message.user {
   margin-left: auto;
   text-align: right;
 }
+
 .message.assistant {
   margin-right: auto;
   text-align: left;
 }
+
 .message-label {
   display: block;
   font-size: 0.75rem;
   color: #666;
   margin-bottom: 0.25rem;
 }
+
 .message-text {
   margin: 0;
   padding: 0.5rem 0.75rem;
@@ -186,20 +176,24 @@ watch(
   word-break: break-word;
   display: inline-block;
 }
+
 .message.user .message-text {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
 .message.assistant .message-text {
   background: #e5e7eb;
   color: #1f2937;
 }
+
 .thinking {
   margin: 0;
   color: #666;
   font-size: 0.875rem;
   font-style: italic;
 }
+
 .error-banner {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -212,12 +206,14 @@ watch(
   gap: 0.75rem;
   flex-wrap: wrap;
 }
+
 .composer {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
   width: 100%;
 }
+
 .composer-input {
   flex: 1 1 24rem;
   width: 100%;
@@ -231,6 +227,7 @@ watch(
   overflow: hidden;
   min-height: 2.5rem;
 }
+
 .btn-primary,
 .btn-secondary {
   font-family: inherit;
@@ -241,19 +238,23 @@ watch(
   cursor: pointer;
   white-space: nowrap;
 }
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
 }
+
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .btn-secondary {
   background: #fff;
   color: #374151;
   border-color: #d1d5db;
 }
+
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;

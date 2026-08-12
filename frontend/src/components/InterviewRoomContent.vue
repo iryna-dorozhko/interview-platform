@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { RouterLink } from "vue-router";
-import LiveChatPanel from "./LiveChatPanel.vue";
-import AgentStatusPanel from "./AgentStatusPanel.vue";
-import { endInterview } from "../api/interviews";
-import { useInterviewRoom } from "../composables/useInterviewRoom";
+
+import LiveChatPanel from './LiveChatPanel.vue'
+import AgentStatusPanel from './AgentStatusPanel.vue'
+import { endInterview } from '../api/interviews'
+import { useInterviewRoom } from '../composables/useInterviewRoom'
 
 const props = defineProps<{
-  interviewId: string;
-  currentRole: "HR" | "CANDIDATE";
-  joinCode?: string | null;
-  reportId?: string | null;
-  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null;
-}>();
+  interviewId: string
+  currentRole: 'HR' | 'CANDIDATE'
+  joinCode?: string | null
+  reportId?: string | null
+  interviewKind?: 'STANDARD' | 'ADDITIONAL_MEETING' | null
+}>()
 
 const {
   messages,
@@ -27,62 +26,51 @@ const {
   arbiterProcessLog,
   peerTypingLabel,
   retryAgent,
-  stopAgents,
-} = useInterviewRoom(props.interviewId, props.currentRole);
+  stopAgents
+} = useInterviewRoom(props.interviewId, props.currentRole)
 
-const ending = ref(false);
-const endSuccess = ref<string | null>(null);
-const endError = ref<string | null>(null);
-const endedReportId = ref<string | null>(null);
+const ending = ref(false)
+const endSuccess = ref<string | null>(null)
+const endError = ref<string | null>(null)
+const endedReportId = ref<string | null>(null)
 
-const showHrToolbar = computed(
-  () => props.currentRole === "HR" && interviewStatus.value === "LIVE",
-);
+const showHrToolbar = computed(() => props.currentRole === 'HR' && interviewStatus.value === 'LIVE')
 
 const canRetryAgent = computed(
-  () =>
-    Boolean(agentError.value) &&
-    connectionState.value === "connected" &&
-    !agentThinking.value?.active,
-);
+  () => Boolean(agentError.value) && connectionState.value === 'connected' && !agentThinking.value?.active
+)
 
-const canStopAgents = computed(() => connectionState.value === "connected");
+const canStopAgents = computed(() => connectionState.value === 'connected')
 
-const activeReportId = computed(
-  () => endedReportId.value ?? props.reportId ?? null,
-);
-const showReportLink = computed(
-  () => activeReportId.value !== null && interviewStatus.value === "ENDED",
-);
+const activeReportId = computed(() => endedReportId.value ?? props.reportId ?? null)
+const showReportLink = computed(() => activeReportId.value !== null && interviewStatus.value === 'ENDED')
 
 const phaseBanner = computed(() => {
-  const status = interviewStatus.value;
-  if (!status || status === "LIVE") return null;
-  if (status === "ENDED") return "Співбесіда завершена";
-  if (status === "AWAITING_CANDIDATE" && props.currentRole === "HR") {
-    return props.joinCode
-      ? `Очікуємо кандидата. Код: ${props.joinCode}`
-      : "Очікуємо кандидата";
+  const status = interviewStatus.value
+  if (!status || status === 'LIVE') return null
+  if (status === 'ENDED') return 'Співбесіда завершена'
+  if (status === 'AWAITING_CANDIDATE' && props.currentRole === 'HR') {
+    return props.joinCode ? `Очікуємо кандидата. Код: ${props.joinCode}` : 'Очікуємо кандидата'
   }
-  if (status === "READY") {
-    return "Обидва готові. Очікуємо другого учасника в кімнаті";
+  if (status === 'READY') {
+    return 'Обидва готові. Очікуємо другого учасника в кімнаті'
   }
-  return null;
-});
+  return null
+})
 
 async function onEndInterview(): Promise<void> {
-  if (!window.confirm("Завершити співбесіду? Буде згенеровано фінальний звіт.")) return;
-  ending.value = true;
-  endError.value = null;
-  endSuccess.value = null;
+  if (!window.confirm('Завершити співбесіду? Буде згенеровано фінальний звіт.')) return
+  ending.value = true
+  endError.value = null
+  endSuccess.value = null
   try {
-    const result = await endInterview(props.interviewId);
-    endedReportId.value = result.reportId;
-    endSuccess.value = `Звіт згенеровано. Рекомендація: ${result.recommendation}`;
+    const result = await endInterview(props.interviewId)
+    endedReportId.value = result.reportId
+    endSuccess.value = `Звіт згенеровано. Рекомендація: ${result.recommendation}`
   } catch (error) {
-    endError.value = error instanceof Error ? error.message : "Не вдалося завершити співбесіду";
+    endError.value = error instanceof Error ? error.message : 'Не вдалося завершити співбесіду'
   } finally {
-    ending.value = false;
+    ending.value = false
   }
 }
 </script>
@@ -93,11 +81,7 @@ async function onEndInterview(): Promise<void> {
       type="button"
       class="btn-secondary"
       :disabled="!canRetryAgent"
-      :title="
-        canRetryAgent
-          ? 'Повторити останній невдалий хід агента'
-          : 'Кнопка активна лише після помилки агента'
-      "
+      :title="canRetryAgent ? 'Повторити останній невдалий хід агента' : 'Кнопка активна лише після помилки агента'"
       @click="retryAgent"
     >
       Спробувати ще раз
@@ -106,22 +90,13 @@ async function onEndInterview(): Promise<void> {
       type="button"
       class="btn-secondary"
       :disabled="!canStopAgents"
-      :title="
-        canStopAgents
-          ? 'Зупинити поточні процеси агентів'
-          : 'Немає зʼєднання з кімнатою'
-      "
+      :title="canStopAgents ? 'Зупинити поточні процеси агентів' : 'Немає зʼєднання з кімнатою'"
       @click="stopAgents"
     >
       Зупинити
     </button>
-    <button
-      type="button"
-      class="btn-danger"
-      :disabled="ending"
-      @click="onEndInterview"
-    >
-      {{ ending ? "Завершення…" : "Завершити співбесіду" }}
+    <button type="button" class="btn-danger" :disabled="ending" @click="onEndInterview">
+      {{ ending ? 'Завершення…' : 'Завершити співбесіду' }}
     </button>
   </div>
   <p v-if="endSuccess" class="success-banner">{{ endSuccess }}</p>
@@ -165,11 +140,13 @@ async function onEndInterview(): Promise<void> {
   gap: 1rem;
   align-items: start;
 }
-@media (max-width: 48rem) {
+
+@media (width <= 48rem) {
   .room-body--with-sidebar {
     grid-template-columns: 1fr;
   }
 }
+
 .room-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -177,6 +154,7 @@ async function onEndInterview(): Promise<void> {
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
+
 .btn-danger {
   font-family: inherit;
   font-size: 0.875rem;
@@ -187,10 +165,12 @@ async function onEndInterview(): Promise<void> {
   color: var(--danger);
   cursor: pointer;
 }
+
 .btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
 .success-banner {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
@@ -199,6 +179,7 @@ async function onEndInterview(): Promise<void> {
   border-radius: 6px;
   font-size: 0.875rem;
 }
+
 .report-link {
   display: inline-block;
   margin-bottom: 0.75rem;
@@ -206,9 +187,11 @@ async function onEndInterview(): Promise<void> {
   text-decoration: none;
   font-size: 0.875rem;
 }
+
 .report-link:hover {
   text-decoration: underline;
 }
+
 .error-banner {
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
@@ -217,6 +200,7 @@ async function onEndInterview(): Promise<void> {
   border-radius: 6px;
   font-size: 0.875rem;
 }
+
 .phase-banner {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
@@ -225,6 +209,7 @@ async function onEndInterview(): Promise<void> {
   border-radius: 6px;
   font-size: 0.875rem;
 }
+
 .agent-error-banner {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
@@ -237,6 +222,7 @@ async function onEndInterview(): Promise<void> {
   gap: 0.75rem;
   flex-wrap: wrap;
 }
+
 .btn-secondary {
   font-family: inherit;
   font-size: 0.875rem;
@@ -248,6 +234,7 @@ async function onEndInterview(): Promise<void> {
   cursor: pointer;
   white-space: nowrap;
 }
+
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;

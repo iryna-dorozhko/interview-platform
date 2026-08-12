@@ -1,45 +1,45 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+
 import {
   deleteCandidatePrepChat,
   fetchCandidatePrepState,
   finishCandidatePrepChat,
   sendCandidatePrepMessage,
-  type CandidateProfile,
-} from "../api/candidate-prep";
-import { usePrepChat } from "../composables/usePrepChat";
-import PrepChatPanel from "./PrepChatPanel.vue";
+  type CandidateProfile
+} from '../api/candidate-prep'
+import { usePrepChat } from '../composables/usePrepChat'
+import PrepChatPanel from './PrepChatPanel.vue'
 
-const props = defineProps<{ interviewId: string }>();
-const emit = defineEmits<{ finished: []; deleted: [] }>();
+const props = defineProps<{ interviewId: string }>()
+const emit = defineEmits<{ finished: []; deleted: [] }>()
 
 const chat = usePrepChat<CandidateProfile>({
   adapters: {
     loadState: async () => {
-      const state = await fetchCandidatePrepState(props.interviewId);
+      const state = await fetchCandidatePrepState(props.interviewId)
       return {
         messages: state.messages,
         isClosed: state.isClosed,
-        profile: state.profile,
-      };
+        profile: state.profile
+      }
     },
-    sendMessage: (text) => sendCandidatePrepMessage(props.interviewId, text),
+    sendMessage: text => sendCandidatePrepMessage(props.interviewId, text),
     finishChat: async () => {
-      await finishCandidatePrepChat(props.interviewId);
+      await finishCandidatePrepChat(props.interviewId)
     },
     deleteChat: () => deleteCandidatePrepChat(props.interviewId),
-    isUserMessage: (msg) => msg.authorType === "HUMAN_CANDIDATE",
-    humanAuthorType: "HUMAN_CANDIDATE",
-    agentAuthorType: "AGENT_CANDIDATE",
+    isUserMessage: msg => msg.authorType === 'HUMAN_CANDIDATE',
+    humanAuthorType: 'HUMAN_CANDIDATE',
+    agentAuthorType: 'AGENT_CANDIDATE'
   },
-  onAfterLoad: (state) => {
+  onAfterLoad: state => {
     if (state.isClosed) {
-      emit("finished");
+      emit('finished')
     }
   },
-  onFinished: () => emit("finished"),
-  onDeleted: () => emit("deleted"),
-});
+  onFinished: () => emit('finished'),
+  onDeleted: () => emit('deleted')
+})
 
 const {
   loadState,
@@ -57,20 +57,20 @@ const {
   finish,
   deleteChat,
   onKeydown,
-  isUserMessage,
-} = chat;
+  isUserMessage
+} = chat
 
 function setMessagesEl(el: HTMLElement | null): void {
-  messagesEl.value = el;
+  messagesEl.value = el
 }
 
 function setInput(value: string): void {
-  input.value = value;
+  input.value = value
 }
 
 onMounted(() => {
-  void load();
-});
+  void load()
+})
 </script>
 
 <template>

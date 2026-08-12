@@ -140,6 +140,7 @@ export async function confirmPrepProfile(
 ## Тестування і верифікація
 
 **Backend (`prep.test.ts`), нові кейси:**
+
 - `POST /confirm` без профілю (finish не викликали) → 404.
 - `POST /confirm` після `finish` → 200, `confirmedAt` не `null`, `Interview.status` змінився `DRAFT` → `AWAITING_CANDIDATE`.
 - Повторний `POST /confirm` → 409, дані профілю не змінились.
@@ -147,6 +148,7 @@ export async function confirmPrepProfile(
 - `GET /prep/:interviewId` повертає `confirmedAt` у профілі (null до підтвердження, дата після).
 
 **Ручний сценарій (Day 7 DoD):**
+
 1. Пройти чат до `finish` (як у Дні 6).
 2. Натиснути «Підтвердити профіль» → бачимо «✓ Підтверджено {дата}».
 3. Спроба «Видалити чат» → заблокована (кнопка disabled / 409 при прямому виклику API).

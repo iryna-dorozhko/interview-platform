@@ -20,11 +20,13 @@
 ### Task 1: Expand offer guidance in Company Agent prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-agent.uk.ts`
 - Modify: `backend/src/agents/company-agent.test.ts`
 - Test: `backend/src/agents/company-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `COMPANY_AGENT_SYSTEM_PROMPT_UK` string export
 - Produces: updated `COMPANY_AGENT_SYSTEM_PROMPT_UK` with expanded offer/compensation follow-up guidance
 
@@ -101,6 +103,7 @@ READY:true лише коли одночасно:
 ```
 
 Пояснення для інженера:
+
 - Вставлені лише “offer-detail anchors” (bonus/equity/сертифікації/житло/перельоти/OS/монітори) та розширення списку прикладів у блоці умов.
 - Контракт READY і структура prompt не змінюються.
 
@@ -117,4 +120,3 @@ Expected: PASS
 git add backend/src/agents/prompts/company-agent.uk.ts backend/src/agents/company-agent.test.ts
 git commit -m "feat(prep): expand vacancy offer questions in Company Agent prompt"
 ```
-

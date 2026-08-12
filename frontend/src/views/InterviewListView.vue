@@ -1,106 +1,98 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { RouterLink, useRouter } from "vue-router";
-import CreateAdditionalInterviewModal from "../components/CreateAdditionalInterviewModal.vue";
-import CreateInterviewModal from "../components/CreateInterviewModal.vue";
-import {
-  deleteInterview,
-  fetchMyInterviews,
-  type CreatedInterview,
-  type InterviewSummary,
-} from "../api/interviews";
 
-type ListState = "loading" | "ready" | "error";
+import CreateAdditionalInterviewModal from '../components/CreateAdditionalInterviewModal.vue'
+import CreateInterviewModal from '../components/CreateInterviewModal.vue'
+import { deleteInterview, fetchMyInterviews, type CreatedInterview, type InterviewSummary } from '../api/interviews'
+
+type ListState = 'loading' | 'ready' | 'error'
 
 const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Чернетка",
-  AWAITING_CANDIDATE: "Очікує кандидата",
-  READY: "Обидва готові",
-  LIVE: "В ефірі",
-  ENDED: "Завершена",
-};
+  DRAFT: 'Чернетка',
+  AWAITING_CANDIDATE: 'Очікує кандидата',
+  READY: 'Обидва готові',
+  LIVE: 'В ефірі',
+  ENDED: 'Завершена'
+}
 
-const router = useRouter();
+const router = useRouter()
 
-const interviews = ref<InterviewSummary[]>([]);
-const listState = ref<ListState>("loading");
-const listError = ref<string | null>(null);
-const actionError = ref<string | null>(null);
-const showCreateModal = ref(false);
-const showAdditionalModal = ref(false);
+const interviews = ref<InterviewSummary[]>([])
+const listState = ref<ListState>('loading')
+const listError = ref<string | null>(null)
+const actionError = ref<string | null>(null)
+const showCreateModal = ref(false)
+const showAdditionalModal = ref(false)
 
 async function loadInterviews(): Promise<void> {
-  listState.value = "loading";
-  listError.value = null;
+  listState.value = 'loading'
+  listError.value = null
   try {
-    interviews.value = await fetchMyInterviews();
-    listState.value = "ready";
+    interviews.value = await fetchMyInterviews()
+    listState.value = 'ready'
   } catch (error) {
-    listState.value = "error";
-    listError.value =
-      error instanceof Error ? error.message : "Не вдалося завантажити список співбесід";
+    listState.value = 'error'
+    listError.value = error instanceof Error ? error.message : 'Не вдалося завантажити список співбесід'
   }
 }
 
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  return STATUS_LABELS[status] ?? status
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("uk-UA");
+  return new Date(iso).toLocaleDateString('uk-UA')
 }
 
 function reportLabel(reportSummary: string | null): string {
-  return reportSummary ?? "—";
+  return reportSummary ?? '—'
 }
 
 function badgeClass(reportSummary: string): string {
-  if (reportSummary === "HIRE") return "badge-hire";
-  if (reportSummary === "MAYBE") return "badge-maybe";
-  if (reportSummary === "REJECT") return "badge-reject";
-  return "";
+  if (reportSummary === 'HIRE') return 'badge-hire'
+  if (reportSummary === 'MAYBE') return 'badge-maybe'
+  if (reportSummary === 'REJECT') return 'badge-reject'
+  return ''
 }
 
 function goToRoom(id: string): void {
-  router.push({ name: "interview-room", params: { id } });
+  router.push({ name: 'interview-room', params: { id } })
 }
 
 function onInterviewCreated(interview: CreatedInterview): void {
-  showCreateModal.value = false;
-  showAdditionalModal.value = false;
+  showCreateModal.value = false
+  showAdditionalModal.value = false
   interviews.value.unshift({
     id: interview.id,
     vacancyId: interview.vacancyId,
-    vacancyTitle: "",
+    vacancyTitle: '',
     displayName: interview.displayName,
     joinCode: interview.joinCode,
     status: interview.status,
     createdAt: interview.createdAt,
     scheduledAt: interview.scheduledAt,
     invitation: interview.invitation,
-    candidateLinked: interview.kind === "ADDITIONAL_MEETING",
+    candidateLinked: interview.kind === 'ADDITIONAL_MEETING',
     candidateUserId: null,
     reportId: null,
     reportSummary: null,
     kind: interview.kind,
-    followUpFromFinalReportId: interview.followUpFromFinalReportId ?? null,
-  });
+    followUpFromFinalReportId: interview.followUpFromFinalReportId ?? null
+  })
 }
 
 async function onDelete(id: string): Promise<void> {
-  actionError.value = null;
-  if (!window.confirm("Видалити співбесіду? Цю дію не можна скасувати.")) return;
+  actionError.value = null
+  if (!window.confirm('Видалити співбесіду? Цю дію не можна скасувати.')) return
 
   try {
-    await deleteInterview(id);
-    interviews.value = interviews.value.filter((i) => i.id !== id);
+    await deleteInterview(id)
+    interviews.value = interviews.value.filter(i => i.id !== id)
   } catch (error) {
-    actionError.value =
-      error instanceof Error ? error.message : "Не вдалося видалити співбесіду";
+    actionError.value = error instanceof Error ? error.message : 'Не вдалося видалити співбесіду'
   }
 }
 
-onMounted(loadInterviews);
+onMounted(loadInterviews)
 </script>
 
 <template>
@@ -108,9 +100,7 @@ onMounted(loadInterviews);
     <div class="list-header">
       <h1>Співбесіди</h1>
       <div class="header-actions">
-        <button type="button" class="btn-primary" @click="showCreateModal = true">
-          Створити зустріч
-        </button>
+        <button type="button" class="btn-primary" @click="showCreateModal = true">Створити зустріч</button>
         <button type="button" class="btn-secondary" @click="showAdditionalModal = true">
           Створити додаткову зустріч
         </button>
@@ -140,10 +130,7 @@ onMounted(loadInterviews);
               <button type="button" class="name-link" @click="goToRoom(interview.id)">
                 {{ interview.displayName }}
               </button>
-              <span
-                v-if="interview.kind === 'ADDITIONAL_MEETING'"
-                class="kind-badge"
-              >Додаткова</span>
+              <span v-if="interview.kind === 'ADDITIONAL_MEETING'" class="kind-badge">Додаткова</span>
             </td>
             <td>
               <RouterLink
@@ -167,20 +154,14 @@ onMounted(loadInterviews);
               >
                 Увійти в співбесіду
               </button>
-              <button type="button" class="btn-danger" @click="onDelete(interview.id)">
-                Видалити
-              </button>
+              <button type="button" class="btn-danger" @click="onDelete(interview.id)">Видалити</button>
             </td>
           </tr>
         </tbody>
       </table>
     </template>
 
-    <CreateInterviewModal
-      :open="showCreateModal"
-      @close="showCreateModal = false"
-      @created="onInterviewCreated"
-    />
+    <CreateInterviewModal :open="showCreateModal" @close="showCreateModal = false" @created="onInterviewCreated" />
     <CreateAdditionalInterviewModal
       :open="showAdditionalModal"
       @close="showAdditionalModal = false"
@@ -197,25 +178,31 @@ onMounted(loadInterviews);
   gap: 1rem;
   margin-bottom: 1rem;
 }
+
 .header-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
 .interview-list h1 {
   margin: 0;
   font-size: 1.25rem;
 }
+
 .muted {
   color: #6b7280;
 }
+
 .fail {
   color: var(--danger);
 }
+
 .interviews-table {
   width: 100%;
   border-collapse: collapse;
 }
+
 .interviews-table th,
 .interviews-table td {
   text-align: left;
@@ -223,18 +210,21 @@ onMounted(loadInterviews);
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
+
 .interviews-table th {
   font-size: 0.8rem;
   color: #555;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
 .primary-cell {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
+
 .kind-badge {
   display: inline-block;
   padding: 0.1rem 0.45rem;
@@ -244,6 +234,7 @@ onMounted(loadInterviews);
   background: #e5e7eb;
   color: #374151;
 }
+
 .name-link {
   font-family: inherit;
   font-size: inherit;
@@ -254,14 +245,17 @@ onMounted(loadInterviews);
   cursor: pointer;
   text-align: left;
 }
+
 .name-link:hover {
   text-decoration: underline;
 }
+
 .actions-cell {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
 .btn-primary,
 .btn-secondary,
 .btn-danger {
@@ -273,20 +267,24 @@ onMounted(loadInterviews);
   cursor: pointer;
   white-space: nowrap;
 }
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
 }
+
 .btn-secondary {
   background: #f3f4f6;
   color: #374151;
   border-color: #d1d5db;
 }
+
 .btn-danger {
   background: #fff;
   color: var(--danger);
   border-color: #fca5a5;
 }
+
 .report-badge {
   display: inline-block;
   padding: 0.125rem 0.5rem;
@@ -295,7 +293,19 @@ onMounted(loadInterviews);
   font-weight: 600;
   text-decoration: none;
 }
-.report-badge.badge-hire { background: #dcfce7; color: #16a34a; }
-.report-badge.badge-maybe { background: #fef9c3; color: #ca8a04; }
-.report-badge.badge-reject { background: #fee2e2; color: #dc2626; }
+
+.report-badge.badge-hire {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.report-badge.badge-maybe {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+
+.report-badge.badge-reject {
+  background: #fee2e2;
+  color: #dc2626;
+}
 </style>

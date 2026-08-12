@@ -51,6 +51,7 @@
 ### Task 1: `DELETE /api/interviews/:id` (TDD)
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.test.ts`
 - Modify: `backend/src/routes/interviews.ts`
 
@@ -206,6 +207,7 @@ git commit -m "feat: add DELETE /api/interviews/:id with cascade"
 ### Task 2: `reportSummary` in list endpoint
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 
@@ -241,6 +243,7 @@ git commit -m "feat: expose reportSummary from FinalReport in interview list"
 ### Task 3: `canAccessInterviewRoom` with `readOnly` (TDD)
 
 **Files:**
+
 - Create: `backend/src/socket/room-access.test.ts`
 - Create: `backend/src/socket/room-access.ts`
 - Modify: `backend/package.json`
@@ -343,6 +346,7 @@ git commit -m "feat: extend room access for early HR entry and read-only ENDED"
 ### Task 4: `room-presence` module (TDD)
 
 **Files:**
+
 - Create: `backend/src/socket/room-presence.test.ts`
 - Create: `backend/src/socket/room-presence.ts`
 
@@ -413,6 +417,7 @@ export function resetPresenceForTests(): void {
 ### Task 5: `maybeTransitionToLive` (TDD)
 
 **Files:**
+
 - Create: `backend/src/socket/maybe-transition-live.test.ts`
 - Create: `backend/src/socket/maybe-transition-live.ts`
 
@@ -496,6 +501,7 @@ export async function maybeTransitionToLive(
 ### Task 6: Socket bootstrap + `room.ts` handlers
 
 **Files:**
+
 - Create: `backend/src/socket/types.ts`, `auth.ts`, `room.ts`
 - Create: `backend/src/agents/stub-arbiter.ts`, `orchestrator.ts`
 - Modify: `backend/src/server.ts`, `backend/package.json`, `frontend/package.json`, `frontend/vite.config.ts`
@@ -574,6 +580,7 @@ git commit -m "feat: socket room with presence-based LIVE transition and orchest
 ### Task 7: Frontend `deleteInterview` + HR list UI
 
 **Files:**
+
 - Modify: `frontend/src/api/interviews.ts`
 - Modify: `frontend/src/views/InterviewListView.vue`
 
@@ -617,6 +624,7 @@ git commit -m "feat: HR interview list with create and delete actions"
 ### Task 8: Two-step `CreateInterviewModal`
 
 **Files:**
+
 - Modify: `frontend/src/components/CreateInterviewModal.vue`
 
 - [ ] **Step 1: Add step state**
@@ -666,6 +674,7 @@ function onContinue(): void {
 ### Task 9: `HrHomeView` cleanup
 
 **Files:**
+
 - Modify: `frontend/src/views/HrHomeView.vue`
 
 - [ ] **Step 1: Remove**
@@ -686,6 +695,7 @@ git commit -m "refactor: move interview creation to interviews tab"
 ### Task 10: Candidate join label + room entry
 
 **Files:**
+
 - Modify: `frontend/src/components/JoinInterviewModal.vue`
 - Modify: `frontend/src/views/CandidateInterviewView.vue`
 
@@ -719,6 +729,7 @@ Remove «буде доступна пізніше» placeholder.
 ### Task 11: Live room frontend
 
 **Files:**
+
 - Create: `frontend/src/api/socket.ts`
 - Create: `frontend/src/composables/useInterviewRoom.ts`
 - Create: `frontend/src/components/LiveChatPanel.vue`
@@ -786,6 +797,7 @@ git commit -m "feat: live interview room UI for HR and candidate"
 ### Task 12: README + manual smoke
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Add «Interview Tabs Live Room Quick Start» section**

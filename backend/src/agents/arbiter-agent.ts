@@ -1,245 +1,240 @@
-import type { LiveAuthorType, PrismaClient } from "@prisma/client";
-import { withLlmRetry } from "../llm/retry";
-import type { ChatMessage, LlmCompleteOptions, LlmProvider } from "../llm/types";
-import {
-  parseVacancyCompensation,
-  parseWorkConditionsArray,
-  type VacancyCompensation,
-} from "../utils/vacancy-work-conditions";
-import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from "./prompts/arbiter-agent.uk";
+import type { LiveAuthorType, PrismaClient } from '@prisma/client'
+import { withLlmRetry } from '../llm/retry'
+import type { ChatMessage, LlmCompleteOptions, LlmProvider } from '../llm/types'
+import { parseVacancyCompensation, parseWorkConditionsArray } from '../utils/vacancy-work-conditions'
+import type { VacancyCompensation } from '../utils/vacancy-work-conditions'
+import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
+import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from './prompts/arbiter-agent.uk'
 
 export const ARBITER_ACTIONS = [
-  "START",
-  "ANSWER",
-  "NEXT_QUESTION",
-  "CLARIFY",
-  "CANDIDATE_QUESTIONS",
-  "COMPANY_ANSWER",
-  "WAIT",
-  "SUGGEST_END",
-] as const;
+  'START',
+  'ANSWER',
+  'NEXT_QUESTION',
+  'CLARIFY',
+  'CANDIDATE_QUESTIONS',
+  'COMPANY_ANSWER',
+  'WAIT',
+  'SUGGEST_END'
+] as const
 
-export type ArbiterAction = (typeof ARBITER_ACTIONS)[number];
+export type ArbiterAction = (typeof ARBITER_ACTIONS)[number]
 
 export type ParsedArbiterCommand = {
-  action: ArbiterAction;
-  summaryUk: string;
-  briefUk?: string;
-  publicMessage?: string;
-};
+  action: ArbiterAction
+  summaryUk: string
+  briefUk?: string
+  publicMessage?: string
+}
 
 export type ArbiterTurnOptions = {
-  pendingQuestion: boolean;
-};
+  pendingQuestion: boolean
+}
 
 export class ArbiterReplyParseError extends Error {
   constructor(message: string) {
-    super(message);
-    this.name = "ArbiterReplyParseError";
+    super(message)
+    this.name = 'ArbiterReplyParseError'
   }
 }
 
 export interface ArbiterCompanyProfileContext {
-  role: string;
-  requirements: unknown;
-  culture: unknown;
-  expectations: unknown;
-  workConditions: string[];
-  compensation: VacancyCompensation | null;
+  role: string
+  requirements: unknown
+  culture: unknown
+  expectations: unknown
+  workConditions: string[]
+  compensation: VacancyCompensation | null
 }
 
 export interface LiveHistoryItem {
-  authorType: LiveAuthorType;
-  content: string;
+  authorType: LiveAuthorType
+  content: string
 }
 
 export class ArbiterContextError extends Error {
   constructor(message: string) {
-    super(message);
-    this.name = "ArbiterContextError";
+    super(message)
+    this.name = 'ArbiterContextError'
   }
 }
 
-function stripCodeFences(text: string): string {
-  const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  return match ? match[1] : text;
-}
-
+// Перевіряє ArbiterAction.
 function isArbiterAction(value: unknown): value is ArbiterAction {
-  return typeof value === "string" && (ARBITER_ACTIONS as readonly string[]).includes(value);
+  return typeof value === 'string' && (ARBITER_ACTIONS as readonly string[]).includes(value)
 }
 
+// Парсить ArbiterCommand з JSON-відповіді LLM.
 export function parseArbiterCommand(rawText: string): ParsedArbiterCommand {
-  const trimmed = stripCodeFences(rawText.trim());
+  const trimmed = stripLlmJsonCodeFences(rawText.trim())
 
-  let data: unknown;
+  let data: unknown
   try {
-    data = JSON.parse(trimmed);
+    data = JSON.parse(trimmed)
   } catch {
-    throw new ArbiterReplyParseError("LLM returned invalid JSON for arbiter command");
+    throw new ArbiterReplyParseError('LLM returned invalid JSON for arbiter command')
   }
 
-  if (typeof data !== "object" || data === null) {
-    throw new ArbiterReplyParseError("Arbiter command is not a JSON object");
+  if (typeof data !== 'object' || data === null) {
+    throw new ArbiterReplyParseError('Arbiter command is not a JSON object')
   }
 
-  const record = data as Record<string, unknown>;
-  const { action, summaryUk, briefUk, publicMessage } = record;
+  const record = data as Record<string, unknown>
+  const { action, summaryUk, briefUk, publicMessage } = record
 
   if (!isArbiterAction(action)) {
-    throw new ArbiterReplyParseError("missing or invalid field: action");
+    throw new ArbiterReplyParseError('missing or invalid field: action')
   }
 
-  if (typeof summaryUk !== "string" || !summaryUk.trim()) {
-    throw new ArbiterReplyParseError("missing or invalid field: summaryUk");
+  if (typeof summaryUk !== 'string' || !summaryUk.trim()) {
+    throw new ArbiterReplyParseError('missing or invalid field: summaryUk')
   }
 
   const result: ParsedArbiterCommand = {
     action,
-    summaryUk: summaryUk.trim(),
-  };
+    summaryUk: summaryUk.trim()
+  }
 
   if (briefUk !== undefined) {
-    if (typeof briefUk !== "string") {
-      throw new ArbiterReplyParseError("invalid field: briefUk");
+    if (typeof briefUk !== 'string') {
+      throw new ArbiterReplyParseError('invalid field: briefUk')
     }
-    const trimmedBrief = briefUk.trim();
+    const trimmedBrief = briefUk.trim()
     if (trimmedBrief) {
-      result.briefUk = trimmedBrief;
+      result.briefUk = trimmedBrief
     }
   }
 
   if (publicMessage !== undefined && publicMessage !== null) {
-    if (typeof publicMessage !== "string") {
-      throw new ArbiterReplyParseError("invalid field: publicMessage");
+    if (typeof publicMessage !== 'string') {
+      throw new ArbiterReplyParseError('invalid field: publicMessage')
     }
-    const trimmedPublic = publicMessage.trim();
+    const trimmedPublic = publicMessage.trim()
     if (trimmedPublic) {
-      result.publicMessage = trimmedPublic;
+      result.publicMessage = trimmedPublic
     }
   }
 
-  if (
-    (action === "START" || action === "SUGGEST_END") &&
-    !result.publicMessage
-  ) {
-    throw new ArbiterReplyParseError(
-      `action ${action} requires non-empty publicMessage`,
-    );
+  if ((action === 'START' || action === 'SUGGEST_END') && !result.publicMessage) {
+    throw new ArbiterReplyParseError(`action ${action} requires non-empty publicMessage`)
   }
 
-  return result;
+  return result
 }
 
-/** @deprecated Use parseArbiterCommand */
+// @deprecated Use parseArbiterCommand
 export function parseArbiterReply(rawText: string): ParsedArbiterCommand {
-  return parseArbiterCommand(rawText);
+  return parseArbiterCommand(rawText)
 }
 
 const ARBITER_LLM_OPTIONS: LlmCompleteOptions = {
   maxTokens: 256,
-  temperature: 0,
-};
+  temperature: 0
+}
 
+// Форматує ProfileBlock.
 function formatProfileBlock(label: string, data: unknown): string {
-  return `${label}: ${JSON.stringify(data)}`;
+  return `${label}: ${JSON.stringify(data)}`
 }
 
+// Будує SystemPrompt.
 function buildSystemPrompt(companyProfile: ArbiterCompanyProfileContext): string {
-  return ARBITER_AGENT_SYSTEM_PROMPT_UK.replace(
-    "{{COMPANY_PROFILE}}",
-    formatProfileBlock("Company", companyProfile),
-  );
+  return ARBITER_AGENT_SYSTEM_PROMPT_UK.replace('{{COMPANY_PROFILE}}', formatProfileBlock('Company', companyProfile))
 }
 
+// Модуль mapHistoryItem.
 function mapHistoryItem(item: LiveHistoryItem): ChatMessage {
   switch (item.authorType) {
-    case "HUMAN_HR":
-      return { role: "user", content: `[HR] ${item.content}` };
-    case "HUMAN_CANDIDATE":
-      return { role: "user", content: `[Кандидат] ${item.content}` };
-    case "AGENT_ARBITER":
-    case "AGENT_COMPANY":
-    case "AGENT_CANDIDATE":
-      return { role: "assistant", content: item.content };
+    case 'HUMAN_HR': {
+      return { role: 'user', content: `[HR] ${item.content}` }
+    }
+    case 'HUMAN_CANDIDATE': {
+      return { role: 'user', content: `[Кандидат] ${item.content}` }
+    }
+    case 'AGENT_ARBITER':
+    case 'AGENT_COMPANY':
+    case 'AGENT_CANDIDATE': {
+      return { role: 'assistant', content: item.content }
+    }
     default: {
-      const _exhaustive: never = item.authorType;
-      return _exhaustive;
+      const _exhaustive: never = item.authorType
+      return _exhaustive
     }
   }
 }
 
 export const PENDING_QUESTION_NUDGE_UK =
-  "[Система] Зараз є ВІДКРИТЕ питання. Якщо HUMAN_CANDIDATE звертається до Candidate Agent / просить його відповісти — ANSWER. Якщо питання від Candidate до Company (про компанію, вакансію, умови) — COMPANY_ANSWER; якщо від HR або Company до Candidate — правила нижче. Якщо Candidate Agent щойно попросив живу людину відповісти (немає даних у профілі) — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.";
+  '[Система] Зараз є ВІДКРИТЕ питання. Якщо HUMAN_CANDIDATE звертається до Candidate Agent / просить його відповісти — ANSWER. Якщо питання від Candidate до Company (про компанію, вакансію, умови) — COMPANY_ANSWER; якщо від HR або Company до Candidate — правила нижче. Якщо Candidate Agent щойно попросив живу людину відповісти (немає даних у профілі) — WAIT; якщо HR приймає відповідь або просить наступне питання — NEXT_QUESTION; якщо є змістовна відповідь і її мало — CLARIFY; інакше (питання ще без відповіді) — ANSWER.'
 
 export const NO_PENDING_QUESTION_NUDGE_UK =
-  "[Система] Відкритого питання немає. START лише після явного повідомлення HR про початок роботи; інакше WAIT. Якщо HUMAN_CANDIDATE звертається до Candidate Agent — ANSWER. Далі — NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.";
+  '[Система] Відкритого питання немає. START лише після явного повідомлення HR про початок роботи; інакше WAIT. Якщо HUMAN_CANDIDATE звертається до Candidate Agent — ANSWER. Далі — NEXT_QUESTION / CANDIDATE_QUESTIONS / WAIT / SUGGEST_END залежно від контексту.'
 
 export const ADDITIONAL_MEETING_ARBITER_NUDGE_UK =
-  "[Система] Режим додаткової зустрічі: Candidate Agent ВІДСУТНІЙ. " +
-  "НЕ використовуй ANSWER і CANDIDATE_QUESTIONS. " +
-  "Після питання Company / відкритого питання — WAIT (відповідає HUMAN_CANDIDATE або HR). " +
-  "Дозволені: START, NEXT_QUESTION, CLARIFY, COMPANY_ANSWER, WAIT, SUGGEST_END.";
+  '[Система] Режим додаткової зустрічі: Candidate Agent ВІДСУТНІЙ. ' +
+  'НЕ використовуй ANSWER і CANDIDATE_QUESTIONS. ' +
+  'Після питання Company / відкритого питання — WAIT (відповідає HUMAN_CANDIDATE або HR). ' +
+  'Дозволені: START, NEXT_QUESTION, CLARIFY, COMPANY_ANSWER, WAIT, SUGGEST_END.'
 
-export type ArbiterInterviewKind = "STANDARD" | "ADDITIONAL_MEETING";
+export type ArbiterInterviewKind = 'STANDARD' | 'ADDITIONAL_MEETING'
 
+// Будує ArbiterMessages.
 export function buildArbiterMessages(input: {
-  companyProfile: ArbiterCompanyProfileContext;
-  history: LiveHistoryItem[];
-  pendingQuestion: boolean;
-  interviewKind?: ArbiterInterviewKind;
+  companyProfile: ArbiterCompanyProfileContext
+  history: LiveHistoryItem[]
+  pendingQuestion: boolean
+  interviewKind?: ArbiterInterviewKind
 }): ChatMessage[] {
   const messages: ChatMessage[] = [
     {
-      role: "system",
-      content: buildSystemPrompt(input.companyProfile),
+      role: 'system',
+      content: buildSystemPrompt(input.companyProfile)
     },
-    ...input.history.map(mapHistoryItem),
-  ];
+    ...input.history.map(mapHistoryItem)
+  ]
 
   messages.push({
-    role: "user",
-    content: input.pendingQuestion ? PENDING_QUESTION_NUDGE_UK : NO_PENDING_QUESTION_NUDGE_UK,
-  });
+    role: 'user',
+    content: input.pendingQuestion ? PENDING_QUESTION_NUDGE_UK : NO_PENDING_QUESTION_NUDGE_UK
+  })
 
-  if (input.interviewKind === "ADDITIONAL_MEETING") {
+  if (input.interviewKind === 'ADDITIONAL_MEETING') {
     messages.push({
-      role: "user",
-      content: ADDITIONAL_MEETING_ARBITER_NUDGE_UK,
-    });
+      role: 'user',
+      content: ADDITIONAL_MEETING_ARBITER_NUDGE_UK
+    })
   }
 
-  return messages;
+  return messages
 }
 
+// Модуль runArbiterTurn.
 export async function runArbiterTurn(
   prisma: PrismaClient,
   interviewId: string,
   sessionId: string,
   provider: LlmProvider,
-  options: ArbiterTurnOptions = { pendingQuestion: false },
+  options: ArbiterTurnOptions = { pendingQuestion: false }
 ): Promise<ParsedArbiterCommand> {
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },
     include: {
-      vacancy: { include: { companyProfile: true } },
-    },
-  });
+      vacancy: { include: { companyProfile: true } }
+    }
+  })
 
-  const companyProfile = interview?.vacancy?.companyProfile;
+  const companyProfile = interview?.vacancy?.companyProfile
 
   if (!companyProfile) {
-    throw new ArbiterContextError("Missing company profile for arbiter turn");
+    throw new ArbiterContextError('Missing company profile for arbiter turn')
   }
 
   const history = await prisma.liveMessage.findMany({
     where: { sessionId },
-    orderBy: { createdAt: "asc" },
-    select: { authorType: true, content: true },
-  });
+    orderBy: { createdAt: 'asc' },
+    select: { authorType: true, content: true }
+  })
 
   const interviewKind: ArbiterInterviewKind =
-    interview?.kind === "ADDITIONAL_MEETING" ? "ADDITIONAL_MEETING" : "STANDARD";
+    interview?.kind === 'ADDITIONAL_MEETING' ? 'ADDITIONAL_MEETING' : 'STANDARD'
 
   const llmMessages = buildArbiterMessages({
     companyProfile: {
@@ -248,15 +243,18 @@ export async function runArbiterTurn(
       culture: companyProfile.culture,
       expectations: companyProfile.expectations,
       workConditions: parseWorkConditionsArray(companyProfile.workConditions),
-      compensation: parseVacancyCompensation(companyProfile.compensation),
+      compensation: parseVacancyCompensation(companyProfile.compensation)
     },
     history,
     pendingQuestion: options.pendingQuestion,
-    interviewKind,
-  });
+    interviewKind
+  })
 
-  return withLlmRetry(async () => {
-    const rawReply = await provider.complete(llmMessages, ARBITER_LLM_OPTIONS);
-    return parseArbiterCommand(rawReply);
-  }, { label: "arbiter" });
+  return withLlmRetry(
+    async () => {
+      const rawReply = await provider.complete(llmMessages, ARBITER_LLM_OPTIONS)
+      return parseArbiterCommand(rawReply)
+    },
+    { label: 'arbiter' }
+  )
 }

@@ -1,57 +1,33 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { RouterLink, useRoute } from "vue-router";
-import {
-  formatUnreadBadge,
-  useDialogUnread,
-} from "../composables/useDialogUnread";
 
-const route = useRoute();
-const { unreadCount } = useDialogUnread();
-const dialogBadge = computed(() =>
-  unreadCount.value > 0 ? formatUnreadBadge(unreadCount.value) : null,
-);
+import { formatUnreadBadge, useDialogUnread } from '../composables/useDialogUnread'
+
+const route = useRoute()
+const { unreadCount } = useDialogUnread()
+const dialogBadge = computed(() => (unreadCount.value > 0 ? formatUnreadBadge(unreadCount.value) : null))
 
 function isActive(prefix: string): boolean {
-  return route.path === prefix || route.path.startsWith(`${prefix}/`);
+  return route.path === prefix || route.path.startsWith(`${prefix}/`)
 }
 
 function isHomeActive(): boolean {
-  return route.name === "candidate-home";
+  return route.name === 'candidate-home'
 }
 </script>
 
 <template>
   <nav class="sidebar" aria-label="Candidate navigation">
-    <RouterLink to="/candidate" class="nav-item" :class="{ active: isHomeActive() }">
-      Головна
-    </RouterLink>
-    <RouterLink
-      to="/candidate/profile"
-      class="nav-item"
-      :class="{ active: isActive('/candidate/profile') }"
-    >
+    <RouterLink to="/candidate" class="nav-item" :class="{ active: isHomeActive() }"> Головна </RouterLink>
+    <RouterLink to="/candidate/profile" class="nav-item" :class="{ active: isActive('/candidate/profile') }">
       Моя анкета
     </RouterLink>
-    <RouterLink
-      to="/candidate/matches"
-      class="nav-item"
-      :class="{ active: isActive('/candidate/matches') }"
-    >
+    <RouterLink to="/candidate/matches" class="nav-item" :class="{ active: isActive('/candidate/matches') }">
       Доступні вакансії
     </RouterLink>
-    <RouterLink
-      to="/candidate/interview"
-      class="nav-item"
-      :class="{ active: isActive('/candidate/interview') }"
-    >
+    <RouterLink to="/candidate/interview" class="nav-item" :class="{ active: isActive('/candidate/interview') }">
       Співбесіда
     </RouterLink>
-    <RouterLink
-      to="/candidate/dialogs"
-      class="nav-item"
-      :class="{ active: isActive('/candidate/dialogs') }"
-    >
+    <RouterLink to="/candidate/dialogs" class="nav-item" :class="{ active: isActive('/candidate/dialogs') }">
       <span>Діалоги</span>
       <span v-if="dialogBadge" class="nav-badge">{{ dialogBadge }}</span>
     </RouterLink>
@@ -69,6 +45,7 @@ function isHomeActive(): boolean {
   flex: 0 0 var(--sidebar-width);
   min-width: var(--sidebar-width);
 }
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -81,11 +58,13 @@ function isHomeActive(): boolean {
   font-size: 0.95rem;
   line-height: 1.35;
 }
+
 .nav-item.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
+
 .nav-badge {
   display: inline-flex;
   align-items: center;

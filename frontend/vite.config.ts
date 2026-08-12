@@ -1,20 +1,37 @@
-import { defineConfig, type PluginOption } from "vite";
-import vue from "@vitejs/plugin-vue";
+import Vue from '@vitejs/plugin-vue'
+import VueMacros from 'vue-macros/vite'
+import { defineConfig, type PluginOption } from 'vite'
+import AutoImport from 'unplugin-auto-import/vite'
+import Layouts from 'vite-plugin-vue-layouts-next'
 
 export default defineConfig({
-  plugins: [vue() as PluginOption],
+  css: {
+    transformer: 'lightningcss'
+  },
+  plugins: [
+    AutoImport({
+      imports: ['vue', 'vue-router', 'pinia'],
+      dts: 'src/auto-imports.d.ts'
+    }) as PluginOption,
+    VueMacros({
+      plugins: {
+        vue: Vue()
+      }
+    }) as PluginOption,
+    Layouts() as PluginOption
+  ],
   server: {
     port: 5173,
     proxy: {
-      "/api": {
-        target: "http://localhost:3000",
-        changeOrigin: true,
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true
       },
-      "/socket.io": {
-        target: "http://localhost:3000",
+      '/socket.io': {
+        target: 'http://localhost:3000',
         changeOrigin: true,
-        ws: true,
-      },
-    },
-  },
-});
+        ws: true
+      }
+    }
+  }
+})

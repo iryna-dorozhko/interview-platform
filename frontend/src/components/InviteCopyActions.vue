@@ -1,39 +1,39 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { buildInviteLink, buildInviteMessage } from "../utils/invite-message";
+
+import { buildInviteLink, buildInviteMessage } from '../utils/invite-message'
 
 const props = defineProps<{
-  joinCode: string;
-  displayName: string;
-  scheduledAt: string | null;
-  interviewKind?: "STANDARD" | "ADDITIONAL_MEETING" | null;
-}>();
+  joinCode: string
+  displayName: string
+  scheduledAt: string | null
+  interviewKind?: 'STANDARD' | 'ADDITIONAL_MEETING' | null
+}>()
 
-const copyError = ref<string | null>(null);
-const copied = ref<"code" | "link" | "text" | null>(null);
+const copyError = ref<string | null>(null)
+const copied = ref<'code' | 'link' | 'text' | null>(null)
 
-const origin = window.location.origin;
+const origin = window.location.origin
 
-async function copyText(text: string, kind: "code" | "link" | "text"): Promise<void> {
-  copyError.value = null;
-  copied.value = null;
+async function copyText(text: string, kind: 'code' | 'link' | 'text'): Promise<void> {
+  copyError.value = null
+  copied.value = null
   try {
-    await navigator.clipboard.writeText(text);
-    copied.value = kind;
+    await navigator.clipboard.writeText(text)
+    copied.value = kind
     window.setTimeout(() => {
-      if (copied.value === kind) copied.value = null;
-    }, 2000);
+      if (copied.value === kind) copied.value = null
+    }, 2000)
   } catch {
-    copyError.value = "Не вдалося скопіювати";
+    copyError.value = 'Не вдалося скопіювати'
   }
 }
 
 function copyCode(): Promise<void> {
-  return copyText(props.joinCode, "code");
+  return copyText(props.joinCode, 'code')
 }
 
 function copyLink(): Promise<void> {
-  return copyText(buildInviteLink(origin, props.joinCode), "link");
+  return copyText(buildInviteLink(origin, props.joinCode), 'link')
 }
 
 function copyMessage(): Promise<void> {
@@ -43,10 +43,10 @@ function copyMessage(): Promise<void> {
       joinCode: props.joinCode,
       origin,
       scheduledAt: props.scheduledAt,
-      interviewKind: props.interviewKind,
+      interviewKind: props.interviewKind
     }),
-    "text",
-  );
+    'text'
+  )
 }
 </script>
 
@@ -54,9 +54,7 @@ function copyMessage(): Promise<void> {
   <div class="copy-actions">
     <button type="button" class="btn-secondary" @click="copyCode">Скопіювати код</button>
     <button type="button" class="btn-secondary" @click="copyLink">Скопіювати посилання</button>
-    <button type="button" class="btn-secondary" @click="copyMessage">
-      Скопіювати текст запрошення
-    </button>
+    <button type="button" class="btn-secondary" @click="copyMessage">Скопіювати текст запрошення</button>
     <p v-if="copied === 'code'" class="success">Код скопійовано</p>
     <p v-else-if="copied === 'link'" class="success">Посилання скопійовано</p>
     <p v-else-if="copied === 'text'" class="success">Текст скопійовано</p>
@@ -71,6 +69,7 @@ function copyMessage(): Promise<void> {
   gap: 0.5rem;
   margin: 0.75rem 0;
 }
+
 .btn-secondary {
   font-family: inherit;
   font-size: 0.875rem;
@@ -81,12 +80,14 @@ function copyMessage(): Promise<void> {
   color: #374151;
   cursor: pointer;
 }
+
 .success {
   margin: 0;
   color: #059669;
   font-size: 0.8125rem;
   text-align: center;
 }
+
 .fail {
   margin: 0;
   color: var(--danger);

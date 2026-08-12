@@ -8,6 +8,7 @@
 Під час заповнення вакансії HR веде діалог з **Company Agent** (`COMPANY_AGENT_SYSTEM_PROMPT_UK`), який збирає профіль вакансії.
 
 У фінальних комунікаціях “offer” формується з:
+
 - `compensation` (об’єкт `displayText`) для рядка `Зарплата: ...`
 - `workConditions` (масив з **рівно 6** рядків з префіксами: `Формат:`, `Графік:`, `Бенефіти:`, `Релокація:`, `Випробувальний:`, `Обладнання:`)
 
@@ -42,10 +43,12 @@
 ## Scope
 
 ### In scope
+
 - `backend/src/agents/prompts/company-agent.uk.ts`: розширення інструкцій для salary/offer і 6 підтем workConditions
 - `backend/src/agents/company-agent.test.ts`: корекція очікувань, якщо тести прив’язані до конкретних фраз (при збереженні змісту)
 
 ### Out of scope (навмисно)
+
 - Не змінюємо `VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK` (JSON schema)
 - Не змінюємо `decision-letter-agent` або логіку побудови `offerLines`
 - Не додаємо нові UI поля в `VacancyPrepView.vue`
@@ -54,13 +57,14 @@
 ## Тестування
 
 Мінімальний набір:
+
 - `backend/src/agents/company-agent.test.ts` (pass)
 
 Додатково (якщо виявляться залежності через regex/якорі):
+
 - `backend/src/agents/*profile extraction*` тести (але без зміни schema)
 
 ## Ризики
 
 1. **Тести можуть бути прив’язані до конкретних фраз у промпті** — тоді оновлюємо очікування тестів (не змінюючи контракту).
 2. **Занадто довгі/жорсткі інструкції** можуть погіршити natural-стиль — тому follow-up має бути conditional: “якщо відповідь неповна — уточни”.
-

@@ -1,111 +1,93 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router";
-import {
-  deleteDialog,
-  fetchDialogs,
-  type DialogMessage,
-  type InterviewDecisionType,
-} from "../api/dialogs";
-import { useDialogThread } from "../composables/useDialogThread";
-import { useDialogUnread } from "../composables/useDialogUnread";
-import { useAuthStore } from "../stores/auth";
+
+import { deleteDialog, fetchDialogs, type DialogMessage, type InterviewDecisionType } from '../api/dialogs'
+import { useDialogThread } from '../composables/useDialogThread'
+import { useDialogUnread } from '../composables/useDialogUnread'
+import { useAuthStore } from '../stores/auth'
 
 const DECISION_BADGES: Record<InterviewDecisionType, string> = {
-  ACCEPT: "Прийнято",
-  REJECT: "Відхилено",
-  ADDITIONAL_MEETING: "Додаткова зустріч",
-};
+  ACCEPT: 'Прийнято',
+  REJECT: 'Відхилено',
+  ADDITIONAL_MEETING: 'Додаткова зустріч'
+}
 
-const route = useRoute();
-const router = useRouter();
-const auth = useAuthStore();
-const { markRead, refresh } = useDialogUnread();
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+const { markRead, refresh } = useDialogUnread()
 
-const isCandidate = computed(() => route.path.startsWith("/candidate"));
-const basePath = computed(() =>
-  isCandidate.value ? "/candidate/dialogs" : "/dialogs",
-);
-const dialogId = computed(() => String(route.params.id));
+const isCandidate = computed(() => route.path.startsWith('/candidate'))
+const basePath = computed(() => (isCandidate.value ? '/candidate/dialogs' : '/dialogs'))
+const dialogId = computed(() => String(route.params.id))
 
-const peerLabel = ref("Діалог");
-const deleting = ref(false);
-const deleteError = ref<string | null>(null);
+const peerLabel = ref('Діалог')
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
 
-const currentUserId = computed(() => auth.user?.id ?? null);
+const currentUserId = computed(() => auth.user?.id ?? null)
 
-const {
-  loadState,
-  loadError,
-  messages,
-  draft,
-  sending,
-  sendError,
-  peerTypingLabel,
-  notifyTypingInput,
-  send,
-} = useDialogThread(dialogId, {
-  currentUserId,
-  onLoaded: async (id) => {
-    peerLabel.value = "Діалог";
-    try {
-      const list = await fetchDialogs();
-      const match = list.find((item) => item.id === id);
-      if (match?.peer?.email) {
-        peerLabel.value = match.peer.email;
+const { loadState, loadError, messages, draft, sending, sendError, peerTypingLabel, notifyTypingInput, send } =
+  useDialogThread(dialogId, {
+    currentUserId,
+    onLoaded: async id => {
+      peerLabel.value = 'Діалог'
+      try {
+        const list = await fetchDialogs()
+        const match = list.find(item => item.id === id)
+        if (match?.peer?.email) {
+          peerLabel.value = match.peer.email
+        }
+      } catch {
+        // keep default label
       }
-    } catch {
-      // keep default label
+      try {
+        await markRead(id)
+      } catch {
+        // leave unread badge until next successful mark/poll
+      }
     }
-    try {
-      await markRead(id);
-    } catch {
-      // leave unread badge until next successful mark/poll
-    }
-  },
-});
+  })
 
-watch(draft, (value) => {
-  notifyTypingInput(value);
-});
+watch(draft, value => {
+  notifyTypingInput(value)
+})
 
 function isOwn(message: DialogMessage): boolean {
-  return currentUserId.value != null && message.senderUserId === currentUserId.value;
+  return currentUserId.value != null && message.senderUserId === currentUserId.value
 }
 
 function decisionBadge(type: InterviewDecisionType | null): string | null {
-  if (!type) return null;
-  return DECISION_BADGES[type] ?? type;
+  if (!type) return null
+  return DECISION_BADGES[type] ?? type
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString("uk-UA", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date(iso).toLocaleString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 async function onDelete(): Promise<void> {
-  if (deleting.value) return;
+  if (deleting.value) return
   const ok = window.confirm(
-    "Видалити цей діалог зі свого списку? Він знову з’явиться, якщо співрозмовник напише нове повідомлення.",
-  );
-  if (!ok) return;
+    'Видалити цей діалог зі свого списку? Він знову з’явиться, якщо співрозмовник напише нове повідомлення.'
+  )
+  if (!ok) return
 
-  deleting.value = true;
-  deleteError.value = null;
+  deleting.value = true
+  deleteError.value = null
   try {
-    await deleteDialog(dialogId.value);
-    await refresh();
-    await router.push(basePath.value);
+    await deleteDialog(dialogId.value)
+    await refresh()
+    await router.push(basePath.value)
   } catch (error) {
-    deleteError.value =
-      error instanceof Error ? error.message : "Не вдалося видалити діалог";
+    deleteError.value = error instanceof Error ? error.message : 'Не вдалося видалити діалог'
   } finally {
-    deleting.value = false;
+    deleting.value = false
   }
 }
 </script>
@@ -116,13 +98,7 @@ async function onDelete(): Promise<void> {
       <RouterLink :to="basePath" class="back-link">← До діалогів</RouterLink>
       <div class="header-row">
         <h1>{{ peerLabel }}</h1>
-        <button
-          v-if="loadState === 'ready'"
-          type="button"
-          class="btn-danger"
-          :disabled="deleting"
-          @click="onDelete"
-        >
+        <button v-if="loadState === 'ready'" type="button" class="btn-danger" :disabled="deleting" @click="onDelete">
           Видалити
         </button>
       </div>
@@ -135,17 +111,12 @@ async function onDelete(): Promise<void> {
     <template v-else>
       <div class="messages" role="log" aria-live="polite">
         <p v-if="messages.length === 0" class="muted">Поки немає повідомлень</p>
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          class="bubble-row"
-          :class="{ own: isOwn(message) }"
-        >
+        <div v-for="message in messages" :key="message.id" class="bubble-row" :class="{ own: isOwn(message) }">
           <div
             class="bubble"
             :class="{
               own: isOwn(message),
-              letter: message.kind === 'DECISION_LETTER',
+              letter: message.kind === 'DECISION_LETTER'
             }"
           >
             <span
@@ -167,21 +138,10 @@ async function onDelete(): Promise<void> {
       <form class="composer" @submit.prevent="send">
         <label class="field">
           <span class="sr-only">Повідомлення</span>
-          <textarea
-            v-model="draft"
-            rows="3"
-            placeholder="Напишіть повідомлення…"
-            :disabled="sending"
-          />
+          <textarea v-model="draft" rows="3" placeholder="Напишіть повідомлення…" :disabled="sending" />
         </label>
         <p v-if="sendError" class="fail" role="alert">{{ sendError }}</p>
-        <button
-          type="submit"
-          class="btn-primary"
-          :disabled="!draft.trim() || sending"
-        >
-          Надіслати
-        </button>
+        <button type="submit" class="btn-primary" :disabled="!draft.trim() || sending">Надіслати</button>
       </form>
     </template>
   </div>
@@ -196,30 +156,36 @@ async function onDelete(): Promise<void> {
   gap: 1rem;
   min-height: calc(100vh - 6rem);
 }
+
 .header {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
+
 .header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
 }
+
 .back-link {
   color: var(--accent);
   text-decoration: none;
   font-size: 0.875rem;
   width: fit-content;
 }
+
 .back-link:hover {
   text-decoration: underline;
 }
+
 h1 {
   margin: 0;
   font-size: 1.25rem;
 }
+
 .btn-danger {
   font-family: inherit;
   font-size: 0.875rem;
@@ -231,22 +197,27 @@ h1 {
   cursor: pointer;
   flex-shrink: 0;
 }
+
 .btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
 .muted {
   color: var(--muted);
 }
+
 .typing {
   margin: 0.25rem 0 0;
   color: #666;
   font-size: 0.875rem;
   font-style: italic;
 }
+
 .fail {
   color: var(--danger);
 }
+
 .messages {
   flex: 1;
   display: flex;
@@ -256,13 +227,16 @@ h1 {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
+
 .bubble-row {
   display: flex;
   justify-content: flex-start;
 }
+
 .bubble-row.own {
   justify-content: flex-end;
 }
+
 .bubble {
   max-width: min(36rem, 85%);
   padding: 0.65rem 0.8rem;
@@ -273,13 +247,16 @@ h1 {
   flex-direction: column;
   gap: 0.35rem;
 }
+
 .bubble.own {
   background: var(--accent-soft);
   border-color: var(--accent-border);
 }
+
 .bubble.letter {
   background: #fff;
 }
+
 .badge {
   align-self: flex-start;
   font-size: 0.75rem;
@@ -289,18 +266,22 @@ h1 {
   background: var(--surface-muted);
   color: var(--text);
 }
+
 .badge.ACCEPT {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
 .badge.REJECT {
   background: var(--danger-soft);
   color: var(--danger);
 }
+
 .badge.ADDITIONAL_MEETING {
   background: var(--warning-soft);
   color: var(--warning);
 }
+
 .body {
   margin: 0;
   white-space: pre-wrap;
@@ -308,15 +289,18 @@ h1 {
   font-size: 0.95rem;
   line-height: 1.45;
 }
+
 .meta {
   font-size: 0.75rem;
   color: var(--muted);
 }
+
 .composer {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
+
 .field textarea {
   width: 100%;
   box-sizing: border-box;
@@ -327,6 +311,7 @@ h1 {
   resize: vertical;
   min-height: 4.5rem;
 }
+
 .btn-primary {
   align-self: flex-end;
   border: none;
@@ -337,10 +322,12 @@ h1 {
   background: var(--accent);
   color: #fff;
 }
+
 .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .sr-only {
   position: absolute;
   width: 1px;

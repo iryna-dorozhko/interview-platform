@@ -36,4 +36,4 @@ export const ARBITER_AGENT_SYSTEM_PROMPT_UK = `Ти — Arbiter (дириген�
 }
 
 Профіль компанії (контекст теми):
-{{COMPANY_PROFILE}}`;
+{{COMPANY_PROFILE}}`

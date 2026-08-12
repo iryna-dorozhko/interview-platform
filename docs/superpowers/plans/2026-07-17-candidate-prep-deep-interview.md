@@ -32,10 +32,12 @@
 ### Task 1: Candidate Agent System Prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-agent.uk.ts`
 - Test: `backend/src/agents/candidate-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CANDIDATE_AGENT_SYSTEM_PROMPT_UK` (експортована константа)
 - Produces: оновлений `CANDIDATE_AGENT_SYSTEM_PROMPT_UK`, який використовує `buildCandidateAgentMessages()` без змін сигнатури
 
@@ -162,10 +164,12 @@ git commit -m "feat(agents): deepen candidate prep interview with work condition
 ### Task 2: Profile Extraction Prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-profile-extraction.uk.ts`
 - Test: `backend/src/agents/candidate-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CANDIDATE_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK`
 - Produces: оновлений extraction prompt; `parseCandidateProfileExtraction()` лишається без змін (приймає `goals: string[]`)
 
@@ -240,9 +244,11 @@ git commit -m "feat(agents): extract work conditions into candidate goals with p
 ### Task 3: Manual Test Dialogues + Build Verification
 
 **Files:**
+
 - Modify: `docs/manual-test-dialogues.uk.md`
 
 **Interfaces:**
+
 - Consumes: оновлені промпти з Task 1–2
 - Produces: оновлений ручний сценарій для QA
 
@@ -251,11 +257,13 @@ git commit -m "feat(agents): extract work conditions into candidate goals with p
 У `docs/manual-test-dialogues.uk.md`, секція «2. Кандидат — анкета», замінити рядок 65:
 
 Було:
+
 ```
 На початку чату Candidate Agent представляється і збирає контакти **до** тем профілю (досвід, навички, цілі):
 ```
 
 Стало:
+
 ```
 На початку чату Candidate Agent представляється і збирає контакти **до** тем профілю (досвід, навички, зони росту, умови роботи, кар'єрні цілі):
 ```
@@ -268,37 +276,49 @@ git commit -m "feat(agents): extract work conditions into candidate goals with p
 **Відповідь 7 — формат роботи**
 
 ```
+
 Повністю remote. Готовий іноді приїжджати в офіс на командні зустрічі раз на місяць.
+
 ```
 
 **Відповідь 8 — зарплата**
 
 ```
+
 Очікую від 4500 USD gross на місяць.
+
 ```
 
 **Відповідь 9 — графік**
 
 ```
+
 Повний робочий день, гнучкий старт між 9:00 і 11:00.
+
 ```
 
 **Відповідь 10 — релокація**
 
 ```
+
 Не розглядаю релокацію, працюю з Києва.
+
 ```
 
 **Відповідь 11 — кар'єрні цілі**
 
 ```
+
 Хочу перейти на рівень senior у продуктовій команді, де видно вплив на бізнес. Шукаю стабільну команду з менторством і можливістю розвивати архітектурні навички.
+
 ```
 
 **Відповідь 12 — якщо агент просить уточнення по досвіду (опційно)**
 
 ```
+
 Останній проєкт — інтеграція з трьома платіжними провайдерами. Відповідав за API-шар і міграції БД. Команда була з чотирьох backend-розробників. Обсяг — до 50 тис. транзакцій на день.
+
 ```
 ```
 
@@ -316,6 +336,7 @@ git commit -m "feat(agents): extract work conditions into candidate goals with p
 - [ ] **Step 4: Run full backend test suite and build**
 
 Run:
+
 ```bash
 cd backend && npm test
 cd .. && npm run build

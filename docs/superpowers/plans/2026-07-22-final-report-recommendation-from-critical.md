@@ -32,10 +32,12 @@
 ### Task 1: Backend normalizeRecommendation (TDD)
 
 **Files:**
+
 - Modify: `backend/src/agents/final-report-agent.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts`
 
 **Interfaces:**
+
 - Produces: `normalizeRecommendation(assessments: RequirementAssessment[], recommendation: "HIRE"|"MAYBE"|"REJECT"): "HIRE"|"MAYBE"|"REJECT"`
 - Consumes: validated assessments from `validateAssessments`
 
@@ -82,6 +84,7 @@ function normalizeRecommendation(
 ### Task 2: Prompt + README
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/final-report.uk.ts`
 - Modify: `backend/src/agents/final-report-agent.test.ts` (assert prompt rules if already checked)
 - Modify: `README.md` (секція про фінальний звіт / scoring)
@@ -89,6 +92,7 @@ function normalizeRecommendation(
 - [ ] **Step 1: Update prompt recommendation rules**
 
 Замінити рядок про recommendation на:
+
 - усі critical `met` (або critical немає) → recommendation **має** бути HIRE
 - будь-яка critical `unmet` або `unknown` → recommendation **НЕ** може бути HIRE
 

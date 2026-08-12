@@ -1,48 +1,46 @@
-import { Router, type Request, type Response } from "express";
-import type { Prisma, PrismaClient } from "@prisma/client";
-import {
-  buildCandidateAgentMessages,
-  buildCandidateProfileExtractionMessages,
-  extractContactPreviewFromHistory,
-  parseCandidateProfileExtraction,
-  type CandidatePrepHistoryItem,
-  type ContactPreview,
-} from "../agents/candidate-agent";
-import { parseAgentReply } from "../agents/agent-reply";
-import { LlmError } from "../llm/errors";
-import { toSafeLlmErrorMessage, withLlmRetry } from "../llm/retry";
-import type { LlmProvider } from "../llm/types";
-import { maybeTransitionToReady } from "../utils/interview-readiness";
+import { Router } from 'express'
+import type { Request, Response } from 'express'
+import type { Prisma, PrismaClient } from '@prisma/client'
+import { buildCandidateAgentMessages, buildCandidateProfileExtractionMessages, extractContactPreviewFromHistory, parseCandidateProfileExtraction } from '../agents/candidate-agent'
+import type { CandidatePrepHistoryItem, ContactPreview } from '../agents/candidate-agent'
+import { parseAgentReply } from '../agents/agent-reply'
+import { LlmError } from '../llm/errors'
+import { toSafeLlmErrorMessage, withLlmRetry } from '../llm/retry'
+import type { LlmProvider } from '../llm/types'
+import { maybeTransitionToReady } from '../utils/interview-readiness'
+import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 
+// Модуль llmHttpStatus.
 function llmHttpStatus(error: unknown): number {
-  if (error instanceof LlmError && error.code === "empty_response") return 502;
-  if (error instanceof Error && error.name.endsWith("ExtractionError")) return 502;
-  return 503;
+  if (error instanceof LlmError && error.code === 'empty_response') return 502
+  if (error instanceof Error && error.name.endsWith('ExtractionError')) return 502
+  return 503
 }
 
 type MessageBody = {
-  message?: unknown;
-};
+  message?: unknown
+}
 
 type ProfilePatchBody = {
-  fullName?: unknown;
-  email?: unknown;
-  phone?: unknown;
-  experience?: unknown;
-  skills?: unknown;
-  goals?: unknown;
-  summary?: unknown;
-};
+  fullName?: unknown
+  email?: unknown
+  phone?: unknown
+  experience?: unknown
+  skills?: unknown
+  goals?: unknown
+  summary?: unknown
+}
 
+// Модуль serializeCandidateProfile.
 function serializeCandidateProfile(profile: {
-  fullName: string;
-  email: string;
-  phone: string | null;
-  experience: unknown;
-  skills: unknown;
-  goals: unknown;
-  summary: string;
-  confirmedAt: Date | null;
+  fullName: string
+  email: string
+  phone: string | null
+  experience: unknown
+  skills: unknown
+  goals: unknown
+  summary: string
+  confirmedAt: Date | null
 }) {
   return {
     fullName: profile.fullName,
@@ -52,366 +50,363 @@ function serializeCandidateProfile(profile: {
     skills: profile.skills,
     goals: profile.goals,
     summary: profile.summary,
-    confirmedAt: profile.confirmedAt,
-  };
+    confirmedAt: profile.confirmedAt
+  }
 }
 
+// Парсить StringArray.
 function parseStringArray(value: unknown): string[] | null {
   if (!Array.isArray(value) || value.length === 0) {
-    return null;
+    return null
   }
-  const items = value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
+  const items = value.map(item => (typeof item === 'string' ? item.trim() : '')).filter(item => item.length > 0)
   if (items.length === 0 || items.length !== value.length) {
-    return null;
+    return null
   }
-  return items;
+  return items
 }
 
+// Модуль asInputJson.
 function asInputJson(value: unknown): Prisma.InputJsonValue {
-  return value as Prisma.InputJsonValue;
+  return value as Prisma.InputJsonValue
 }
 
+// Парсить CandidateProfilePatch.
 function parseCandidateProfilePatch(
   body: ProfilePatchBody
 ): { ok: true; data: Prisma.CandidateProfileUpdateInput } | { ok: false; error: string } {
-  const data: Prisma.CandidateProfileUpdateInput = {};
-  const hasField = (field: keyof ProfilePatchBody) => Object.prototype.hasOwnProperty.call(body, field);
+  const data: Prisma.CandidateProfileUpdateInput = {}
+  const hasField = (field: keyof ProfilePatchBody) => Object.hasOwn(body, field)
 
-  if (!Object.keys(body).some((key) => hasField(key as keyof ProfilePatchBody))) {
-    return { ok: false, error: "No fields to update" };
+  if (!Object.keys(body).some(key => hasField(key as keyof ProfilePatchBody))) {
+    return { ok: false, error: 'No fields to update' }
   }
 
-  if (hasField("fullName")) {
-    if (typeof body.fullName !== "string" || body.fullName.trim() === "") {
-      return { ok: false, error: "Invalid fullName" };
+  if (hasField('fullName')) {
+    if (typeof body.fullName !== 'string' || body.fullName.trim() === '') {
+      return { ok: false, error: 'Invalid fullName' }
     }
-    data.fullName = body.fullName.trim();
+    data.fullName = body.fullName.trim()
   }
 
-  if (hasField("email")) {
-    if (typeof body.email !== "string" || body.email.trim() === "" || !body.email.includes("@")) {
-      return { ok: false, error: "Invalid email" };
+  if (hasField('email')) {
+    if (typeof body.email !== 'string' || body.email.trim() === '' || !body.email.includes('@')) {
+      return { ok: false, error: 'Invalid email' }
     }
-    data.email = body.email.trim();
+    data.email = body.email.trim()
   }
 
-  if (hasField("phone")) {
+  if (hasField('phone')) {
     if (body.phone === null) {
-      data.phone = null;
-    } else if (typeof body.phone === "string") {
-      const trimmed = body.phone.trim();
-      data.phone = trimmed === "" ? null : trimmed;
+      data.phone = null
+    } else if (typeof body.phone === 'string') {
+      const trimmed = body.phone.trim()
+      data.phone = trimmed === '' ? null : trimmed
     } else {
-      return { ok: false, error: "Invalid phone" };
+      return { ok: false, error: 'Invalid phone' }
     }
   }
 
-  if (hasField("summary")) {
-    if (typeof body.summary !== "string" || body.summary.trim() === "") {
-      return { ok: false, error: "Invalid summary" };
+  if (hasField('summary')) {
+    if (typeof body.summary !== 'string' || body.summary.trim() === '') {
+      return { ok: false, error: 'Invalid summary' }
     }
-    data.summary = body.summary.trim();
+    data.summary = body.summary.trim()
   }
 
-  if (hasField("experience")) {
-    const parsed = parseStringArray(body.experience);
+  if (hasField('experience')) {
+    const parsed = parseStringArray(body.experience)
     if (!parsed) {
-      return { ok: false, error: "Invalid experience" };
+      return { ok: false, error: 'Invalid experience' }
     }
-    data.experience = asInputJson(parsed);
+    data.experience = asInputJson(parsed)
   }
 
-  if (hasField("goals")) {
-    const parsed = parseStringArray(body.goals);
+  if (hasField('goals')) {
+    const parsed = parseStringArray(body.goals)
     if (!parsed) {
-      return { ok: false, error: "Invalid goals" };
+      return { ok: false, error: 'Invalid goals' }
     }
-    data.goals = asInputJson(parsed);
+    data.goals = asInputJson(parsed)
   }
 
-  if (hasField("skills")) {
-    if (typeof body.skills !== "object" || body.skills === null || Array.isArray(body.skills)) {
-      return { ok: false, error: "Invalid skills" };
+  if (hasField('skills')) {
+    if (typeof body.skills !== 'object' || body.skills === null || Array.isArray(body.skills)) {
+      return { ok: false, error: 'Invalid skills' }
     }
-    const skills = body.skills as { strong?: unknown; growth?: unknown };
-    const strong = parseStringArray(skills.strong);
-    const growth = parseStringArray(skills.growth);
+    const skills = body.skills as { strong?: unknown; growth?: unknown }
+    const strong = parseStringArray(skills.strong)
+    const growth = parseStringArray(skills.growth)
     if (!strong || !growth) {
-      return { ok: false, error: "Invalid skills" };
+      return { ok: false, error: 'Invalid skills' }
     }
-    data.skills = asInputJson({ strong, growth });
+    data.skills = asInputJson({ strong, growth })
   }
 
-  return { ok: true, data };
+  return { ok: true, data }
 }
 
+// Модуль serializeContactPreview.
 function serializeContactPreview(preview: ContactPreview) {
   return {
     fullName: preview.fullName,
     email: preview.email,
-    phone: preview.phone,
-  };
+    phone: preview.phone
+  }
 }
 
+// Резолвить ContactPreview.
 function resolveContactPreview(
   history: CandidatePrepHistoryItem[],
   profile: {
-    fullName: string;
-    email: string;
-    phone: string | null;
+    fullName: string
+    email: string
+    phone: string | null
   } | null,
-  fallbackEmail?: string | null,
+  fallbackEmail?: string | null
 ): ContactPreview {
   if (profile) {
     return {
       fullName: profile.fullName,
       email: profile.email,
-      phone: profile.phone,
-    };
+      phone: profile.phone
+    }
   }
-  return extractContactPreviewFromHistory(history, fallbackEmail);
+  return extractContactPreviewFromHistory(history, fallbackEmail)
 }
 
-export function createCandidatePrepRouter(
-  getPrisma: () => PrismaClient,
-  getProvider: () => LlmProvider
-): Router {
-  const router = Router();
+// Створює CandidatePrepRouter.
+export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProvider: () => LlmProvider): Router {
+  const router = Router()
 
-  router.get("/:interviewId", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
-    const prisma = getPrisma();
+  router.get('/:interviewId', async (req: Request, res: Response) => {
+    const { interviewId } = req.params
+    const prisma = getPrisma()
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
     if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
-      return;
+      res.status(404).json({ error: 'Interview not found' })
+      return
     }
 
-    const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
+    const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } })
     if (!session) {
       res.status(200).json({
         messages: [],
         isClosed: false,
         profile: null,
-        contactPreview: serializeContactPreview(
-          extractContactPreviewFromHistory([], req.user?.email ?? null),
-        ),
-      });
-      return;
+        contactPreview: serializeContactPreview(extractContactPreviewFromHistory([], req.user?.email ?? null))
+      })
+      return
     }
 
     const messages = await prisma.prepMessageCandidate.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
 
-    const profile = session.isClosed
-      ? await prisma.candidateProfile.findUnique({ where: { interviewId } })
-      : null;
+    const profile = session.isClosed ? await prisma.candidateProfile.findUnique({ where: { interviewId } }) : null
 
-
-    const history = messages.map((item) => ({
+    const history = messages.map(item => ({
       authorType: item.authorType,
-      content: item.content,
-    }));
-    const contactPreview = resolveContactPreview(
-      history,
-      profile,
-      req.user?.email ?? null,
-    );
+      content: item.content
+    }))
+    const contactPreview = resolveContactPreview(history, profile, req.user?.email ?? null)
 
     res.status(200).json({
-      messages: messages.map((item) => ({
+      messages: messages.map(item => ({
         id: item.id,
         authorType: item.authorType,
         content: item.content,
-        createdAt: item.createdAt,
+        createdAt: item.createdAt
       })),
       isClosed: session.isClosed,
       profile: profile ? serializeCandidateProfile(profile) : null,
-      contactPreview: serializeContactPreview(contactPreview),
-    });
-  });
+      contactPreview: serializeContactPreview(contactPreview)
+    })
+  })
 
-  router.post("/:interviewId/message", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
-    const body = (req.body ?? {}) as MessageBody;
-    const message = typeof body.message === "string" ? body.message.trim() : "";
-    const prisma = getPrisma();
+  router.post('/:interviewId/message', async (req: Request, res: Response) => {
+    const { interviewId } = req.params
+    const body = (req.body ?? {}) as MessageBody
+    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const prisma = getPrisma()
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
     if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
-      return;
+      res.status(404).json({ error: 'Interview not found' })
+      return
     }
 
     const session = await prisma.prepSessionCandidate.upsert({
       where: { interviewId },
       update: {},
-      create: { interviewId },
-    });
+      create: { interviewId }
+    })
 
     if (session.isClosed) {
-      res.status(409).json({ error: "Prep session closed" });
-      return;
+      res.status(409).json({ error: 'Prep session closed' })
+      return
     }
 
     if (message) {
       await prisma.prepMessageCandidate.create({
-        data: { sessionId: session.id, authorType: "HUMAN_CANDIDATE", content: message },
-      });
+        data: { sessionId: session.id, authorType: 'HUMAN_CANDIDATE', content: message }
+      })
     }
 
     const history = await prisma.prepMessageCandidate.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
 
-    const historyItems = history.map((item) => ({ authorType: item.authorType, content: item.content }));
-    const knownContact = extractContactPreviewFromHistory(historyItems, req.user?.email ?? null);
+    const historyItems = history.map(item => ({
+      authorType: item.authorType,
+      content: item.content
+    }))
+    const knownContact = extractContactPreviewFromHistory(historyItems, req.user?.email ?? null)
 
     const llmMessages = buildCandidateAgentMessages(historyItems, {
-      candidateFirstName: knownContact.fullName,
-    });
+      candidateFirstName: knownContact.fullName
+    })
 
-    let provider: LlmProvider;
+    let provider: LlmProvider
     try {
-      provider = getProvider();
+      provider = getProvider()
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep] provider init failed:", detail);
-      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep] provider init failed:', detail)
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    let rawReply: string;
+    let rawReply: string
     try {
-      rawReply = await withLlmRetry(
-        () => provider.complete(llmMessages),
-        { label: "candidate-prep:message" },
-      );
+      rawReply = await withLlmRetry(() => provider.complete(llmMessages), {
+        label: 'candidate-prep:message'
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[candidate-prep:${provider.name}] llm failed:`, detail);
-      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error(`[candidate-prep:${provider.name}] llm failed:`, detail)
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply);
+    const { message: agentMessage, readyForConfirmation } = parseAgentReply(rawReply)
 
     try {
       await prisma.prepMessageCandidate.create({
-        data: { sessionId: session.id, authorType: "AGENT_CANDIDATE", content: agentMessage },
-      });
+        data: { sessionId: session.id, authorType: 'AGENT_CANDIDATE', content: agentMessage }
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep] failed to persist agent reply:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep] failed to persist agent reply:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
     const updatedHistory = await prisma.prepMessageCandidate.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
     const contactPreview = resolveContactPreview(
-      updatedHistory.map((item) => ({ authorType: item.authorType, content: item.content })),
+      updatedHistory.map(item => ({ authorType: item.authorType, content: item.content })),
       null,
-      req.user?.email ?? null,
-    );
+      req.user?.email ?? null
+    )
 
     res.status(200).json({
       message: agentMessage,
       readyForConfirmation,
-      contactPreview: serializeContactPreview(contactPreview),
-    });
-  });
+      contactPreview: serializeContactPreview(contactPreview)
+    })
+  })
 
-  router.post("/:interviewId/finish", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
-    const prisma = getPrisma();
+  router.post('/:interviewId/finish', async (req: Request, res: Response) => {
+    const { interviewId } = req.params
+    const prisma = getPrisma()
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
     if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
-      return;
+      res.status(404).json({ error: 'Interview not found' })
+      return
     }
 
-    const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
+    const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } })
     if (!session) {
-      res.status(404).json({ error: "Prep session not found" });
-      return;
+      res.status(404).json({ error: 'Prep session not found' })
+      return
     }
 
     if (session.isClosed) {
-      res.status(409).json({ error: "Prep session closed" });
-      return;
+      res.status(409).json({ error: 'Prep session closed' })
+      return
     }
 
     const history = await prisma.prepMessageCandidate.findMany({
       where: { sessionId: session.id },
-      orderBy: { createdAt: "asc" },
-    });
+      orderBy: { createdAt: 'asc' }
+    })
 
     const llmMessages = buildCandidateProfileExtractionMessages(
-      history.map((item) => ({ authorType: item.authorType, content: item.content }))
-    );
+      history.map(item => ({ authorType: item.authorType, content: item.content }))
+    )
 
-    let provider: LlmProvider;
+    let provider: LlmProvider
     try {
-      provider = getProvider();
+      provider = getProvider()
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep:finish] provider init failed:", detail);
-      res.status(503).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep:finish] provider init failed:', detail)
+      res.status(503).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    const fallbackEmail = req.user?.email?.trim().toLowerCase() ?? "";
+    const fallbackEmail = req.user?.email?.trim().toLowerCase() ?? ''
 
-    let extracted;
+    let extracted
     try {
-      extracted = await withLlmRetry(async () => {
-        const rawReply = await provider.complete(llmMessages);
-        let parseInput = rawReply;
-        const trimmedRaw = rawReply.trim();
-        const withoutFences = trimmedRaw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? trimmedRaw;
-        try {
-          const rawData = JSON.parse(withoutFences);
-          if (typeof rawData === "object" && rawData !== null) {
-            const rawEmail = String((rawData as Record<string, unknown>).email ?? "")
-              .trim()
-              .toLowerCase();
-            if (!rawEmail && fallbackEmail) {
-              (rawData as Record<string, unknown>).email = fallbackEmail;
-              parseInput = JSON.stringify(rawData);
+      extracted = await withLlmRetry(
+        async () => {
+          const rawReply = await provider.complete(llmMessages)
+          let parseInput = rawReply
+          const trimmedRaw = rawReply.trim()
+          const withoutFences = stripLlmJsonCodeFences(trimmedRaw)
+          try {
+            const rawData = JSON.parse(withoutFences)
+            if (typeof rawData === 'object' && rawData !== null) {
+              const rawEmail = String((rawData as Record<string, unknown>).email ?? '')
+                .trim()
+                .toLowerCase()
+              if (!rawEmail && fallbackEmail) {
+                ;(rawData as Record<string, unknown>).email = fallbackEmail
+                parseInput = JSON.stringify(rawData)
+              }
             }
+          } catch {
+            // keep original rawReply; parseCandidateProfileExtraction handles invalid JSON
           }
-        } catch {
-          // keep original rawReply; parseCandidateProfileExtraction handles invalid JSON
-        }
-        return parseCandidateProfileExtraction(parseInput);
-      }, { label: "candidate-prep:finish" });
+          return parseCandidateProfileExtraction(parseInput)
+        },
+        { label: 'candidate-prep:finish' }
+      )
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[candidate-prep:finish:${provider.name}] llm failed:`, detail);
-      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error(`[candidate-prep:finish:${provider.name}] llm failed:`, detail)
+      res.status(llmHttpStatus(error)).json({ error: toSafeLlmErrorMessage(error) })
+      return
     }
 
-    const normalizedExtractedEmail = extracted.email.trim().toLowerCase();
-    const persistedEmail = normalizedExtractedEmail || fallbackEmail;
+    const normalizedExtractedEmail = extracted.email.trim().toLowerCase()
+    const persistedEmail = normalizedExtractedEmail || fallbackEmail
 
     if (!persistedEmail) {
-      console.error("[candidate-prep:finish] missing email for candidate profile");
-      res.status(502).json({ error: toSafeLlmErrorMessage(new Error("missing email for candidate profile")) });
-      return;
+      console.error('[candidate-prep:finish] missing email for candidate profile')
+      res.status(502).json({ error: toSafeLlmErrorMessage(new Error('missing email for candidate profile')) })
+      return
     }
 
-    let profile;
+    let profile
     try {
       profile = await prisma.candidateProfile.upsert({
         where: { interviewId },
@@ -422,7 +417,7 @@ export function createCandidatePrepRouter(
           experience: extracted.experience,
           skills: extracted.skills,
           goals: extracted.goals,
-          summary: extracted.summary,
+          summary: extracted.summary
         },
         create: {
           interviewId,
@@ -432,137 +427,136 @@ export function createCandidatePrepRouter(
           experience: extracted.experience,
           skills: extracted.skills,
           goals: extracted.goals,
-          summary: extracted.summary,
-        },
-      });
+          summary: extracted.summary
+        }
+      })
       await prisma.prepSessionCandidate.update({
         where: { id: session.id },
-        data: { isClosed: true },
-      });
+        data: { isClosed: true }
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep:finish] failed to persist profile:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep:finish] failed to persist profile:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
     res.status(200).json({
-      profile: serializeCandidateProfile(profile),
-    });
-  });
+      profile: serializeCandidateProfile(profile)
+    })
+  })
 
-  router.post("/:interviewId/confirm", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
-    const prisma = getPrisma();
+  router.post('/:interviewId/confirm', async (req: Request, res: Response) => {
+    const { interviewId } = req.params
+    const prisma = getPrisma()
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
     if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
-      return;
+      res.status(404).json({ error: 'Interview not found' })
+      return
     }
 
-    const profile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
+    const profile = await prisma.candidateProfile.findUnique({ where: { interviewId } })
     if (!profile) {
-      res.status(404).json({ error: "Profile not found" });
-      return;
+      res.status(404).json({ error: 'Profile not found' })
+      return
     }
 
     if (profile.confirmedAt) {
-      res.status(409).json({ error: "Profile already confirmed" });
-      return;
+      res.status(409).json({ error: 'Profile already confirmed' })
+      return
     }
 
-    let updatedProfile;
+    let updatedProfile
     try {
       updatedProfile = await prisma.candidateProfile.update({
         where: { interviewId },
-        data: { confirmedAt: new Date() },
-      });
+        data: { confirmedAt: new Date() }
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep:confirm] failed to confirm profile:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep:confirm] failed to confirm profile:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-
-    const finalInterview = (await maybeTransitionToReady(prisma, interviewId)) ?? interview;
+    const finalInterview = (await maybeTransitionToReady(prisma, interviewId)) ?? interview
 
     res.status(200).json({
       profile: serializeCandidateProfile(updatedProfile),
-      interviewStatus: finalInterview.status,
-    });
-  });
+      interviewStatus: finalInterview.status
+    })
+  })
 
-  router.patch("/:interviewId/profile", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
-    const prisma = getPrisma();
+  router.patch('/:interviewId/profile', async (req: Request, res: Response) => {
+    const { interviewId } = req.params
+    const prisma = getPrisma()
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
     if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
-      return;
+      res.status(404).json({ error: 'Interview not found' })
+      return
     }
 
-    const profile = await prisma.candidateProfile.findUnique({ where: { interviewId } });
+    const profile = await prisma.candidateProfile.findUnique({ where: { interviewId } })
     if (!profile) {
-      res.status(404).json({ error: "Profile not found" });
-      return;
+      res.status(404).json({ error: 'Profile not found' })
+      return
     }
 
     if (profile.confirmedAt) {
-      res.status(409).json({ error: "Profile already confirmed" });
-      return;
+      res.status(409).json({ error: 'Profile already confirmed' })
+      return
     }
 
-    const parsed = parseCandidateProfilePatch((req.body ?? {}) as ProfilePatchBody);
+    const parsed = parseCandidateProfilePatch((req.body ?? {}) as ProfilePatchBody)
     if (!parsed.ok) {
-      res.status(400).json({ error: parsed.error });
-      return;
+      res.status(400).json({ error: parsed.error })
+      return
     }
 
-    let updatedProfile;
+    let updatedProfile
     try {
       updatedProfile = await prisma.candidateProfile.update({
         where: { interviewId },
-        data: parsed.data,
-      });
+        data: parsed.data
+      })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep:patch-profile] failed to update profile:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep:patch-profile] failed to update profile:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-    res.status(200).json({ profile: serializeCandidateProfile(updatedProfile) });
-  });
+    res.status(200).json({ profile: serializeCandidateProfile(updatedProfile) })
+  })
 
-  router.delete("/:interviewId", async (req: Request, res: Response) => {
-    const { interviewId } = req.params;
-    const prisma = getPrisma();
+  router.delete('/:interviewId', async (req: Request, res: Response) => {
+    const { interviewId } = req.params
+    const prisma = getPrisma()
 
-    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
     if (!interview) {
-      res.status(404).json({ error: "Interview not found" });
-      return;
+      res.status(404).json({ error: 'Interview not found' })
+      return
     }
 
     try {
-      const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } });
+      const session = await prisma.prepSessionCandidate.findUnique({ where: { interviewId } })
       if (session) {
-        await prisma.prepMessageCandidate.deleteMany({ where: { sessionId: session.id } });
-        await prisma.prepSessionCandidate.delete({ where: { id: session.id } });
+        await prisma.prepMessageCandidate.deleteMany({ where: { sessionId: session.id } })
+        await prisma.prepSessionCandidate.delete({ where: { id: session.id } })
       }
-      await prisma.candidateProfile.deleteMany({ where: { interviewId } });
+      await prisma.candidateProfile.deleteMany({ where: { interviewId } })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[candidate-prep:delete] failed to reset prep chat:", detail);
-      res.status(500).json({ error: "Internal error", detail });
-      return;
+      const detail = error instanceof Error ? error.message : String(error)
+      console.error('[candidate-prep:delete] failed to reset prep chat:', detail)
+      res.status(500).json({ error: 'Internal error', detail })
+      return
     }
 
-    res.status(200).json({ ok: true });
-  });
+    res.status(200).json({ ok: true })
+  })
 
-  return router;
+  return router
 }

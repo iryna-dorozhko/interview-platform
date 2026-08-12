@@ -35,6 +35,7 @@
 ### Task 1: Global tokens + font
 
 **Files:**
+
 - Create: `frontend/src/styles/tokens.css`
 - Create: `frontend/src/styles/base.css`
 - Modify: `frontend/index.html`
@@ -153,6 +154,7 @@ git commit -m "feat: add Calm Slate + Teal design tokens and IBM Plex Sans"
 ### Task 2: HR + Candidate shells and sidebars
 
 **Files:**
+
 - Modify: `frontend/src/layouts/HrLayout.vue`
 - Modify: `frontend/src/layouts/CandidateLayout.vue`
 - Modify: `frontend/src/components/HrSidebar.vue`
@@ -333,6 +335,7 @@ git commit -m "feat: restyle HR and Candidate shells with Calm Slate tokens"
 ### Task 3: Live message palette (no purple)
 
 **Files:**
+
 - Modify: `frontend/src/utils/live-message-styles.ts`
 
 - [ ] **Step 1: Replace `STYLES` and neutrals with teal/slate palette**
@@ -408,6 +411,7 @@ git commit -m "feat: retune live chat colors to teal/slate palette"
 ### Task 4: Live room components
 
 **Files:**
+
 - Modify: `frontend/src/components/LiveChatPanel.vue`
 - Modify: `frontend/src/components/AgentStatusPanel.vue`
 - Modify: `frontend/src/components/InterviewRoomContent.vue`
@@ -577,6 +581,7 @@ git commit -m "feat: apply Calm Slate tokens to live interview room UI"
 ### Task 5: Sweep remaining screens (CTA + danger + font)
 
 **Files:**
+
 - Modify logins: `LoginView.vue`, `CandidateLoginView.vue`, `CandidateRegisterView.vue`
 - Modify homes/lists: `HrHomeView.vue`, `CandidateHomeView.vue`, `InterviewListView.vue`, `VacancyListView.vue`, `CandidateInterviewView.vue`, `VacancyDetailView.vue`, `InterviewDetailView.vue`, `ReportView.vue`, `CandidateProfileView.vue`
 - Modify prep: `VacancyPrepView.vue`, `CandidatePrepView.vue`, `ChatPanel.vue`, `CandidatePrepChat.vue` (якщо є blue CTA)

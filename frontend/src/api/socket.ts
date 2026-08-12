@@ -1,26 +1,27 @@
-import { io, type Socket } from "socket.io-client";
-import { getStoredToken } from "./client";
+import { io } from 'socket.io-client'
+import type { Socket } from 'socket.io-client'
+import { getStoredToken } from './client'
 
-let socket: Socket | null = null;
+let socket: Socket | null = null
 
 export function getSocket(): Socket {
   if (!socket) {
     socket = io({
       auth: {
-        token: getStoredToken() ?? "",
+        token: getStoredToken() ?? ''
       },
-      autoConnect: false,
-    });
+      autoConnect: false
+    })
   }
-  return socket;
+  return socket
 }
 
 export function connectSocket(): Socket {
-  const client = getSocket();
-  const token = getStoredToken() ?? "";
-  client.auth = { token };
+  const client = getSocket()
+  const token = getStoredToken() ?? ''
+  client.auth = { token }
   if (!client.connected) {
-    client.connect();
+    client.connect()
   }
-  return client;
+  return client
 }

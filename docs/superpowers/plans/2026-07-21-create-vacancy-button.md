@@ -31,9 +31,11 @@
 ### Task 1: Rename home CTA
 
 **Files:**
+
 - Modify: `frontend/src/views/HrHomeView.vue`
 
 **Interfaces:**
+
 - Consumes: existing `showVacancyModal`, `CreateVacancyModal`, `onVacancyCreated`
 - Produces: button label «Створити нову вакансію»
 
@@ -75,9 +77,11 @@ EOF
 ### Task 2: Add create button and modal on Vacancies tab
 
 **Files:**
+
 - Modify: `frontend/src/views/VacancyListView.vue`
 
 **Interfaces:**
+
 - Consumes: `CreateVacancyModal` (`open: boolean`, emits `close`, `created: [vacancyId: string]`)
 - Produces: Vacancies page CTA «Створити вакансію» that creates a vacancy and navigates to prep
 

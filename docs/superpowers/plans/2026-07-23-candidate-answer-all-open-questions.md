@@ -29,10 +29,12 @@
 ### Task 1: `collectOpenInterviewerQuestions`
 
 **Files:**
+
 - Modify: `backend/src/agents/candidate-live-agent.ts`
 - Modify: `backend/src/agents/candidate-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `LiveHistoryItem`, `LiveAuthorType`, існуючий `INTERVIEWER_AUTHOR_TYPES`
 - Produces: `collectOpenInterviewerQuestions(history: LiveHistoryItem[]): string[]`
 
@@ -140,10 +142,12 @@ git commit -m "feat(agents): collect open interviewer questions after last candi
 ### Task 2: ANSWER nudge — список відкритих + «на всі»
 
 **Files:**
+
 - Modify: `backend/src/agents/candidate-live-agent.ts`
 - Modify: `backend/src/agents/candidate-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: `collectOpenInterviewerQuestions`, `collectRecentInterviewerQuestions`
 - Produces: `formatOpenInterviewerQuestionsBlock(history: LiveHistoryItem[]): string`; `formatCandidateTurnNudge` для `ANSWER` використовує open-block; для `CANDIDATE_QUESTIONS` — historical block
 
@@ -278,10 +282,12 @@ git commit -m "feat(agents): ANSWER nudge lists all open interviewer questions"
 ### Task 3: System prompt — multi-open + partial ack
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/candidate-live-agent.uk.ts`
 - Modify: `backend/src/agents/candidate-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes: існуючий `CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK`
 - Produces: оновлені правила в промпті (без зміни JSON-схеми)
 
@@ -347,6 +353,7 @@ git commit -m "fix(agents): candidate live answers all open questions in one mes
 ### Task 4: Фінальна перевірка
 
 **Files:**
+
 - Verify only (no new production code expected)
 
 - [ ] **Step 1: Re-run candidate-live tests**

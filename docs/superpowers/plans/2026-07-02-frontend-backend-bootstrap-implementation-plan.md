@@ -20,6 +20,7 @@
 - Modify: `README.md`
 
 Кожен файл має одну відповідальність:
+
 - корінь керує оркестрацією;
 - `frontend` і `backend` інкапсулюють локальні скрипти;
 - `README.md` фіксує як запускати bootstrap-сценарій.
@@ -27,6 +28,7 @@
 ### Task 1: Створення `frontend`/`backend` каталогів і базових package-файлів
 
 **Files:**
+
 - Create: `frontend/package.json`
 - Create: `backend/package.json`
 - Test: `frontend/package.json` and `backend/package.json` script availability via npm
@@ -42,6 +44,7 @@ Expected initially: команда завершується з ненульов�
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 test -d frontend && test -f frontend/package.json && test -d backend && test -f backend/package.json; echo $?
 ```
@@ -51,6 +54,7 @@ Expected: `1` (або інший ненульовий код).
 - [ ] **Step 3: Write minimal implementation**
 
 Create `frontend/package.json`:
+
 ```json
 {
   "name": "@interview-platform/frontend",
@@ -65,6 +69,7 @@ Create `frontend/package.json`:
 ```
 
 Create `backend/package.json`:
+
 ```json
 {
   "name": "@interview-platform/backend",
@@ -81,6 +86,7 @@ Create `backend/package.json`:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 test -d frontend && test -f frontend/package.json && test -d backend && test -f backend/package.json; echo $?
 ```
@@ -97,6 +103,7 @@ git commit -m "add minimal frontend and backend workspace packages"
 ### Task 2: Налаштування кореневого `npm workspaces` оркестратора
 
 **Files:**
+
 - Create: `package.json`
 - Test: workspace orchestration via `npm run dev`, `npm run build`, `npm run lint`
 
@@ -111,6 +118,7 @@ Expected initially: команда падає, бо `package.json` у корен
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 npm run dev
 ```
@@ -120,6 +128,7 @@ Expected: npm error про відсутній script `dev` в корені.
 - [ ] **Step 3: Write minimal implementation**
 
 Create `package.json`:
+
 ```json
 {
   "name": "interview-platform",
@@ -140,6 +149,7 @@ Create `package.json`:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 npm run dev
 npm run build
@@ -147,6 +157,7 @@ npm run lint
 ```
 
 Expected:
+
 - у виводі є `frontend ... placeholder` і `backend ... placeholder`;
 - усі команди завершуються з кодом `0`.
 
@@ -160,6 +171,7 @@ git commit -m "configure root npm workspaces orchestration scripts"
 ### Task 3: Документація пакетів (`frontend`/`backend`)
 
 **Files:**
+
 - Create: `frontend/README.md`
 - Create: `backend/README.md`
 - Test: content validation via grep-free string checks
@@ -175,6 +187,7 @@ Expected initially: ненульовий код.
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 test -f frontend/README.md && test -f backend/README.md; echo $?
 ```
@@ -184,6 +197,7 @@ Expected: `1`.
 - [ ] **Step 3: Write minimal implementation**
 
 Create `frontend/README.md`:
+
 ```markdown
 # Frontend
 
@@ -200,6 +214,7 @@ Create `frontend/README.md`:
 ```
 
 Create `backend/README.md`:
+
 ```markdown
 # Backend
 
@@ -218,6 +233,7 @@ Create `backend/README.md`:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 test -f frontend/README.md && test -f backend/README.md; echo $?
 ```
@@ -234,6 +250,7 @@ git commit -m "document frontend and backend bootstrap packages"
 ### Task 4: Оновлення кореневого `README.md` для bootstrap-команд
 
 **Files:**
+
 - Modify: `README.md`
 - Test: runbook verification via command execution
 
@@ -248,6 +265,7 @@ Expected initially: якщо README не відображає фактичні �
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 npm run dev
 npm run build
@@ -276,6 +294,7 @@ npm run build
 ```
 
 Кореневі команди оркеструють виконання скриптів в обох воркспейсах.
+
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -288,6 +307,7 @@ npm run build
 ```
 
 Expected:
+
 - усі команди завершуються успішно;
 - README містить актуальний runbook для Day 1.
 
@@ -301,6 +321,7 @@ git commit -m "add day-1 bootstrap workspace instructions to readme"
 ### Task 5: Фінальна інтеграційна перевірка Day 1
 
 **Files:**
+
 - Modify: none (verification-only task)
 - Test: monorepo bootstrap end-to-end commands
 
@@ -315,6 +336,7 @@ Expected initially: script `ci:bootstrap` відсутній.
 - [ ] **Step 2: Run test to verify it fails**
 
 Run:
+
 ```bash
 npm run ci:bootstrap
 ```
@@ -324,6 +346,7 @@ Expected: npm error про відсутній script.
 - [ ] **Step 3: Write minimal implementation**
 
 Modify root `package.json` scripts:
+
 ```json
 {
   "scripts": {
@@ -338,12 +361,14 @@ Modify root `package.json` scripts:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run:
+
 ```bash
 npm install
 npm run ci:bootstrap
 ```
 
 Expected:
+
 - `lint` і `build` проходять у `frontend` та `backend`;
 - загальний exit code `0`.
 

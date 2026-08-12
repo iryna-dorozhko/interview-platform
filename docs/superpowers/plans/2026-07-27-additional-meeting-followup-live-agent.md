@@ -43,10 +43,12 @@
 ### Task 1: Prisma schema for follow-up interviews
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_additional_meeting_followup/migration.sql`
 
 **Interfaces:**
+
 - Consumes: current `Interview`, `FinalReport`.
 - Produces:
   - `InterviewKind = "STANDARD" | "ADDITIONAL_MEETING"`
@@ -115,12 +117,14 @@ git commit -m "feat(db): add follow-up metadata for additional interviews"
 ### Task 2: HR API for additional-meeting candidates and creation
 
 **Files:**
+
 - Create: `backend/src/routes/hr-additional-interviews.ts`
 - Create: `backend/src/routes/hr-additional-interviews.test.ts`
 - Modify: `backend/src/server.ts`
 - Modify: `backend/package.json`
 
 **Interfaces:**
+
 - Consumes:
   - `InterviewDecision` with `type="ADDITIONAL_MEETING"`
   - `createInterviewWithJoinCode(...)` from `routes/interviews.ts`
@@ -215,10 +219,12 @@ git commit -m "feat(api): add HR additional-meeting interview endpoints"
 ### Task 3: Extend interview DTOs for kind/follow-up fields
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `frontend/src/api/interviews.ts`
 
 **Interfaces:**
+
 - Consumes: new Prisma fields from Task 1.
 - Produces:
   - `InterviewSummary.kind`
@@ -276,11 +282,13 @@ git commit -m "feat(interviews): expose kind and follow-up metadata"
 ### Task 4: Company live agent follow-up context integration
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/company-live-agent.uk.ts`
 - Modify: `backend/src/agents/company-live-agent.ts`
 - Modify: `backend/src/agents/company-live-agent.test.ts`
 
 **Interfaces:**
+
 - Consumes:
   - `Interview.kind`
   - `Interview.followUpFromFinalReportId`
@@ -362,11 +370,13 @@ git commit -m "feat(agent): add follow-up context for additional meeting live tu
 ### Task 5: Frontend UI for “Створити додаткову зустріч”
 
 **Files:**
+
 - Create: `frontend/src/components/CreateAdditionalInterviewModal.vue`
 - Modify: `frontend/src/api/interviews.ts`
 - Modify: `frontend/src/views/InterviewListView.vue`
 
 **Interfaces:**
+
 - Consumes:
   - `GET /api/hr/additional-meeting-candidates`
   - `POST /api/hr/interviews/additional`
@@ -438,10 +448,12 @@ git commit -m "feat(fe): add create additional meeting flow in interviews list"
 ### Task 6: End-to-end verification and cleanup
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-07-27-additional-meeting-followup-live-agent-design.md` (only if behavior deviated)
 - Modify: relevant tests only when needed
 
 **Interfaces:**
+
 - Consumes: all previous tasks.
 - Produces: verified integrated behavior.
 
@@ -479,4 +491,3 @@ git commit -m "test: verify additional meeting follow-up flow"
 - **Spec coverage:** покрито UX кнопку, ручне створення, додаткові API, DB-прив’язку до source report, поведінку Company Agent у follow-up режимі, перевірки.
 - **Placeholder scan:** placeholder-кроків “TBD/TODO” немає; кожна задача має конкретні файли, команди й очікування.
 - **Type consistency:** у всіх задачах використано однакові назви `Interview.kind`, `Interview.followUpFromFinalReportId`, `ADDITIONAL_MEETING`.
-

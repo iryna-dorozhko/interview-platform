@@ -36,6 +36,7 @@
 ### Task 1: LLM types and errors
 
 **Files:**
+
 - Create: `backend/src/llm/types.ts`
 - Create: `backend/src/llm/errors.ts`
 
@@ -112,6 +113,7 @@ git commit -m "feat(backend): add LLM types and error classes"
 ### Task 2: OmlxProvider with tests
 
 **Files:**
+
 - Create: `backend/src/llm/omlx.provider.ts`
 - Create: `backend/src/llm/omlx.provider.test.ts`
 - Modify: `backend/package.json` (add test file to `test` script)
@@ -300,6 +302,7 @@ git commit -m "feat(backend): add OmlxProvider with unit tests"
 ### Task 3: GeminiProvider
 
 **Files:**
+
 - Create: `backend/src/llm/gemini.provider.ts`
 - Modify: `backend/package.json` (add `@google/generative-ai`)
 
@@ -388,6 +391,7 @@ git commit -m "feat(backend): add GeminiProvider"
 ### Task 4: Factory with tests
 
 **Files:**
+
 - Create: `backend/src/llm/factory.ts`
 - Create: `backend/src/llm/factory.test.ts`
 - Modify: `backend/package.json` (add test file)
@@ -530,6 +534,7 @@ git commit -m "feat(backend): add LLM provider factory with tests"
 ### Task 5: LLM route with tests
 
 **Files:**
+
 - Create: `backend/src/routes/llm.ts`
 - Create: `backend/src/routes/llm.test.ts`
 - Modify: `backend/package.json` (add test file)
@@ -742,6 +747,7 @@ git commit -m "feat(backend): add POST /api/llm/complete route"
 ### Task 6: Wire server, env example, CLI script
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 - Modify: `backend/.env.example`
 - Create: `backend/scripts/llm-test.ts`
@@ -837,6 +843,7 @@ In `backend/package.json` scripts:
 - [ ] **Step 5: Verify build and all tests**
 
 Run:
+
 ```bash
 npm --workspace backend run lint
 npm --workspace backend run test
@@ -858,6 +865,7 @@ git commit -m "feat(backend): wire LLM router, env vars, and llm:test script"
 ### Task 7: README Day 2 documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Replace Day 2 section**
@@ -924,6 +932,7 @@ curl -X POST http://localhost:3000/api/llm/complete \
 npm run llm:test --workspace backend
 npm run llm:test --workspace backend -- --message "Hello"
 ```
+
 ```
 
 Also update later README references from `OLLAMA_*` to `OMLX_*` / `GEMINI_*` only if they appear in Day 2 scope (leave Day 22 LiteLLM section unchanged for now).

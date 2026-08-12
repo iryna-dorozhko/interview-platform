@@ -10,6 +10,7 @@
 ## Контекст і мета
 
 Зараз `Interview` виконує дві ролі одночасно:
+
 1. **Профіль вакансії** — prep-чат з Company Agent, `CompanyProfile`, підтвердження (Days 4–7).
 2. **Сесія з кандидатом** — `joinCode`, candidate prep, live room, звіт (Days 8+).
 
@@ -184,11 +185,13 @@ model Interview {
 ### Кнопки створення
 
 **«Створити нову анкету»:**
+
 1. Модалка з полем «Назва вакансії» (обов'язкове, min 2 символи).
 2. `POST /api/vacancies { title }`.
 3. Редірект на `/vacancies/:id/prep`.
 
 **«Створити нову співбесіду»:**
+
 1. Модалка з dropdown підтверджених анкет (`GET /vacancies/mine?status=CONFIRMED` або фільтр на клієнті).
 2. `POST /api/interviews { vacancyId }`.
 3. Банер з `joinCode`; новий рядок у списку співбесід.
@@ -325,6 +328,7 @@ Headers: Authorization: Bearer <HR JWT>
 ```
 
 Перевірки:
+
 - `vacancy.status === CONFIRMED` → інакше `400`.
 - `vacancy.hrUserId === req.user.id` → інакше `403`.
 
@@ -361,6 +365,7 @@ Headers: Authorization: Bearer <HR JWT>
 | `CreateInterviewModal.vue` | Dropdown підтверджених анкет |
 
 **API-клієнти:**
+
 - `frontend/src/api/vacancies.ts` — CRUD анкет.
 - `frontend/src/api/prep.ts` — оновити URL з `interviewId` на `vacancyId`.
 - `frontend/src/api/interviews.ts` — оновити типи та `POST` body.

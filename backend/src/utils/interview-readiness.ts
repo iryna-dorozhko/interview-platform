@@ -1,106 +1,104 @@
-import type { Interview, PrismaClient } from "@prisma/client";
-import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME } from "./candidate-interview-kind";
+import type { Interview, PrismaClient } from '@prisma/client'
+import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME } from './candidate-interview-kind'
 
-export const ACTIVE_CANDIDATE_INTERVIEW_STATUSES = ["AWAITING_CANDIDATE", "READY", "LIVE"] as const;
+export const ACTIVE_CANDIDATE_INTERVIEW_STATUSES = ['AWAITING_CANDIDATE', 'READY', 'LIVE'] as const
 
-const NON_JOINABLE_INTERVIEW_STATUSES = ["LIVE", "ENDED"] as const;
+const NON_JOINABLE_INTERVIEW_STATUSES = ['LIVE', 'ENDED'] as const
 
-type JoinCheckInterview = Pick<Interview, "id" | "status" | "candidateUserId">;
+type JoinCheckInterview = Pick<Interview, 'id' | 'status' | 'candidateUserId'>
 
-export type JoinCheckResult = { ok: true } | { ok: false; error: string };
+export type JoinCheckResult = { ok: true } | { ok: false; error: string }
 
 export type ResolvedCandidateProfile = {
-  summary: string;
-  experience: unknown;
-  skills: unknown;
-  goals: unknown;
-};
+  summary: string
+  experience: unknown
+  skills: unknown
+  goals: unknown
+}
 
+// Модуль findQuestionnaireInterview.
 async function findQuestionnaireInterview(prisma: PrismaClient, candidateUserId: string) {
   return prisma.interview.findFirst({
     where: {
       candidateUserId,
       displayName: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME,
-      status: { in: [...ACTIVE_CANDIDATE_INTERVIEW_STATUSES] },
+      status: { in: [...ACTIVE_CANDIDATE_INTERVIEW_STATUSES] }
     },
-    orderBy: { createdAt: "desc" },
-  });
+    orderBy: { createdAt: 'desc' }
+  })
 }
 
+// Резолвить CandidateProfileForInterview.
 export async function resolveCandidateProfileForInterview(
   prisma: PrismaClient,
-  interviewId: string,
+  interviewId: string
 ): Promise<ResolvedCandidateProfile | null> {
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },
-    include: { candidateProfile: true },
-  });
-  if (!interview) return null;
+    include: { candidateProfile: true }
+  })
+  if (!interview) return null
 
   if (interview.candidateProfile) {
     return {
       summary: interview.candidateProfile.summary,
       experience: interview.candidateProfile.experience,
       skills: interview.candidateProfile.skills,
-      goals: interview.candidateProfile.goals,
-    };
+      goals: interview.candidateProfile.goals
+    }
   }
 
-  if (!interview.candidateUserId) return null;
+  if (!interview.candidateUserId) return null
 
-  const questionnaire = await findQuestionnaireInterview(prisma, interview.candidateUserId);
-  if (!questionnaire) return null;
+  const questionnaire = await findQuestionnaireInterview(prisma, interview.candidateUserId)
+  if (!questionnaire) return null
 
   const profile = await prisma.candidateProfile.findUnique({
-    where: { interviewId: questionnaire.id },
-  });
-  if (!profile) return null;
+    where: { interviewId: questionnaire.id }
+  })
+  if (!profile) return null
 
   return {
     summary: profile.summary,
     experience: profile.experience,
     skills: profile.skills,
-    goals: profile.goals,
-  };
+    goals: profile.goals
+  }
 }
 
-export async function getConfirmedQuestionnaireProfile(
-  prisma: PrismaClient,
-  candidateUserId: string,
-) {
-  const questionnaire = await findQuestionnaireInterview(prisma, candidateUserId);
-  if (!questionnaire) return null;
+// Повертає ConfirmedQuestionnaireProfile.
+export async function getConfirmedQuestionnaireProfile(prisma: PrismaClient, candidateUserId: string) {
+  const questionnaire = await findQuestionnaireInterview(prisma, candidateUserId)
+  if (!questionnaire) return null
 
   const profile = await prisma.candidateProfile.findUnique({
-    where: { interviewId: questionnaire.id },
-  });
-  if (!profile || profile.confirmedAt == null) return null;
-  return profile;
+    where: { interviewId: questionnaire.id }
+  })
+  if (!profile || profile.confirmedAt == null) return null
+  return profile
 }
 
+// Перевіряє CandidateQuestionnaireConfirmed.
 export async function isCandidateQuestionnaireConfirmed(
   prisma: PrismaClient,
-  candidateUserId: string,
+  candidateUserId: string
 ): Promise<boolean> {
-  const profile = await getConfirmedQuestionnaireProfile(prisma, candidateUserId);
-  return profile != null;
+  const profile = await getConfirmedQuestionnaireProfile(prisma, candidateUserId)
+  return profile != null
 }
 
+// Модуль canCandidateJoinInterview.
 export async function canCandidateJoinInterview(
   prisma: PrismaClient,
   candidateUserId: string,
-  interview: JoinCheckInterview,
+  interview: JoinCheckInterview
 ): Promise<JoinCheckResult> {
-  if (
-    NON_JOINABLE_INTERVIEW_STATUSES.includes(
-      interview.status as (typeof NON_JOINABLE_INTERVIEW_STATUSES)[number],
-    )
-  ) {
-    return { ok: false, error: "Interview is not joinable" };
+  if (NON_JOINABLE_INTERVIEW_STATUSES.includes(interview.status as (typeof NON_JOINABLE_INTERVIEW_STATUSES)[number])) {
+    return { ok: false, error: 'Interview is not joinable' }
   }
 
   if (interview.candidateUserId && interview.candidateUserId !== candidateUserId) {
-    return { ok: false, error: "Interview already taken" };
+    return { ok: false, error: 'Interview already taken' }
   }
 
   const existingActive = await prisma.interview.findFirst({
@@ -108,94 +106,87 @@ export async function canCandidateJoinInterview(
       candidateUserId,
       status: { in: [...ACTIVE_CANDIDATE_INTERVIEW_STATUSES] },
       displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME },
-      NOT: { id: interview.id },
-    },
-  });
+      NOT: { id: interview.id }
+    }
+  })
 
   if (existingActive) {
-    return { ok: false, error: "Candidate already has active interview" };
+    return { ok: false, error: 'Candidate already has active interview' }
   }
 
-  const isRejoin = interview.candidateUserId === candidateUserId;
+  const isRejoin = interview.candidateUserId === candidateUserId
   if (!isRejoin) {
-    const questionnaire = await findQuestionnaireInterview(prisma, candidateUserId);
+    const questionnaire = await findQuestionnaireInterview(prisma, candidateUserId)
     if (!questionnaire) {
-      return { ok: false, error: "Candidate questionnaire required" };
+      return { ok: false, error: 'Candidate questionnaire required' }
     }
 
     const profile = await prisma.candidateProfile.findUnique({
-      where: { interviewId: questionnaire.id },
-    });
+      where: { interviewId: questionnaire.id }
+    })
     if (!profile) {
-      return { ok: false, error: "Candidate questionnaire required" };
+      return { ok: false, error: 'Candidate questionnaire required' }
     }
     if (profile.confirmedAt == null) {
-      return { ok: false, error: "Candidate questionnaire not confirmed" };
+      return { ok: false, error: 'Candidate questionnaire not confirmed' }
     }
   }
 
-  return { ok: true };
+  return { ok: true }
 }
 
-async function maybeTransitionHrInterviewToReady(
-  prisma: PrismaClient,
-  interviewId: string,
-): Promise<Interview | null> {
+// Модуль maybeTransitionHrInterviewToReady.
+async function maybeTransitionHrInterviewToReady(prisma: PrismaClient, interviewId: string): Promise<Interview | null> {
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },
     include: {
-      vacancy: { include: { companyProfile: true } },
-    },
-  });
+      vacancy: { include: { companyProfile: true } }
+    }
+  })
 
-  if (!interview || interview.status !== "AWAITING_CANDIDATE") {
-    return interview;
+  if (!interview || interview.status !== 'AWAITING_CANDIDATE') {
+    return interview
   }
 
   if (interview.displayName === SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME) {
-    return interview;
+    return interview
   }
 
-  const hrReady =
-    interview.vacancy.status === "CONFIRMED" &&
-    interview.vacancy.companyProfile?.confirmedAt != null;
+  const hrReady = interview.vacancy.status === 'CONFIRMED' && interview.vacancy.companyProfile?.confirmedAt != null
   const candidateReady =
-    interview.candidateUserId != null &&
-    (await isCandidateQuestionnaireConfirmed(prisma, interview.candidateUserId));
+    interview.candidateUserId != null && (await isCandidateQuestionnaireConfirmed(prisma, interview.candidateUserId))
 
   if (!hrReady || !candidateReady) {
-    return interview;
+    return interview
   }
 
   return prisma.interview.update({
     where: { id: interviewId },
-    data: { status: "READY" },
-  });
+    data: { status: 'READY' }
+  })
 }
 
-export async function maybeTransitionToReady(
-  prisma: PrismaClient,
-  interviewId: string,
-): Promise<Interview | null> {
-  const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
-  if (!interview) return null;
+// Модуль maybeTransitionToReady.
+export async function maybeTransitionToReady(prisma: PrismaClient, interviewId: string): Promise<Interview | null> {
+  const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
+  if (!interview) return null
 
   if (interview.displayName === SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME) {
-    const candidateUserId = interview.candidateUserId;
-    if (!candidateUserId) return interview;
+    const candidateUserId = interview.candidateUserId
+    if (!candidateUserId) return interview
 
     const hrInterview = await prisma.interview.findFirst({
       where: {
         candidateUserId,
-        status: "AWAITING_CANDIDATE",
-        displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME },
+        status: 'AWAITING_CANDIDATE',
+        displayName: { not: SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME }
       },
-      orderBy: { createdAt: "desc" },
-    });
+      orderBy: { createdAt: 'desc' }
+    })
 
-    if (!hrInterview) return interview;
-    return (await maybeTransitionHrInterviewToReady(prisma, hrInterview.id)) ?? interview;
+    if (!hrInterview) return interview
+    return (await maybeTransitionHrInterviewToReady(prisma, hrInterview.id)) ?? interview
   }
 
-  return maybeTransitionHrInterviewToReady(prisma, interviewId);
+  return maybeTransitionHrInterviewToReady(prisma, interviewId)
 }

@@ -42,10 +42,12 @@
 ### Task 1: Prisma — hide cursors on Dialog
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: `backend/prisma/migrations/<timestamp>_dialog_hidden_at/migration.sql` (via `prisma migrate`)
 
 **Interfaces:**
+
 - Consumes: existing `Dialog` model
 - Produces: `Dialog.hrHiddenAt: DateTime | null`, `Dialog.candidateHiddenAt: DateTime | null`
 
@@ -80,11 +82,13 @@ git commit -m "feat(db): add dialog per-user hiddenAt fields"
 ### Task 2: Fake Prisma + `DELETE` + list/unread filter
 
 **Files:**
+
 - Modify: `backend/src/routes/dialogs.ts`
 - Modify: `backend/src/routes/dialogs.test.ts`
 - Test: `backend/src/routes/dialogs.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Dialog.hrHiddenAt`, `Dialog.candidateHiddenAt`
 - Produces: `DELETE /api/dialogs/:id` → 204; `GET /dialogs` and `GET /dialogs/unread-count` exclude rows where the caller's hide field is non-null
 
@@ -99,9 +103,9 @@ In `dialogs.test.ts`:
   candidateHiddenAt: Date | null;
 ```
 
-2. Set both to `null` on `baseDialog`, `otherDialog`, and in `dialog.create`.
+1. Set both to `null` on `baseDialog`, `otherDialog`, and in `dialog.create`.
 
-3. Extend `dialog.update` `data` type and apply:
+2. Extend `dialog.update` `data` type and apply:
 
 ```typescript
 data: {
@@ -118,7 +122,7 @@ if (data.candidateHiddenAt !== undefined) {
 }
 ```
 
-4. Extend `findMany` `where` to support null-equality filters (Prisma style):
+1. Extend `findMany` `where` to support null-equality filters (Prisma style):
 
 ```typescript
 where?: {
@@ -358,11 +362,13 @@ git commit -m "feat(api): per-user hide dialog via DELETE"
 ### Task 3: Clear peer hide on `POST /dialogs/:id/messages`
 
 **Files:**
+
 - Modify: `backend/src/routes/dialogs.ts`
 - Modify: `backend/src/routes/dialogs.test.ts`
 - Test: `backend/src/routes/dialogs.test.ts`
 
 **Interfaces:**
+
 - Consumes: `POST /dialogs/:id/messages`
 - Produces: after USER message, peer's `*HiddenAt` set to `null`; author's hide unchanged
 
@@ -484,11 +490,13 @@ git commit -m "feat(api): unhide dialog for peer on new message"
 ### Task 4: Decision letter clears `candidateHiddenAt`
 
 **Files:**
+
 - Modify: `backend/src/routes/reports.ts`
 - Modify: `backend/src/routes/reports.test.ts`
 - Test: `backend/src/routes/reports.test.ts`
 
 **Interfaces:**
+
 - Consumes: `POST /reports/:id/decisions` transaction that creates `DECISION_LETTER`
 - Produces: `dialog.update` also sets `candidateHiddenAt: null`
 
@@ -606,10 +614,12 @@ git commit -m "feat(api): unhide dialog for candidate on decision letter"
 ### Task 5: Frontend — API + delete in thread header
 
 **Files:**
+
 - Modify: `frontend/src/api/dialogs.ts`
 - Modify: `frontend/src/views/DialogThreadView.vue`
 
 **Interfaces:**
+
 - Consumes: `DELETE /api/dialogs/:id` → 204
 - Produces: `deleteDialog(id: string): Promise<void>`; thread UI button + confirm + navigate + unread refresh
 

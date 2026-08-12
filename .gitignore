@@ -66,3 +66,13 @@ node_modules/.prisma/
 
 # Git worktrees (isolated feature branches)
 .worktrees/
+# @7n/rules (adr) — локальні артефакти Stop-hook, не коміти
+*.secret
+.claude/hooks/*.log
+.claude/hooks/.normalize-state
+.claude/hooks/.normalize.lock
+.claude/scheduled_tasks.lock
+
+# Test artifacts: Stryker + coverage (test.mdc)
+**/reports/stryker/
+**/coverage/

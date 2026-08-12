@@ -38,4 +38,4 @@ post:false лише як аварійний вихід (незрозуміла �
 { "post": true, "message": "..." }
 
 Профіль кандидата:
-{{CANDIDATE_PROFILE}}`;
+{{CANDIDATE_PROFILE}}`

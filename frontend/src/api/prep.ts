@@ -1,134 +1,131 @@
-import { fetchWithAuth } from "./client";
+import { fetchWithAuth } from './client'
 
-export type PrepAuthorType = "HUMAN_HR" | "AGENT_COMPANY";
+export type PrepAuthorType = 'HUMAN_HR' | 'AGENT_COMPANY'
 
 export type PrepMessage = {
-  id: string;
-  authorType: PrepAuthorType;
-  content: string;
-  createdAt: string;
-};
+  id: string
+  authorType: PrepAuthorType
+  content: string
+  createdAt: string
+}
 
 export type VacancyCompensation = {
-  min?: number;
-  max?: number;
-  currency?: string;
-  grossNet?: "gross" | "net";
-  displayText: string;
-};
+  min?: number
+  max?: number
+  currency?: string
+  grossNet?: 'gross' | 'net'
+  displayText: string
+}
 
 export type VacancyRequirements = {
-  critical: string[];
-  desired: string[];
-};
+  critical: string[]
+  desired: string[]
+}
 
 export type CompanyProfile = {
-  role: string;
-  requirements: VacancyRequirements;
-  expectations: string[];
-  culture: string[];
-  companyDirection: string[];
-  policies: string[];
-  workFormat: string[];
-  onboardingApproach: string[];
-  workConditions: string[];
-  compensation: VacancyCompensation | null;
-  confirmedAt: string | null;
-};
+  role: string
+  requirements: VacancyRequirements
+  expectations: string[]
+  culture: string[]
+  companyDirection: string[]
+  policies: string[]
+  workFormat: string[]
+  onboardingApproach: string[]
+  workConditions: string[]
+  compensation: VacancyCompensation | null
+  confirmedAt: string | null
+}
 
 export type PrepState = {
-  messages: PrepMessage[];
-  isClosed: boolean;
-  profile: CompanyProfile | null;
-  missingCompanyProfile: boolean;
-  canEditProfile: boolean;
-};
+  messages: PrepMessage[]
+  isClosed: boolean
+  profile: CompanyProfile | null
+  missingCompanyProfile: boolean
+  canEditProfile: boolean
+}
 
 export type SendMessageResponse = {
-  message: string;
-  readyForConfirmation: boolean;
-};
+  message: string
+  readyForConfirmation: boolean
+}
 
-type ErrorBody = { error?: string; detail?: string };
+type ErrorBody = { error?: string; detail?: string }
 
 async function parseError(response: Response, fallback: string): Promise<Error> {
-  let body: ErrorBody = {};
+  let body: ErrorBody = {}
   try {
-    body = (await response.json()) as ErrorBody;
+    body = (await response.json()) as ErrorBody
   } catch {
     // ignore parse errors
   }
-  const detail = body.error ?? body.detail;
-  return new Error(detail ? `${fallback}: ${detail}` : fallback);
+  const detail = body.error ?? body.detail
+  return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
 
 export async function fetchPrepState(vacancyId: string): Promise<PrepState> {
-  const response = await fetchWithAuth(`/api/prep/${vacancyId}`);
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}`)
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завантажити анкету");
+    throw await parseError(response, 'Не вдалося завантажити анкету')
   }
-  return response.json() as Promise<PrepState>;
+  return response.json() as Promise<PrepState>
 }
 
-export async function sendPrepMessage(
-  vacancyId: string,
-  message?: string
-): Promise<SendMessageResponse> {
+export async function sendPrepMessage(vacancyId: string, message?: string): Promise<SendMessageResponse> {
   const response = await fetchWithAuth(`/api/prep/${vacancyId}/message`, {
-    method: "POST",
-    body: JSON.stringify(message ? { message } : {}),
-  });
+    method: 'POST',
+    body: JSON.stringify(message ? { message } : {})
+  })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося надіслати повідомлення");
+    throw await parseError(response, 'Не вдалося надіслати повідомлення')
   }
-  return response.json() as Promise<SendMessageResponse>;
+  return response.json() as Promise<SendMessageResponse>
 }
 
 export async function finishPrepChat(vacancyId: string): Promise<{ profile: CompanyProfile }> {
-  const response = await fetchWithAuth(`/api/prep/${vacancyId}/finish`, { method: "POST" });
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}/finish`, { method: 'POST' })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося завершити чат");
+    throw await parseError(response, 'Не вдалося завершити чат')
   }
-  return response.json() as Promise<{ profile: CompanyProfile }>;
+  return response.json() as Promise<{ profile: CompanyProfile }>
 }
 
 export async function confirmPrepProfile(
   vacancyId: string
 ): Promise<{ profile: CompanyProfile; vacancyStatus: string }> {
-  const response = await fetchWithAuth(`/api/prep/${vacancyId}/confirm`, { method: "POST" });
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}/confirm`, { method: 'POST' })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося підтвердити профіль");
+    throw await parseError(response, 'Не вдалося підтвердити профіль')
   }
-  return response.json() as Promise<{ profile: CompanyProfile; vacancyStatus: string }>;
+  return response.json() as Promise<{ profile: CompanyProfile; vacancyStatus: string }>
 }
 
 export async function deletePrepChat(vacancyId: string): Promise<void> {
-  const response = await fetchWithAuth(`/api/prep/${vacancyId}`, { method: "DELETE" });
+  const response = await fetchWithAuth(`/api/prep/${vacancyId}`, { method: 'DELETE' })
   if (!response.ok) {
-    throw await parseError(response, "Не вдалося видалити чат");
+    throw await parseError(response, 'Не вдалося видалити чат')
   }
 }
 
 export async function updatePrepProfile(
   vacancyId: string,
-  payload: Partial<Omit<CompanyProfile, "confirmedAt">>
+  payload: Partial<Omit<CompanyProfile, 'confirmedAt'>>
 ): Promise<{ profile: CompanyProfile }> {
   const response = await fetchWithAuth(`/api/prep/${vacancyId}/profile`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
   if (!response.ok) {
-    let body: ErrorBody = {};
+    let body: ErrorBody = {}
     try {
-      body = (await response.json()) as ErrorBody;
+      body = (await response.json()) as ErrorBody
     } catch {
       // ignore
     }
-    if (response.status === 409 && body.error === "Vacancy has active interviews") {
-      throw new Error("Неможливо змінити анкету: є активна співбесіда (READY/LIVE).");
+    if (response.status === 409 && body.error === 'Vacancy has active interviews') {
+      throw new Error('Неможливо змінити анкету: є активна співбесіда (READY/LIVE).')
     }
-    const detail = body.detail ?? body.error;
-    throw new Error(detail ? `Не вдалося оновити профіль: ${detail}` : "Не вдалося оновити профіль");
+    const detail = body.detail ?? body.error
+    throw new Error(detail ? `Не вдалося оновити профіль: ${detail}` : 'Не вдалося оновити профіль')
   }
-  return response.json() as Promise<{ profile: CompanyProfile }>;
+  return response.json() as Promise<{ profile: CompanyProfile }>
 }

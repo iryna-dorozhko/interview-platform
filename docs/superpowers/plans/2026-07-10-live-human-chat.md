@@ -40,6 +40,7 @@
 ### Task 1: Install Socket.IO dependencies
 
 **Files:**
+
 - Modify: `backend/package.json`
 - Modify: `frontend/package.json`
 
@@ -69,6 +70,7 @@ git commit -m "chore: add socket.io dependencies for Day 15 live chat"
 ### Task 2: `canAccessInterviewRoom` unit tests (TDD)
 
 **Files:**
+
 - Create: `backend/src/socket/room-access.test.ts`
 - Create: `backend/src/socket/room-access.ts`
 - Modify: `backend/package.json` (add test file to `test` script)
@@ -227,6 +229,7 @@ git commit -m "feat: add interview room access rules with unit tests"
 ### Task 3: Socket types and auth
 
 **Files:**
+
 - Create: `backend/src/socket/types.ts`
 - Create: `backend/src/socket/auth.ts`
 
@@ -315,6 +318,7 @@ git commit -m "feat: add socket types and JWT handshake auth"
 ### Task 4: Room socket handlers
 
 **Files:**
+
 - Create: `backend/src/socket/room.ts`
 
 - [ ] **Step 1: Create `room.ts`**
@@ -497,6 +501,7 @@ git commit -m "feat: add Socket.IO room join and message handlers"
 ### Task 5: Bootstrap Socket.IO in `server.ts`
 
 **Files:**
+
 - Modify: `backend/src/server.ts`
 
 - [ ] **Step 1: Refactor server to use HTTP + Socket.IO**
@@ -586,6 +591,7 @@ git commit -m "feat: bootstrap Socket.IO on shared HTTP server"
 ### Task 6: Vite WebSocket proxy
 
 **Files:**
+
 - Modify: `frontend/vite.config.ts`
 
 - [ ] **Step 1: Add `/socket.io` proxy**
@@ -618,6 +624,7 @@ git commit -m "chore: proxy socket.io through Vite dev server"
 ### Task 7: Frontend socket client and composable
 
 **Files:**
+
 - Create: `frontend/src/api/socket.ts`
 - Create: `frontend/src/composables/useInterviewRoom.ts`
 
@@ -795,6 +802,7 @@ git commit -m "feat: add socket client and useInterviewRoom composable"
 ### Task 8: `LiveChatPanel` component
 
 **Files:**
+
 - Create: `frontend/src/components/LiveChatPanel.vue`
 
 - [ ] **Step 1: Create chat panel**
@@ -1001,6 +1009,7 @@ git commit -m "feat: add LiveChatPanel for interview room"
 ### Task 9: Room views and router
 
 **Files:**
+
 - Create: `frontend/src/views/HrInterviewRoomView.vue`
 - Create: `frontend/src/views/CandidateInterviewRoomView.vue`
 - Modify: `frontend/src/router/index.ts`
@@ -1392,6 +1401,7 @@ git commit -m "feat: add interview room views and routes"
 ### Task 10: Entry buttons on detail pages
 
 **Files:**
+
 - Modify: `frontend/src/views/InterviewDetailView.vue`
 - Modify: `frontend/src/views/CandidateInterviewView.vue`
 
@@ -1451,6 +1461,7 @@ git commit -m "feat: add enter room buttons on interview detail pages"
 ### Task 11: README Day 15 documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Expand Day 15 section**

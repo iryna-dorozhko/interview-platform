@@ -57,6 +57,7 @@
 ### Task 1: Agreement + duration helpers
 
 **Files:**
+
 - Create: `backend/src/services/interview-eval-agreement.ts`
 - Create: `backend/src/services/interview-eval-agreement.test.ts`
 - Create: `backend/src/services/interview-eval-durations.ts`
@@ -64,6 +65,7 @@
 - Modify: `backend/package.json` (`test` script — append the two new test files)
 
 **Interfaces:**
+
 - Produces:
   - `hrAgreedWithArbiter(recommendation: "HIRE" \| "MAYBE" \| "REJECT", decision: "ACCEPT" \| "REJECT" \| "ADDITIONAL_MEETING"): boolean`
   - `prepDurationMs(session: { isClosed: boolean; createdAt: Date; updatedAt: Date } \| null): number \| null`
@@ -213,10 +215,12 @@ git commit -m "feat(eval): add agreement and duration helpers"
 ### Task 2: Prisma `InterviewEvalSnapshot`
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 - Create: migration via `npm run db:migrate --workspace=backend`
 
 **Interfaces:**
+
 - Produces: Prisma model `InterviewEvalSnapshot` with fields from spec; `Interview.evalSnapshot InterviewEvalSnapshot?`
 
 - [ ] **Step 1: Add model to schema** (after `FinalReport` / near `Interview` relations)
@@ -273,11 +277,13 @@ git commit -m "feat(db): add InterviewEvalSnapshot model"
 ### Task 3: In-memory eval counters
 
 **Files:**
+
 - Create: `backend/src/services/interview-eval-counters.ts`
 - Create: `backend/src/services/interview-eval-counters.test.ts`
 - Modify: `backend/package.json` (append test)
 
 **Interfaces:**
+
 - Produces:
   - `type InterviewEvalRuntimeCounters = { autoRetryCount; manualRetryCount; hrControlActionCount; clarifyingQuestionCount; agentMessageCount }` (all `number`)
   - `bumpAutoRetry(interviewId: string): void`
@@ -350,11 +356,13 @@ git commit -m "feat(eval): add in-memory interview eval counters"
 ### Task 4: Phase 1 / Phase 2 / summary service
 
 **Files:**
+
 - Create: `backend/src/services/interview-eval.ts`
 - Create: `backend/src/services/interview-eval.test.ts`
 - Modify: `backend/package.json`
 
 **Interfaces:**
+
 - Consumes: durations, agreement, counters, Prisma
 - Produces:
   - `upsertEvalAfterReport(prisma, interviewId): Promise<void>` — best-effort caller wraps try/catch
@@ -365,6 +373,7 @@ git commit -m "feat(eval): add in-memory interview eval counters"
 Fake prisma in tests (minimal stubs for `interview.findUnique`, `liveMessage.count`, `interviewEvalSnapshot.upsert/update`, `interviewDecision.findFirst`) — follow patterns from `reports.test.ts`.
 
 **Phase 1 algorithm:**
+
 1. Load interview with `prepSessionCd`, `vacancy.prepSessionHr`, `liveSession`, `finalReport`.
 2. If no `finalReport` — no-op (or throw in service; route should only call after create).
 3. `hrMessageCount` = count `LiveMessage` where `authorType === "HUMAN_HR"` for session.
@@ -374,10 +383,12 @@ Fake prisma in tests (minimal stubs for `interview.findUnique`, `liveMessage.cou
 7. `clearCounters(interviewId)` after successful upsert.
 
 **Phase 2:**
+
 1. Latest `InterviewDecision` by `createdAt desc`.
 2. Load snapshot / report recommendation; set `hrDecisionType`, `hrAgreedWithArbiter`, `decisionUpdatedAt`.
 
 **Summary:**
+
 ```ts
 export type EvalSummary = {
   snapshotCount: number;
@@ -412,6 +423,7 @@ git commit -m "feat(eval): add phase1/phase2 snapshot and summary service"
 ### Task 5: `withLlmRetry` `onRetry` + candidate-prep wiring
 
 **Files:**
+
 - Modify: `backend/src/llm/retry.ts`
 - Modify: `backend/src/llm/retry.test.ts`
 - Modify: `backend/src/agents/arbiter-agent.ts` (pass `onRetry` when interviewId known)
@@ -421,6 +433,7 @@ git commit -m "feat(eval): add phase1/phase2 snapshot and summary service"
 - Modify: related tests if signatures change
 
 **Interfaces:**
+
 - Extend `WithLlmRetryOptions` with `onRetry?: (attemptIndex: number) => void`  
   Call **after** a failed retryable attempt and **before** sleep, with `attemptIndex` of the failed attempt (0-based). Caller bumps autoRetry once per scheduled retry.
 
@@ -467,6 +480,7 @@ git commit -m "feat(eval): count auto/manual retries for candidate prep and live
 ### Task 6: Optional `kind` on live agent replies
 
 **Files:**
+
 - Modify: `backend/src/agents/agent-post-reply.ts`
 - Modify: `backend/src/agents/agent-post-reply.test.ts`
 - Modify: `backend/src/agents/candidate-live-agent.ts`
@@ -475,6 +489,7 @@ git commit -m "feat(eval): count auto/manual retries for candidate prep and live
 - Modify: `backend/src/agents/prompts/candidate-live-agent.uk.ts`
 
 **Interfaces:**
+
 - `ParsedPostReply.kind?: "clarifying" | "normal"` — omit/`normal` → treat as normal; invalid string → parse error OR coerce to normal (prefer: invalid → `AgentPostReplyParseError` only if present and not in set; omit OK).
 
 - [ ] **Step 1: Failing tests**
@@ -516,12 +531,14 @@ git commit -m "feat(agents): optional clarifying kind on live agent replies"
 ### Task 7: Orchestrator / room instrumentation
 
 **Files:**
+
 - Modify: `backend/src/socket/orchestrator.ts`
 - Modify: `backend/src/socket/orchestrator.test.ts`
 - Modify: `backend/src/socket/room.ts` (if end-session / agent-retry handled here)
 - Modify: `backend/src/routes/interviews.ts` for end → also `bumpHrControl` when HR ends interview
 
 **Rules:**
+
 - When persisting a public agent message (`AGENT_COMPANY` / `AGENT_CANDIDATE` / `AGENT_ARBITER` with content):  
   `bumpAgentMessage(interviewId, reply.kind === "clarifying" ? "clarifying" : "normal")`  
   (Arbiter public messages: kind `normal` unless arbiter schema later gets kind — MVP always normal for arbiter.)
@@ -543,12 +560,14 @@ git commit -m "feat(eval): instrument live orchestrator for eval counters"
 ### Task 8: Wire phase 1 + phase 2 + set `liveSession.endedAt`
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts` (end interview handler after successful `finalReport.create`)
 - Modify: `backend/src/routes/interviews.test.ts`
 - Modify: `backend/src/routes/reports.ts` (after decision transaction)
 - Modify: `backend/src/routes/reports.test.ts`
 
 **Phase 1 hook (interviews end):**
+
 ```ts
 // inside transaction or after: set liveSession.endedAt = new Date() where interviewId
 await prisma.liveSession.updateMany({
@@ -567,6 +586,7 @@ try {
 Prefer setting `endedAt` in the same transaction as status ENDED + report create when possible.
 
 **Phase 2 hook (reports decisions):**
+
 ```ts
 try {
   await updateEvalAfterDecision(prisma, report.interviewId);
@@ -590,6 +610,7 @@ git commit -m "feat(eval): two-phase snapshot on report and decision"
 ### Task 9: Eval HTTP API
 
 **Files:**
+
 - Create: `backend/src/routes/eval.ts`
 - Create: `backend/src/routes/eval.test.ts`
 - Modify: `backend/src/server.ts`
@@ -597,6 +618,7 @@ git commit -m "feat(eval): two-phase snapshot on report and decision"
 - Modify: `backend/package.json`
 
 **Auth helper:**
+
 ```ts
 function requireEvalToken(req, res): boolean {
   const expected = process.env.EVAL_API_TOKEN;
@@ -614,6 +636,7 @@ function requireEvalToken(req, res): boolean {
 ```
 
 Routes (no `requireHr`):
+
 - `GET /api/eval/snapshots?from=&to=`
 - `GET /api/eval/summary?from=&to=`
 
@@ -640,10 +663,12 @@ git commit -m "feat(api): eng-only eval snapshots and summary endpoints"
 ### Task 10: CLI `eval:report`
 
 **Files:**
+
 - Create: `backend/scripts/eval-report.ts`
 - Modify: `backend/package.json` — `"eval:report": "tsx scripts/eval-report.ts"`
 
 **Behavior:**
+
 ```bash
 npm run eval:report --workspace=backend -- --from=2026-07-01T00:00:00.000Z --to=2026-07-23T00:00:00.000Z
 npm run eval:report --workspace=backend -- --from=... --to=... --json

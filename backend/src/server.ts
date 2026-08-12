@@ -1,110 +1,172 @@
-import "dotenv/config";
-import { createServer } from "node:http";
-import cors from "cors";
-import express from "express";
-import { Server } from "socket.io";
-import { getJwtConfig } from "./auth/jwt";
-import { requireAuth, requireHr, requireCandidate } from "./auth/middleware";
-import { disconnectPrisma, prisma } from "./db/prisma";
-import { createLlmProvider } from "./llm/factory";
-import { createAuthRouter } from "./routes/auth";
-import { createHealthRouter } from "./routes/health";
-import { createInterviewsRouter } from "./routes/interviews";
-import { createReportsRouter } from "./routes/reports";
-import { createDialogsRouter } from "./routes/dialogs";
-import { createVacanciesRouter } from "./routes/vacancies";
-import { createLlmRouter } from "./routes/llm";
-import { createPrepRouter } from "./routes/prep";
-import { createCompanyPrepRouter } from "./routes/company-prep";
-import { createCandidatePrepRouter } from "./routes/candidate-prep";
-import { createCandidateInterviewRouter } from "./routes/candidate-interview";
-import { createCandidateInvitationsRouter } from "./routes/candidate-invitations";
-import { createCandidateMatchesRouter } from "./routes/candidate-matches";
-import { createHrApplicationsRouter } from "./routes/hr-applications";
-import { createHrAdditionalInterviewsRouter } from "./routes/hr-additional-interviews";
-import { createRoomOrchestrator } from "./socket/orchestrator";
-import { registerRoomHandlers } from "./socket/room";
-import { registerDialogHandlers } from "./socket/dialogs";
-import { createGracefulShutdown } from "./server-lifecycle";
+import { env } from 'node:process'
+import { createServer } from 'node:http'
+import cors from 'cors'
+import express from 'express'
+import { Server } from 'socket.io'
+import { getJwtConfig } from './auth/jwt'
+import { requireAuth, requireHr, requireCandidate } from './auth/middleware'
+import { disconnectPrisma, prisma } from './db/prisma'
+import { createLlmProvider } from './llm/factory'
+import { createAuthRouter } from './routes/auth'
+import { createHealthRouter } from './routes/health'
+import { createInterviewsRouter } from './routes/interviews'
+import { createReportsRouter } from './routes/reports'
+import { createDialogsRouter } from './routes/dialogs'
+import { createVacanciesRouter } from './routes/vacancies'
+import { createLlmRouter } from './routes/llm'
+import { createPrepRouter } from './routes/prep'
+import { createCompanyPrepRouter } from './routes/company-prep'
+import { createCandidatePrepRouter } from './routes/candidate-prep'
+import { createCandidateInterviewRouter } from './routes/candidate-interview'
+import { createCandidateInvitationsRouter } from './routes/candidate-invitations'
+import { createCandidateMatchesRouter } from './routes/candidate-matches'
+import { createHrApplicationsRouter } from './routes/hr-applications'
+import { createHrAdditionalInterviewsRouter } from './routes/hr-additional-interviews'
+import { createRoomOrchestrator } from './socket/orchestrator'
+import { registerRoomHandlers } from './socket/room'
+import { registerDialogHandlers } from './socket/dialogs'
+import { createGracefulShutdown } from './server-lifecycle'
 
-const app = express();
-const port = Number(process.env.PORT ?? 3000);
+const app = express()
+const port = Number(env.PORT ?? 3000)
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
-  }),
-);
+    origin: 'http://localhost:5173'
+  })
+)
 
-app.use(express.json());
+app.use(express.json())
 
-getJwtConfig();
-const llmProvider = createLlmProvider();
-const getLlmProvider = () => llmProvider;
+getJwtConfig()
+const llmProvider = createLlmProvider()
+const getLlmProvider = () => llmProvider
 
-app.use("/api", createHealthRouter(() => prisma));
-app.use("/api", createAuthRouter(() => prisma));
 app.use(
-  "/api/candidate-prep",
+  '/api',
+  createHealthRouter(() => prisma)
+)
+app.use(
+  '/api',
+  createAuthRouter(() => prisma)
+)
+app.use(
+  '/api/candidate-prep',
   requireAuth,
   requireCandidate,
-  createCandidatePrepRouter(() => prisma, getLlmProvider),
-);
-app.use("/api/candidate", createCandidateInterviewRouter(() => prisma));
-app.use("/api/candidate", createCandidateInvitationsRouter(() => prisma));
-app.use("/api/candidate", createCandidateMatchesRouter(() => prisma, getLlmProvider));
+  createCandidatePrepRouter(() => prisma, getLlmProvider)
+)
+app.use(
+  '/api/candidate',
+  createCandidateInterviewRouter(() => prisma)
+)
+app.use(
+  '/api/candidate',
+  createCandidateInvitationsRouter(() => prisma)
+)
+app.use(
+  '/api/candidate',
+  createCandidateMatchesRouter(() => prisma, getLlmProvider)
+)
 // Shared HR+candidate routes must be registered BEFORE any `/api` + requireHr stack.
 // Otherwise Express runs requireHr for every later `/api/*` path (including /dialogs).
-app.use("/api", requireAuth, createDialogsRouter(() => prisma, () => io));
-app.use("/api", requireAuth, requireHr, createLlmRouter(getLlmProvider));
-app.use("/api", requireAuth, requireHr, createPrepRouter(() => prisma, getLlmProvider));
-app.use("/api", requireAuth, requireHr, createCompanyPrepRouter(() => prisma, getLlmProvider));
-app.use("/api", requireAuth, requireHr, createInterviewsRouter(() => prisma, () => io, getLlmProvider));
-app.use("/api", requireAuth, requireHr, createVacanciesRouter(() => prisma));
 app.use(
-  "/api",
+  '/api',
+  requireAuth,
+  createDialogsRouter(
+    () => prisma,
+    () => io
+  )
+)
+app.use('/api', requireAuth, requireHr, createLlmRouter(getLlmProvider))
+app.use(
+  '/api',
   requireAuth,
   requireHr,
-  createHrApplicationsRouter(() => prisma, getLlmProvider, () => io),
-);
-app.use("/api", requireAuth, createHrAdditionalInterviewsRouter(() => prisma));
-app.use("/api", requireAuth, requireHr, createReportsRouter(() => prisma, getLlmProvider, () => io));
+  createPrepRouter(() => prisma, getLlmProvider)
+)
+app.use(
+  '/api',
+  requireAuth,
+  requireHr,
+  createCompanyPrepRouter(() => prisma, getLlmProvider)
+)
+app.use(
+  '/api',
+  requireAuth,
+  requireHr,
+  createInterviewsRouter(
+    () => prisma,
+    () => io,
+    getLlmProvider
+  )
+)
+app.use(
+  '/api',
+  requireAuth,
+  requireHr,
+  createVacanciesRouter(() => prisma)
+)
+app.use(
+  '/api',
+  requireAuth,
+  requireHr,
+  createHrApplicationsRouter(
+    () => prisma,
+    getLlmProvider,
+    () => io
+  )
+)
+app.use(
+  '/api',
+  requireAuth,
+  createHrAdditionalInterviewsRouter(() => prisma)
+)
+app.use(
+  '/api',
+  requireAuth,
+  requireHr,
+  createReportsRouter(
+    () => prisma,
+    getLlmProvider,
+    () => io
+  )
+)
 
-const httpServer = createServer(app);
+const httpServer = createServer(app)
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
-  },
-});
+    origin: 'http://localhost:5173'
+  }
+})
 
 const orchestrator = createRoomOrchestrator(() => prisma, {
-  getLlmProvider,
-});
-registerRoomHandlers(io, () => prisma, orchestrator);
-registerDialogHandlers(io, () => prisma);
+  getLlmProvider
+})
+registerRoomHandlers(io, () => prisma, orchestrator)
+registerDialogHandlers(io, () => prisma)
 
+// Модуль stopHttp.
 function stopHttp(): Promise<void> {
   return new Promise((resolve, reject) => {
-    httpServer.close((error) => {
-      if (
-        error &&
-        (!("code" in error) || error.code !== "ERR_SERVER_NOT_RUNNING")
-      ) {
-        reject(error);
+    httpServer.close(error => {
+      if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) {
+        reject(error)
       } else {
-        resolve();
+        resolve()
       }
-    });
-  });
+    })
+  })
 }
 
+// Модуль closeSocketIo.
 function closeSocketIo(): Promise<void> {
   return new Promise((resolve, reject) => {
-    io.close((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
+    io.close(error => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
 }
 
 const shutdown = createGracefulShutdown({
@@ -113,21 +175,21 @@ const shutdown = createGracefulShutdown({
   closeOrchestrator: () => orchestrator.close(),
   closeLlm: () => llmProvider.close?.() ?? Promise.resolve(),
   disconnectPrisma,
-  logError: (error) => {
-    console.error("[shutdown]", error);
+  logError: error => {
+    console.error('[shutdown]', error)
   },
-  setExitCode: (code) => {
-    process.exitCode = code;
-  },
-});
+  setExitCode: code => {
+    process.exitCode = code
+  }
+})
 
-process.once("SIGINT", () => {
-  void shutdown("SIGINT");
-});
-process.once("SIGTERM", () => {
-  void shutdown("SIGTERM");
-});
+process.once('SIGINT', () => {
+  void shutdown('SIGINT')
+})
+process.once('SIGTERM', () => {
+  void shutdown('SIGTERM')
+})
 
 httpServer.listen(port, () => {
-  console.log(`backend listening on http://localhost:${port}`);
-});
+  console.log(`backend listening on http://localhost:${port}`)
+})

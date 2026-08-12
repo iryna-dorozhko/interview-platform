@@ -1,54 +1,49 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { ApiError } from "../api/client";
-import { useAuthStore } from "../stores/auth";
 
-const auth = useAuthStore();
-const router = useRouter();
-const route = useRoute();
+import { ApiError } from '../api/client'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+const route = useRoute()
 
 function sanitizeRedirect(value: unknown, fallback: string): string {
-  return typeof value === "string" &&
-    value.startsWith("/") &&
-    !value.startsWith("//")
-    ? value
-    : fallback;
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : fallback
 }
 
 const loginLink = computed(() => {
-  const redirect = route.query.redirect;
-  if (typeof redirect !== "string" || !redirect) {
-    return { path: "/candidate/login" };
+  const redirect = route.query.redirect
+  if (typeof redirect !== 'string' || !redirect) {
+    return { path: '/candidate/login' }
   }
-  return { path: "/candidate/login", query: { redirect } };
-});
+  return { path: '/candidate/login', query: { redirect } }
+})
 
-const email = ref("");
-const password = ref("");
-const loading = ref(false);
-const errorMessage = ref<string | null>(null);
+const email = ref('')
+const password = ref('')
+const loading = ref(false)
+const errorMessage = ref<string | null>(null)
 
 async function onSubmit(): Promise<void> {
-  errorMessage.value = null;
-  loading.value = true;
+  errorMessage.value = null
+  loading.value = true
   try {
-    await auth.registerCandidate(email.value.trim(), password.value);
-    await router.push(sanitizeRedirect(route.query.redirect, "/candidate"));
+    await auth.registerCandidate(email.value.trim(), password.value)
+    await router.push(sanitizeRedirect(route.query.redirect, '/candidate'))
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 409) {
-        errorMessage.value = "Email вже зареєстровано";
+        errorMessage.value = 'Email вже зареєстровано'
       } else if (error.status === 400) {
-        errorMessage.value = "Невірні дані";
+        errorMessage.value = 'Невірні дані'
       } else {
-        errorMessage.value = error.message;
+        errorMessage.value = error.message
       }
     } else {
-      errorMessage.value = "Не вдалося підключитися до сервера";
+      errorMessage.value = 'Не вдалося підключитися до сервера'
     }
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 </script>
@@ -67,7 +62,7 @@ async function onSubmit(): Promise<void> {
       </label>
       <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
       <button type="submit" :disabled="loading">
-        {{ loading ? "Реєстрація…" : "Зареєструватися" }}
+        {{ loading ? 'Реєстрація…' : 'Зареєструватися' }}
       </button>
     </form>
     <p class="helper">
@@ -83,23 +78,28 @@ async function onSubmit(): Promise<void> {
   margin: 2rem auto;
   padding: 0 1rem;
 }
+
 .form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
+
 label {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
+
 input {
   padding: 0.5rem;
   font-size: 1rem;
 }
+
 .error {
   color: var(--danger);
 }
+
 button {
   padding: 0.5rem 1rem;
   font-size: 1rem;
@@ -109,10 +109,12 @@ button {
   border: 1px solid transparent;
   border-radius: 0.375rem;
 }
+
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .helper {
   margin-top: 1.5rem;
   font-size: 0.875rem;

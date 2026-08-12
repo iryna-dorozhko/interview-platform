@@ -213,6 +213,7 @@ Read-only view після confirm — ті самі поля. Тип `CompanyPro
 ```
 
 **Backend** (`vacancy-match.ts`, `candidate-matches.ts`):
+
 - При побудові offers join `CompanyProfile` для CONFIRMED вакансій
 - `salaryDisplay` ← `compensation.displayText`; `null` якщо відсутній або `"не вказано"`
 - `workFormatDisplay` ← значення після префікса `Формат:`; `null` якщо `"не вказано"`
@@ -277,6 +278,7 @@ Senior Backend Developer          87%
 ## Ключові файли
 
 **Backend — agents:**
+
 - `backend/src/agents/prompts/company-agent.uk.ts`
 - `backend/src/agents/prompts/vacancy-profile-extraction.uk.ts`
 - `backend/src/agents/company-agent.ts`
@@ -286,16 +288,19 @@ Senior Backend Developer          87%
 - `backend/src/agents/arbiter-agent.ts`
 
 **Backend — routes / services:**
+
 - `backend/src/routes/prep.ts`
 - `backend/src/routes/candidate-matches.ts`
 - `backend/src/services/vacancy-match.ts`
 - `backend/src/socket/orchestrator.ts`
 
 **Frontend:**
+
 - `frontend/src/views/VacancyPrepView.vue`
 - `frontend/src/views/CandidateMatchesView.vue`
 - `frontend/src/api/prep.ts`
 - `frontend/src/api/candidate-matches.ts`
 
 **Schema:**
+
 - `backend/prisma/schema.prisma`

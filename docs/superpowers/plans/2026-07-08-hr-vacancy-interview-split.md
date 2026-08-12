@@ -46,6 +46,7 @@
 ### Task 1: Prisma schema — add `Vacancy`, move HR prep relations
 
 **Files:**
+
 - Modify: `backend/prisma/schema.prisma`
 
 - [ ] **Step 1: Replace schema with target models**
@@ -61,9 +62,9 @@ enum VacancyStatus {
 }
 ```
 
-2. Add `vacanciesAsHr Vacancy[] @relation("HrVacancies")` to `User` model.
+1. Add `vacanciesAsHr Vacancy[] @relation("HrVacancies")` to `User` model.
 
-3. Add new model:
+2. Add new model:
 
 ```prisma
 model Vacancy {
@@ -83,7 +84,7 @@ model Vacancy {
 }
 ```
 
-4. Update `Interview` — add fields, remove HR prep relations:
+1. Update `Interview` — add fields, remove HR prep relations:
 
 ```prisma
 model Interview {
@@ -113,7 +114,7 @@ model Interview {
 
 Remove from `Interview`: `companyProfile`, `prepSessionHr`.
 
-5. Update `CompanyProfile` — rename FK:
+1. Update `CompanyProfile` — rename FK:
 
 ```prisma
 model CompanyProfile {
@@ -130,7 +131,7 @@ model CompanyProfile {
 }
 ```
 
-6. Update `PrepSessionHr`:
+1. Update `PrepSessionHr`:
 
 ```prisma
 model PrepSessionHr {
@@ -194,6 +195,7 @@ git commit -m "feat(db): add Vacancy model and split HR prep from Interview"
 ### Task 2: Update seed — vacancy + linked interview
 
 **Files:**
+
 - Create: `backend/src/seed/hr-vacancy.js`
 - Create: `backend/src/seed/hr-vacancy.test.js`
 - Modify: `backend/src/seed/hr-interview.js`
@@ -364,6 +366,7 @@ git commit -m "feat(seed): add test vacancy and link seed interview to it"
 ### Task 3: Vacancies router — CRUD endpoints
 
 **Files:**
+
 - Create: `backend/src/routes/vacancies.ts`
 - Create: `backend/src/routes/vacancies.test.ts`
 - Modify: `backend/src/server.ts`
@@ -713,12 +716,14 @@ git commit -m "feat: add vacancies CRUD API"
 ### Task 4: Refactor prep router — `interviewId` → `vacancyId`
 
 **Files:**
+
 - Modify: `backend/src/routes/prep.ts`
 - Modify: `backend/src/routes/prep.test.ts`
 
 - [ ] **Step 1: Mechanical rename in `prep.ts`**
 
 For every handler:
+
 1. Rename route param `:interviewId` → `:vacancyId`.
 2. Replace `prisma.interview.findUnique` auth check with:
 
@@ -728,9 +733,9 @@ if (!vacancy) { res.status(404).json({ error: "Vacancy not found" }); return; }
 if (vacancy.hrUserId !== req.user?.id) { res.status(403).json({ error: "Forbidden" }); return; }
 ```
 
-3. Replace all `where: { interviewId }` on `prepSessionHr` / `companyProfile` with `where: { vacancyId }`.
-4. Replace `create: { interviewId }` with `create: { vacancyId }`.
-5. In **confirm** handler, replace interview status update with:
+1. Replace all `where: { interviewId }` on `prepSessionHr` / `companyProfile` with `where: { vacancyId }`.
+2. Replace `create: { interviewId }` with `create: { vacancyId }`.
+3. In **confirm** handler, replace interview status update with:
 
 ```ts
 await prisma.vacancy.update({
@@ -739,8 +744,8 @@ await prisma.vacancy.update({
 });
 ```
 
-6. Change confirm response field `interviewStatus` → `vacancyStatus` (value `"CONFIRMED"`).
-7. Update 404 error strings: `"Interview not found"` → `"Vacancy not found"`.
+1. Change confirm response field `interviewStatus` → `vacancyStatus` (value `"CONFIRMED"`).
+2. Update 404 error strings: `"Interview not found"` → `"Vacancy not found"`.
 
 - [ ] **Step 2: Update confirm test expectation in `prep.test.ts`**
 
@@ -757,6 +762,7 @@ test("POST /prep/:vacancyId/confirm sets confirmedAt and moves vacancy to CONFIR
 ```
 
 Update `makeFakePrisma` in `prep.test.ts`:
+
 - Add `FakeVacancy` type and `vacancies` array.
 - Add `vacancy.findUnique` mirroring old `interview.findUnique`.
 - Add `vacancy.update` for confirm.
@@ -764,6 +770,7 @@ Update `makeFakePrisma` in `prep.test.ts`:
 - Replace all fetch URLs `/api/prep/interview_1` → `/api/prep/vacancy_1` (and seed data ids accordingly).
 
 Run global replace in `prep.test.ts`:
+
 - `interviewId` → `vacancyId` (types, fields, URLs)
 - `interview_1` → `vacancy_1` (test ids)
 - Remove `interview.update` expectations from confirm test; assert `vacancy.update` called instead.
@@ -785,6 +792,7 @@ git commit -m "refactor: move HR prep flow from interviewId to vacancyId"
 ### Task 5: Update interviews router — require `vacancyId`, extend list
 
 **Files:**
+
 - Modify: `backend/src/routes/interviews.ts`
 - Modify: `backend/src/routes/interviews.test.ts`
 
@@ -915,6 +923,7 @@ git commit -m "feat: interviews require confirmed vacancyId"
 ### Task 6: Frontend API clients
 
 **Files:**
+
 - Create: `frontend/src/api/vacancies.ts`
 - Modify: `frontend/src/api/prep.ts`
 - Modify: `frontend/src/api/interviews.ts`
@@ -1038,6 +1047,7 @@ git commit -m "feat: add vacancy API client and update prep/interview types"
 ### Task 7: HR layout and router
 
 **Files:**
+
 - Create: `frontend/src/layouts/HrLayout.vue`
 - Create: `frontend/src/components/HrSidebar.vue`
 - Modify: `frontend/src/router/index.ts`
@@ -1179,6 +1189,7 @@ git commit -m "feat: add HrLayout with global sidebar navigation"
 ### Task 8: HR home view + create modals
 
 **Files:**
+
 - Create: `frontend/src/views/HrHomeView.vue`
 - Create: `frontend/src/components/CreateVacancyModal.vue`
 - Create: `frontend/src/components/CreateInterviewModal.vue`
@@ -1199,6 +1210,7 @@ Else dropdown + submit calls `createInterview(vacancyId)`, emit `created(intervi
 On mount: parallel `fetchMyVacancies()` + `fetchMyInterviews()`.
 
 Overview cards:
+
 - `vacancies.length` — «Анкет»
 - `interviews.length` — «Співбесід»
 - `interviews.filter(i => i.status === "AWAITING_CANDIDATE").length` — «Очікують кандидата»
@@ -1224,6 +1236,7 @@ git commit -m "feat: add HR home overview and create modals"
 ### Task 9: Vacancy list, detail, and prep views
 
 **Files:**
+
 - Create: `frontend/src/views/VacancyListView.vue`
 - Create: `frontend/src/views/VacancyDetailView.vue`
 - Create: `frontend/src/views/VacancyPrepView.vue`
@@ -1237,6 +1250,7 @@ Table columns: Назва | Дата | Статус | Дії.
 Status labels: `DRAFT` → «Чернетка», `CONFIRMED` → «Підтверджена».
 
 Actions per row:
+
 - `DRAFT` → «Пройти анкету» → `/vacancies/:id/prep`
 - `CONFIRMED` → «Переглянути» → `/vacancies/:id`
 - All → «Редагувати назву» (prompt or inline) → `updateVacancyTitle`
@@ -1245,6 +1259,7 @@ Actions per row:
 - [ ] **Step 2: Copy `CompanyPrepView.vue` → `VacancyPrepView.vue`**
 
 Changes:
+
 - `route.params.interviewId` → `route.params.id` (or `vacancyId` computed)
 - All prep API calls use `vacancyId`
 - Header: «Анкета: {{ title }}» — load title from `GET /vacancies/:id` or pass via query
@@ -1279,6 +1294,7 @@ git commit -m "feat: add vacancy list, detail, and prep views"
 ### Task 10: Interview list and detail stub
 
 **Files:**
+
 - Create: `frontend/src/views/InterviewListView.vue`
 - Create: `frontend/src/views/InterviewDetailView.vue`
 
@@ -1321,11 +1337,13 @@ git commit -m "feat: add interview list and detail stub view"
 ### Task 11: README documentation
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Add section after Day 9**
 
 Document:
+
 - New domain split (Vacancy vs Interview)
 - Updated API endpoints table
 - HR navigation (sidebar, home overview)
@@ -1363,6 +1381,7 @@ npm run dev
 ```
 
 Manual checklist:
+
 1. Login `hr@test.com` / `123456` → overview cards visible, sidebar works.
 2. Create vacancy → prep → confirm → status «Підтверджена» in `/vacancies`.
 3. Create interview from home → pick confirmed vacancy → code banner → row in `/interviews`.

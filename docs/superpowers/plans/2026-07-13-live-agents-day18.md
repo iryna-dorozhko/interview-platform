@@ -39,6 +39,7 @@
 ### Task 1: Спільний `parsePostReply`
 
 **Files:**
+
 - Create: `backend/src/agents/agent-post-reply.ts`
 - Create: `backend/src/agents/agent-post-reply.test.ts`
 - Modify: `backend/src/agents/arbiter-agent.ts`
@@ -185,6 +186,7 @@ git commit -m "refactor: extract shared parsePostReply for live agents"
 ### Task 2: Company Live Agent
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/company-live-agent.uk.ts`
 - Create: `backend/src/agents/company-live-agent.ts`
 - Create: `backend/src/agents/company-live-agent.test.ts`
@@ -410,6 +412,7 @@ git commit -m "feat: add company live agent for Day 18 interview chain"
 ### Task 3: Candidate Live Agent
 
 **Files:**
+
 - Create: `backend/src/agents/prompts/candidate-live-agent.uk.ts`
 - Create: `backend/src/agents/candidate-live-agent.ts`
 - Create: `backend/src/agents/candidate-live-agent.test.ts`
@@ -631,6 +634,7 @@ git commit -m "feat: add candidate live agent for Day 18 interview chain"
 ### Task 4: Оновити Arbiter prompt
 
 **Files:**
+
 - Modify: `backend/src/agents/prompts/arbiter-agent.uk.ts`
 - Modify: `backend/src/agents/arbiter-agent.test.ts`
 
@@ -709,6 +713,7 @@ git commit -m "feat: extend arbiter prompt for interview start and end signals"
 ### Task 5: Orchestrator — ланцюжок агентів
 
 **Files:**
+
 - Modify: `backend/src/socket/orchestrator.ts`
 - Modify: `backend/src/socket/orchestrator.test.ts`
 
@@ -980,6 +985,7 @@ git commit -m "feat: extend orchestrator with Arbiter → Company → Candidate 
 ### Task 6: Socket types і UI thinking label
 
 **Files:**
+
 - Modify: `backend/src/socket/types.ts`
 - Modify: `frontend/src/components/LiveChatPanel.vue`
 
@@ -1029,6 +1035,7 @@ git commit -m "feat: show Company and Candidate thinking labels in live chat"
 ### Task 7: README Day 18
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Update Day 18 section**
