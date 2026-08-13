@@ -1,6 +1,9 @@
+import { createRequire } from 'node:module'
 import * as pinia from 'pinia'
-import * as vue from 'vue'
 import * as vueRouter from 'vue-router'
+
+const require = createRequire(import.meta.url)
+const vue = require('vue') as typeof import('vue')
 
 /** Bun test preload: mirror Vite auto-import globals for composables under test. */
 for (const [name, value] of Object.entries({ ...vue, ...pinia, ...vueRouter })) {
