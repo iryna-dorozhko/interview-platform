@@ -10,6 +10,7 @@ import {
 import { usePrepChat } from '../composables/usePrepChat'
 import PrepChatPanel from './PrepChatPanel.vue'
 import { runFireAndForget } from '../utils/run-async'
+import { onMounted } from 'vue'
 
 const props = defineProps<{ interviewId: string }>()
 const emit = defineEmits<{ finished: []; deleted: [] }>()

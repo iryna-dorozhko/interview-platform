@@ -17,6 +17,8 @@ import CandidatePrepChat from '../components/CandidatePrepChat.vue'
 import PrepChatPanel from '../components/PrepChatPanel.vue'
 import type { PrepChatMessage } from '../composables/usePrepChat'
 import { confirmDestructiveAction } from '../utils/confirm-action'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
