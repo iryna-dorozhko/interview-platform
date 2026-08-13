@@ -6,17 +6,17 @@
     "backend"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
+    "dev": "bun run --filter backend dev & bun run --filter frontend dev",
     "mcp:browser": "playwright-mcp --port 8931",
-    "build": "npm run --workspaces build",
+    "build": "bun run --workspaces build",
     "lint:ox": "oxlint frontend backend",
     "lint:eslint": "eslint frontend backend",
-    "typecheck": "npm run --workspaces typecheck",
-    "lint": "npm run lint:ox && npm run lint:eslint && npm run typecheck",
-    "ci:bootstrap": "npm run lint && npm run build"
+    "typecheck": "bun run --workspaces typecheck",
+    "lint": "bun run lint:ox && bun run lint:eslint && bun run typecheck",
+    "ci:bootstrap": "bun run lint && bun run build"
   },
   "devDependencies": {
-    "@7n/rules": "^1.66.0",
+    "@7n/rules": "^1.92.0",
     "@eslint/js": "^10.0.1",
     "@playwright/mcp": "^0.0.78",
     "eslint": "^10.8.1",
