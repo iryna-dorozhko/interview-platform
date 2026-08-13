@@ -6,6 +6,7 @@ import { canAccessInterviewRoom } from './room-access'
 import { maybeTransitionToLive, roomName } from './maybe-transition-live'
 import { getPresence, trackJoin, trackLeave } from './room-presence'
 import type { RoomOrchestrator } from './orchestrator'
+import { runFireAndForget } from '../utils/run-async'
 import type {
   LiveMessageDto,
   RoomAgentRetryPayload,
@@ -44,7 +45,7 @@ function socketRole(userRole: 'HR' | 'CANDIDATE'): 'HR' | 'CANDIDATE' {
 }
 
 // Модуль loadInterview.
-async function loadInterview(prisma: PrismaClient, interviewId: string) {
+function loadInterview(prisma: PrismaClient, interviewId: string) {
   return prisma.interview.findUnique({
     where: { id: interviewId },
     select: { id: true, hrUserId: true, candidateUserId: true, status: true }
@@ -268,7 +269,7 @@ export function registerRoomHandlers(io: Server, getPrisma: () => PrismaClient, 
         isTyping: false
       })
       trackLeave(room, data.roomRole)
-      void maybeTransitionToLive(io, getPrisma(), data.interviewId, getPresence(room))
+      runFireAndForget(maybeTransitionToLive(io, getPrisma(), data.interviewId, getPresence(room)))
     })
   })
 }

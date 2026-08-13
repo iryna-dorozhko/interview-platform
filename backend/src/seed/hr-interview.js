@@ -2,6 +2,7 @@ export const SEED_INTERVIEW = {
   joinCode: 'TEST01'
 }
 
+
 export async function seedHrInterview(prisma, hrUserId, vacancyId) {
   const interview = await prisma.interview.upsert({
     where: { joinCode: SEED_INTERVIEW.joinCode },

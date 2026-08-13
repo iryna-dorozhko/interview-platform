@@ -39,7 +39,7 @@ const recentActivity = computed<ActivityItem[]>(() => {
   }))
 
   return [...vacancyItems, ...interviewItems]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .toSorted((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 3)
 })
 
@@ -62,14 +62,17 @@ async function loadDashboard(): Promise<void> {
   }
 }
 
+
 function onVacancyCreated(vacancyId: string): void {
   showVacancyModal.value = false
   router.push({ name: 'vacancy-prep', params: { id: vacancyId } })
 }
 
+
 function activityTypeLabel(kind: ActivityItem['kind']): string {
   return kind === 'vacancy' ? 'Анкета' : 'Співбесіда'
 }
+
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA')
@@ -102,7 +105,7 @@ onMounted(loadDashboard)
       </div>
 
       <div class="dashboard-actions">
-        <button type="button" class="btn-primary" @click="showVacancyModal = true">Створити нову вакансію</button>
+        <button @click="showVacancyModal = true" type="button" class="btn-primary">Створити нову вакансію</button>
         <RouterLink class="btn-secondary-link" :to="{ name: 'hr-applications' }">
           Заявки кандидатів
           <span v-if="unreadNotifications > 0" class="badge">{{ unreadNotifications }}</span>
@@ -121,7 +124,7 @@ onMounted(loadDashboard)
       </section>
     </template>
 
-    <CreateVacancyModal :open="showVacancyModal" @close="showVacancyModal = false" @created="onVacancyCreated" />
+    <CreateVacancyModal @close="showVacancyModal = false" @created="onVacancyCreated" :open="showVacancyModal" />
   </div>
 </template>
 

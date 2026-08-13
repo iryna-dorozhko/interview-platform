@@ -1,7 +1,10 @@
+const TRAILING_SLASH_RE = /\/$/
+
 export function buildInviteLink(origin: string, joinCode: string): string {
   const code = joinCode.trim().toUpperCase()
-  return `${origin.replace(/\/$/, '')}/join?code=${encodeURIComponent(code)}`
+  return `${origin.replace(TRAILING_SLASH_RE, '')}/join?code=${encodeURIComponent(code)}`
 }
+
 
 export function formatScheduledAtUk(iso: string | null | undefined): string | null {
   if (!iso) return null
@@ -12,6 +15,7 @@ export function formatScheduledAtUk(iso: string | null | undefined): string | nu
     timeStyle: 'short'
   }).format(d)
 }
+
 
 export function buildInviteMessage(input: {
   displayName: string

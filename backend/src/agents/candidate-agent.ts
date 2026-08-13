@@ -142,18 +142,21 @@ export class CandidateProfileExtractionError extends Error {
   }
 }
 
+
 function toStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new CandidateProfileExtractionError(`missing or invalid field: ${field}`)
   }
-  return value.map(item => String(item))
+  return value.map(String)
 }
+
 
 function toOptionalString(value: unknown): string | null {
   if (value === null || value === undefined) return null
   const normalized = String(value).trim()
-  return normalized ? normalized : null
+  return normalized || null
 }
+
 
 function normalizeSkillsFields(data: Record<string, unknown>): {
   strong: unknown

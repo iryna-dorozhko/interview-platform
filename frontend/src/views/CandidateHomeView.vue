@@ -15,6 +15,7 @@ import {
 import JoinInterviewModal from '../components/JoinInterviewModal.vue'
 import { consumeJoinedBanner } from '../utils/join-banner'
 import { formatScheduledAtUk } from '../utils/invite-message'
+import { runFireAndForget } from '../utils/run-async'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -23,6 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
   READY: 'Обидва готові',
   LIVE: 'В ефірі'
 }
+
 
 function profileStatusLabel(
   questionnaireInterview: CandidateInterview | null,
@@ -35,10 +37,12 @@ function profileStatusLabel(
   return 'Підтверджена'
 }
 
+
 function interviewStatusLabel(interview: CandidateInterview | null): string {
   if (!interview) return '—'
   return STATUS_LABELS[interview.status] ?? interview.status
 }
+
 
 function scheduledLabel(iso: string | null): string | null {
   return formatScheduledAtUk(iso)
@@ -89,12 +93,14 @@ async function loadDashboard(): Promise<void> {
   }
 }
 
+
 function onJoined(joined: CandidateInterview): void {
   interview.value = joined
   showJoinModal.value = false
   joinedBanner.value = joined
-  void loadDashboard()
+  runFireAndForget(loadDashboard())
 }
+
 
 async function onAccept(invitation: CandidateInvitation): Promise<void> {
   invitationActionError.value = null
@@ -108,6 +114,7 @@ async function onAccept(invitation: CandidateInvitation): Promise<void> {
     acceptingId.value = null
   }
 }
+
 
 async function onDecline(invitation: CandidateInvitation): Promise<void> {
   invitationActionError.value = null
@@ -137,7 +144,7 @@ function restoreJoinedBanner(): void {
 
 onMounted(() => {
   restoreJoinedBanner()
-  void loadDashboard()
+  runFireAndForget(loadDashboard())
 })
 </script>
 
@@ -166,16 +173,16 @@ onMounted(() => {
 
       <div class="dashboard-actions">
         <button
+          @click="showJoinModal = true"
           type="button"
           class="btn-primary"
           :disabled="!canJoinMeeting"
           :title="canJoinMeeting ? undefined : 'Спочатку створіть і підтвердіть анкету'"
-          @click="showJoinModal = true"
         >
           Приєднатися до зустрічі
         </button>
-        <button type="button" class="btn-primary" @click="openProfile">Заповнити анкету</button>
-        <button v-if="canMatchVacancies" type="button" class="btn-primary" @click="openMatches">
+        <button @click="openProfile" type="button" class="btn-primary">Заповнити анкету</button>
+        <button v-if="canMatchVacancies" @click="openMatches" type="button" class="btn-primary">
           Підібрати вакансію
         </button>
       </div>
@@ -193,14 +200,14 @@ onMounted(() => {
             </div>
             <div class="invitation-actions">
               <button
+                @click="onDecline(invitation)"
                 type="button"
                 class="btn-secondary"
                 :disabled="invitationActionBusy"
-                @click="onDecline(invitation)"
               >
                 {{ decliningId === invitation.id ? 'Відхилення…' : 'Відхилити' }}
               </button>
-              <button type="button" class="btn-primary" :disabled="invitationActionBusy" @click="onAccept(invitation)">
+              <button @click="onAccept(invitation)" type="button" class="btn-primary" :disabled="invitationActionBusy">
                 {{ acceptingId === invitation.id ? 'Прийняття…' : 'Прийняти' }}
               </button>
             </div>
@@ -216,7 +223,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <JoinInterviewModal :open="showJoinModal" @close="showJoinModal = false" @joined="onJoined" />
+    <JoinInterviewModal @close="showJoinModal = false" @joined="onJoined" :open="showJoinModal" />
   </div>
 </template>
 

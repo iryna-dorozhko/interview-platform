@@ -23,6 +23,7 @@ const errorMessage = ref<string | null>(null)
 const showJoinModal = ref(false)
 const canJoinMeeting = ref(false)
 
+
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
@@ -46,6 +47,7 @@ async function loadInterview(): Promise<void> {
   }
 }
 
+
 function onJoined(joined: CandidateInterview): void {
   interview.value = joined
   showJoinModal.value = false
@@ -68,9 +70,9 @@ onMounted(loadInterview)
       </p>
       <button
         v-if="interview.status === 'READY' || interview.status === 'LIVE'"
+        @click="router.push({ name: 'candidate-interview-room' })"
         type="button"
         class="btn-primary"
-        @click="router.push({ name: 'candidate-interview-room' })"
       >
         Увійти в співбесіду
       </button>
@@ -80,12 +82,12 @@ onMounted(loadInterview)
     <template v-else>
       <p class="empty">Введіть код співбесіди від HR, щоб приєднатися</p>
       <p v-if="!canJoinMeeting" class="muted">Спочатку створіть і підтвердіть анкету в розділі «Моя анкета».</p>
-      <button type="button" class="btn-primary" :disabled="!canJoinMeeting" @click="showJoinModal = true">
+      <button @click="showJoinModal = true" type="button" class="btn-primary" :disabled="!canJoinMeeting">
         Приєднатися до зустрічі
       </button>
     </template>
 
-    <JoinInterviewModal :open="showJoinModal" @close="showJoinModal = false" @joined="onJoined" />
+    <JoinInterviewModal @close="showJoinModal = false" @joined="onJoined" :open="showJoinModal" />
   </div>
 </template>
 

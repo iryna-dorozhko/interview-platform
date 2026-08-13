@@ -1,8 +1,7 @@
 import type { LiveAuthorType, PrismaClient } from '@prisma/client'
 import { withLlmRetry } from '../llm/retry'
 import type { ChatMessage, LlmCompleteOptions, LlmProvider } from '../llm/types'
-import { parseVacancyCompensation, parseWorkConditionsArray } from '../utils/vacancy-work-conditions'
-import type { VacancyCompensation } from '../utils/vacancy-work-conditions'
+import { parseVacancyCompensation, parseWorkConditionsArray, type VacancyCompensation } from '../utils/vacancy-work-conditions'
 import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 import { ARBITER_AGENT_SYSTEM_PROMPT_UK } from './prompts/arbiter-agent.uk'
 
@@ -206,13 +205,15 @@ export function buildArbiterMessages(input: {
   return messages
 }
 
+const DEFAULT_ARBITER_TURN_OPTIONS: ArbiterTurnOptions = { pendingQuestion: false }
+
 // Модуль runArbiterTurn.
 export async function runArbiterTurn(
   prisma: PrismaClient,
   interviewId: string,
   sessionId: string,
   provider: LlmProvider,
-  options: ArbiterTurnOptions = { pendingQuestion: false }
+  options: ArbiterTurnOptions = DEFAULT_ARBITER_TURN_OPTIONS
 ): Promise<ParsedArbiterCommand> {
   const interview = await prisma.interview.findUnique({
     where: { id: interviewId },

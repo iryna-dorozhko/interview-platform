@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import {
   buildCompanyProfileAgentMessages,
@@ -127,7 +127,7 @@ function parseProfilePatch(
 export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvider: () => LlmProvider): Router {
   const router = Router()
 
-  router.get('/company-prep', async (req: Request, res: Response) => {
+  router.get('/company-prep', asyncHandler(async (req: Request, res: Response) => {
     const hrUserId = req.user?.id
     if (!hrUserId) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -158,9 +158,9 @@ export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvid
       isClosed: session.isClosed,
       profile: profile ? toProfileDto(profile) : null
     })
-  })
+  }))
 
-  router.post('/company-prep/finish', async (req: Request, res: Response) => {
+  router.post('/company-prep/finish', asyncHandler(async (req: Request, res: Response) => {
     const hrUserId = req.user?.id
     if (!hrUserId) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -248,9 +248,9 @@ export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvid
     }
 
     res.status(200).json({ profile: toProfileDto(profile) })
-  })
+  }))
 
-  router.patch('/company-prep/profile', async (req: Request, res: Response) => {
+  router.patch('/company-prep/profile', asyncHandler(async (req: Request, res: Response) => {
     const hrUserId = req.user?.id
     if (!hrUserId) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -284,9 +284,9 @@ export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvid
     }
 
     res.status(200).json({ profile: toProfileDto(updatedProfile) })
-  })
+  }))
 
-  router.post('/company-prep/message', async (req: Request, res: Response) => {
+  router.post('/company-prep/message', asyncHandler(async (req: Request, res: Response) => {
     const hrUserId = req.user?.id
     if (!hrUserId) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -359,9 +359,9 @@ export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvid
     }
 
     res.status(200).json({ message: agentMessage, readyForConfirmation })
-  })
+  }))
 
-  router.delete('/company-prep', async (req: Request, res: Response) => {
+  router.delete('/company-prep', asyncHandler(async (req: Request, res: Response) => {
     const hrUserId = req.user?.id
     if (!hrUserId) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -385,7 +385,7 @@ export function createCompanyPrepRouter(getPrisma: () => PrismaClient, getProvid
     }
 
     res.status(200).json({ ok: true })
-  })
+  }))
 
   return router
 }

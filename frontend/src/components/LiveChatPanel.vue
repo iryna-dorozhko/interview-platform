@@ -2,6 +2,7 @@
 
 import type { AgentThinkingState, LiveMessage } from '../composables/useInterviewRoom'
 import { confidenceBadgeFor, labelFor, messageStyles } from '../utils/live-message-styles'
+import { runFireAndForget } from '../utils/run-async'
 
 const props = defineProps<{
   messages: LiveMessage[]
@@ -55,7 +56,7 @@ async function scrollToBottom(): Promise<void> {
 watch(
   () => props.messages.length,
   () => {
-    void scrollToBottom()
+    runFireAndForget(scrollToBottom())
   }
 )
 
@@ -72,12 +73,16 @@ function sendMessage(): void {
   input.value = ''
 }
 
+
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    sendMessage()
+  if (event.key !== 'Enter' || event.shiftKey) {
+  	return;
   }
+
+  event.preventDefault()
+  sendMessage()
 }
+
 
 function messageConfidenceBadge(message: LiveMessage) {
   return confidenceBadgeFor(message.authorType, message.candidateConfidence)
@@ -113,16 +118,16 @@ function messageConfidenceBadge(message: LiveMessage) {
       <p v-if="peerTypingLabel" class="thinking">{{ peerTypingLabel }}</p>
     </div>
 
-    <form class="composer" @submit.prevent="sendMessage">
+    <form @submit.prevent="sendMessage" class="composer">
       <textarea
         ref="composerInputEl"
         v-model="input"
+        @input="resizeComposer"
+        @keydown="onKeydown"
         class="composer-input"
         rows="1"
         placeholder="Напишіть повідомлення…"
         :disabled="disabled || connectionState !== 'connected'"
-        @input="resizeComposer"
-        @keydown="onKeydown"
       />
       <button
         type="submit"

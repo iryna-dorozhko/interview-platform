@@ -1,5 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteLocationRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import HrLayout from '../layouts/HrLayout.vue'
 import HrHomeView from '../views/HrHomeView.vue'
@@ -24,6 +23,7 @@ import ReportView from '../views/ReportView.vue'
 import CandidateInterviewRoomView from '../views/CandidateInterviewRoomView.vue'
 import DialogListView from '../views/DialogListView.vue'
 import DialogThreadView from '../views/DialogThreadView.vue'
+
 
 function homeByRole(role: 'HR' | 'CANDIDATE'): RouteLocationRaw {
   return role === 'HR' ? { name: 'home' } : { name: 'candidate-home' }

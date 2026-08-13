@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { Interview, Invitation, Prisma, PrismaClient } from '@prisma/client'
 import type { Server } from 'socket.io'
 import { buildFinalReportMessages, formatLiveTranscript, parseFinalReport } from '../agents/final-report-agent'
@@ -11,6 +11,7 @@ import { generateJoinCode } from '../utils/joinCode'
 import { resolveCandidateProfileForInterview } from '../utils/interview-readiness'
 import { assertInviteableEmail, cancelPendingInvitations } from '../utils/invitation'
 import { normalizeVacancyRequirements } from '../utils/vacancy-requirements'
+import { ignoreDebugLogFailure } from '../utils/ignore-debug-log'
 
 const MAX_CREATE_ATTEMPTS = 5
 const EDITABLE_STATUSES = new Set(['AWAITING_CANDIDATE', 'READY'])
@@ -143,7 +144,7 @@ export async function createInterviewWithJoinCode(
             },
             timestamp: Date.now()
           })
-        }).catch(() => {})
+        }).catch(ignoreDebugLogFailure)
       }
       // #endregion
       if (isCandidateUserIdConflict) {
@@ -226,7 +227,7 @@ export function createInterviewsRouter(
 ): Router {
   const router = Router()
 
-  router.get('/interviews/mine', async (req: Request, res: Response) => {
+  router.get('/interviews/mine', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const interviews = await prisma.interview.findMany({
       where: {
@@ -244,9 +245,9 @@ export function createInterviewsRouter(
     res.status(200).json({
       interviews: interviews.map(item => mapInterviewListItem(item))
     })
-  })
+  }))
 
-  router.get('/interviews/:id', async (req: Request, res: Response) => {
+  router.get('/interviews/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const interview = await prisma.interview.findUnique({
       where: { id: req.params.id },
@@ -273,9 +274,9 @@ export function createInterviewsRouter(
     res.status(200).json({
       interview: mapInterviewDetail(interview)
     })
-  })
+  }))
 
-  router.post('/interviews', async (req: Request, res: Response) => {
+  router.post('/interviews', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const hrUserId = req.user?.id as string
     const body = (req.body ?? {}) as CreateBody
@@ -352,9 +353,9 @@ export function createInterviewsRouter(
       console.error('[interviews:create] failed to create interview:', detail)
       res.status(500).json({ error: 'Failed to generate unique join code' })
     }
-  })
+  }))
 
-  router.patch('/interviews/:id/invitation', async (req: Request, res: Response) => {
+  router.patch('/interviews/:id/invitation', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const interviewId = req.params.id
     const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
@@ -411,9 +412,9 @@ export function createInterviewsRouter(
     })
 
     res.status(200).json({ invitation: serializeInvitation(invitation) })
-  })
+  }))
 
-  router.patch('/interviews/:id', async (req: Request, res: Response) => {
+  router.patch('/interviews/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const interviewId = req.params.id
     const interview = await prisma.interview.findUnique({ where: { id: interviewId } })
@@ -458,9 +459,9 @@ export function createInterviewsRouter(
     })
 
     res.status(200).json({ interview: mapInterviewDetail(updated!) })
-  })
+  }))
 
-  router.delete('/interviews/:id', async (req: Request, res: Response) => {
+  router.delete('/interviews/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const interview = await prisma.interview.findUnique({
       where: { id: req.params.id }
@@ -525,9 +526,9 @@ export function createInterviewsRouter(
     })
 
     res.status(204).end()
-  })
+  }))
 
-  router.post('/interviews/:id/end', async (req: Request, res: Response) => {
+  router.post('/interviews/:id/end', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const interviewId = req.params.id
 
@@ -659,7 +660,7 @@ export function createInterviewsRouter(
         matchScore: report.matchScore
       }
     })
-  })
+  }))
 
   return router
 }

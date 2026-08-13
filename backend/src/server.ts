@@ -23,6 +23,7 @@ import { createCandidateMatchesRouter } from './routes/candidate-matches'
 import { createHrApplicationsRouter } from './routes/hr-applications'
 import { createHrAdditionalInterviewsRouter } from './routes/hr-additional-interviews'
 import { createRoomOrchestrator } from './socket/orchestrator'
+import { runFireAndForget } from './utils/run-async'
 import { registerRoomHandlers } from './socket/room'
 import { registerDialogHandlers } from './socket/dialogs'
 import { createGracefulShutdown } from './server-lifecycle'
@@ -184,10 +185,10 @@ const shutdown = createGracefulShutdown({
 })
 
 process.once('SIGINT', () => {
-  void shutdown('SIGINT')
+  runFireAndForget(shutdown('SIGINT'))
 })
 process.once('SIGTERM', () => {
-  void shutdown('SIGTERM')
+  runFireAndForget(shutdown('SIGTERM'))
 })
 
 httpServer.listen(port, () => {

@@ -29,6 +29,7 @@ export type RoomConnectionState = 'connecting' | 'connected' | 'error'
 
 const ARBITER_PROCESS_LOG_MAX = 8
 
+
 export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDIDATE') {
   const messages = ref<LiveMessage[]>([])
   const connectionState = ref<RoomConnectionState>('connecting')
@@ -51,6 +52,7 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     }
   })
 
+  
   function mergeMessages(incoming: LiveMessage[]): void {
     const byId = new Map(messages.value.map(item => [item.id, item]))
     for (const item of incoming) {
@@ -76,6 +78,7 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     errorMessage.value = 'Не вдалося підключитися до кімнати'
   }
 
+  
   function onMessages(payload: { messages?: LiveMessage[] }): void {
     if (Array.isArray(payload?.messages)) {
       mergeMessages(payload.messages)
@@ -86,6 +89,7 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     }
   }
 
+  
   function onAgentError(payload: { error?: string }): void {
     if (typeof payload?.error === 'string' && payload.error.trim()) {
       agentError.value = payload.error.trim()
@@ -93,6 +97,7 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     }
   }
 
+  
   function onAgentThinking(payload: { active?: boolean; agentType?: LiveAuthorType }): void {
     if (typeof payload?.active !== 'boolean') return
     if (payload.active) {
@@ -104,6 +109,7 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     }
   }
 
+  
   function onArbiterProcess(payload: { at?: string; action?: string; summaryUk?: string }): void {
     if (currentRole !== 'HR') return
     if (
@@ -122,17 +128,20 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     arbiterProcessLog.value = [entry, ...arbiterProcessLog.value].slice(0, ARBITER_PROCESS_LOG_MAX)
   }
 
+  
   function onStatus(payload: { status?: 'AWAITING_CANDIDATE' | 'READY' | 'LIVE' | 'ENDED' }): void {
     if (payload?.status) {
       interviewStatus.value = payload.status
     }
   }
 
+  
   function onError(payload: { error?: string }): void {
     connectionState.value = 'error'
     errorMessage.value = payload?.error ?? 'Помилка кімнати'
   }
 
+  
   function onTyping(payload: { role?: 'HR' | 'CANDIDATE'; isTyping?: boolean }): void {
     if (payload?.role !== 'HR' && payload?.role !== 'CANDIDATE') return
     if (typeof payload.isTyping !== 'boolean') return
@@ -140,10 +149,12 @@ export function useInterviewRoom(interviewId: string, currentRole: 'HR' | 'CANDI
     peerTypingRole.value = payload.isTyping ? payload.role : null
   }
 
+  
   function notifyTypingInput(text: string): void {
     typingEmitter.onInput(text)
   }
 
+  
   function sendMessage(content: string): void {
     const text = content.trim()
     if (!text || connectionState.value !== 'connected') return

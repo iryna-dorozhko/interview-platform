@@ -1,12 +1,17 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { buildCandidateSummaryMessages, parseCandidateSummary } from '../agents/vacancy-match-agent'
 import { requireAuth, requireCandidate } from '../auth/middleware'
 import type { LlmProvider } from '../llm/types'
 import type { MatchBreakdown } from '../services/match-score'
-import { getConfirmedCandidateProfile, getTopMatchOffers, ensureMatchScores, VacancyMatchServiceError } from '../services/vacancy-match'
-import type { CandidateMatchOffer } from '../services/vacancy-match'
+import {
+  getConfirmedCandidateProfile,
+  getTopMatchOffers,
+  ensureMatchScores,
+  VacancyMatchServiceError,
+  type CandidateMatchOffer
+} from '../services/vacancy-match'
 
 // Модуль asInputJson.
 function asInputJson(value: unknown): Prisma.InputJsonValue {
@@ -52,7 +57,7 @@ function mapMatchServiceError(error: unknown, res: Response): boolean {
 }
 
 // Модуль findPendingApplication.
-async function findPendingApplication(prisma: PrismaClient, candidateUserId: string) {
+function findPendingApplication(prisma: PrismaClient, candidateUserId: string) {
   return prisma.vacancyApplication.findFirst({
     where: { candidateUserId, status: 'PENDING' }
   })
@@ -63,7 +68,7 @@ export function createCandidateMatchesRouter(getPrisma: () => PrismaClient, getL
   const router = Router()
   router.use(requireAuth, requireCandidate)
 
-  router.get('/matches/next', async (req: Request, res: Response) => {
+  router.get('/matches/next', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user!.id
 
@@ -82,9 +87,9 @@ export function createCandidateMatchesRouter(getPrisma: () => PrismaClient, getL
       console.error('[candidate-matches:next] failed:', detail)
       res.status(500).json({ error: 'Failed to get next match' })
     }
-  })
+  }))
 
-  router.post('/matches/:vacancyId/reject', async (req: Request, res: Response) => {
+  router.post('/matches/:vacancyId/reject', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user!.id
     const vacancyId = req.params.vacancyId
@@ -122,9 +127,9 @@ export function createCandidateMatchesRouter(getPrisma: () => PrismaClient, getL
       console.error('[candidate-matches:reject] failed:', detail)
       res.status(500).json({ error: 'Failed to reject match' })
     }
-  })
+  }))
 
-  router.post('/matches/:vacancyId/accept', async (req: Request, res: Response) => {
+  router.post('/matches/:vacancyId/accept', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const llm = getLlmProvider()
     const candidateUserId = req.user!.id
@@ -227,9 +232,9 @@ export function createCandidateMatchesRouter(getPrisma: () => PrismaClient, getL
       console.error('[candidate-matches:accept] failed:', detail)
       res.status(500).json({ error: 'Failed to accept match' })
     }
-  })
+  }))
 
-  router.get('/applications/active', async (req: Request, res: Response) => {
+  router.get('/applications/active', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user!.id
 
@@ -237,7 +242,7 @@ export function createCandidateMatchesRouter(getPrisma: () => PrismaClient, getL
     res.status(200).json({
       application: application ? applicationPayload(application) : null
     })
-  })
+  }))
 
   return router
 }

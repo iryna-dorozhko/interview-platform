@@ -11,6 +11,7 @@ export type CandidateInvitation = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -21,6 +22,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   const detail = body.detail ?? body.error
   return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
+
 
 function mapAcceptConflictError(body: ErrorBody): Error {
   const code = body.error
@@ -48,6 +50,7 @@ export async function fetchMyInvitations(): Promise<CandidateInvitation[]> {
   return body.invitations
 }
 
+
 export async function acceptInvitation(id: string): Promise<CandidateInterview> {
   const response = await fetchWithAuth(`/api/candidate/invitations/${id}/accept`, {
     method: 'POST'
@@ -70,6 +73,7 @@ export async function acceptInvitation(id: string): Promise<CandidateInterview> 
   const body = (await response.json()) as { interview: CandidateInterview }
   return body.interview
 }
+
 
 export async function declineInvitation(id: string): Promise<void> {
   const response = await fetchWithAuth(`/api/candidate/invitations/${id}/decline`, {

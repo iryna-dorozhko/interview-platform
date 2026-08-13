@@ -2,6 +2,9 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..', 'src')
+const TEST_FILE_RE = /\.test\.(ts|js)$/
+const ASSERT_IMPORT_RE = /^import assert from 'node:assert\/strict'\n/m
+
 
 function collectTestFiles(dir) {
   const out = []
@@ -11,7 +14,7 @@ function collectTestFiles(dir) {
       out.push(...collectTestFiles(path))
       continue
     }
-    if (/\.test\.(ts|js)$/.test(entry.name)) out.push(path)
+    if (TEST_FILE_RE.test(entry.name)) out.push(path)
   }
   return out
 }
@@ -29,12 +32,12 @@ for (const file of collectTestFiles(ROOT)) {
   if (needsAfterAll) vitestImports.push('afterAll')
   if (needsAfterEach) vitestImports.push('afterEach')
 
-  content = content.replace(/^import test from 'node:test'\n/gm, '')
-  content = content.replace(/^import \{ test \} from 'node:test'\n/gm, '')
+  content = content.replaceAll(/^import test from 'node:test'\n/gm, '')
+  content = content.replaceAll(/^import \{ test \} from 'node:test'\n/gm, '')
 
   if (!content.includes("from 'vitest'")) {
     const vitestLine = `import { ${vitestImports.join(', ')} } from 'vitest'\n`
-    const assertMatch = content.match(/^import assert from 'node:assert\/strict'\n/m)
+    const assertMatch = content.match(ASSERT_IMPORT_RE)
     if (assertMatch) {
       content = content.replace(assertMatch[0], assertMatch[0] + vitestLine)
     } else {
@@ -42,9 +45,9 @@ for (const file of collectTestFiles(ROOT)) {
     }
   }
 
-  content = content.replace(/\btest\.before\(/g, 'beforeAll(')
-  content = content.replace(/\btest\.afterEach\(/g, 'afterEach(')
-  content = content.replace(/\btest\.after\(/g, 'afterAll(')
+  content = content.replaceAll(/\btest\.before\(/g, 'beforeAll(')
+  content = content.replaceAll(/\btest\.afterEach\(/g, 'afterEach(')
+  content = content.replaceAll(/\btest\.after\(/g, 'afterAll(')
 
   writeFileSync(file, content)
 }

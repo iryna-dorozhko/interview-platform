@@ -3,6 +3,7 @@
 import CreateAdditionalInterviewModal from '../components/CreateAdditionalInterviewModal.vue'
 import CreateInterviewModal from '../components/CreateInterviewModal.vue'
 import { deleteInterview, fetchMyInterviews, type CreatedInterview, type InterviewSummary } from '../api/interviews'
+import { confirmDestructiveAction } from '../utils/confirm-action'
 
 type ListState = 'loading' | 'ready' | 'error'
 
@@ -35,17 +36,21 @@ async function loadInterviews(): Promise<void> {
   }
 }
 
+
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
+
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA')
 }
 
+
 function reportLabel(reportSummary: string | null): string {
   return reportSummary ?? '—'
 }
+
 
 function badgeClass(reportSummary: string): string {
   if (reportSummary === 'HIRE') return 'badge-hire'
@@ -54,9 +59,11 @@ function badgeClass(reportSummary: string): string {
   return ''
 }
 
+
 function goToRoom(id: string): void {
   router.push({ name: 'interview-room', params: { id } })
 }
+
 
 function onInterviewCreated(interview: CreatedInterview): void {
   showCreateModal.value = false
@@ -80,9 +87,10 @@ function onInterviewCreated(interview: CreatedInterview): void {
   })
 }
 
+
 async function onDelete(id: string): Promise<void> {
   actionError.value = null
-  if (!window.confirm('Видалити співбесіду? Цю дію не можна скасувати.')) return
+  if (!confirmDestructiveAction('Видалити співбесіду? Цю дію не можна скасувати.')) return
 
   try {
     await deleteInterview(id)
@@ -100,8 +108,8 @@ onMounted(loadInterviews)
     <div class="list-header">
       <h1>Співбесіди</h1>
       <div class="header-actions">
-        <button type="button" class="btn-primary" @click="showCreateModal = true">Створити зустріч</button>
-        <button type="button" class="btn-secondary" @click="showAdditionalModal = true">
+        <button @click="showCreateModal = true" type="button" class="btn-primary">Створити зустріч</button>
+        <button @click="showAdditionalModal = true" type="button" class="btn-secondary">
           Створити додаткову зустріч
         </button>
       </div>
@@ -127,7 +135,7 @@ onMounted(loadInterviews)
         <tbody>
           <tr v-for="interview in interviews" :key="interview.id">
             <td class="primary-cell">
-              <button type="button" class="name-link" @click="goToRoom(interview.id)">
+              <button @click="goToRoom(interview.id)" type="button" class="name-link">
                 {{ interview.displayName }}
               </button>
               <span v-if="interview.kind === 'ADDITIONAL_MEETING'" class="kind-badge">Додаткова</span>
@@ -148,24 +156,24 @@ onMounted(loadInterviews)
             <td class="actions-cell">
               <button
                 v-if="interview.status === 'READY' || interview.status === 'LIVE'"
+                @click="goToRoom(interview.id)"
                 type="button"
                 class="btn-primary"
-                @click="goToRoom(interview.id)"
               >
                 Увійти в співбесіду
               </button>
-              <button type="button" class="btn-danger" @click="onDelete(interview.id)">Видалити</button>
+              <button @click="onDelete(interview.id)" type="button" class="btn-danger">Видалити</button>
             </td>
           </tr>
         </tbody>
       </table>
     </template>
 
-    <CreateInterviewModal :open="showCreateModal" @close="showCreateModal = false" @created="onInterviewCreated" />
+    <CreateInterviewModal @close="showCreateModal = false" @created="onInterviewCreated" :open="showCreateModal" />
     <CreateAdditionalInterviewModal
-      :open="showAdditionalModal"
       @close="showAdditionalModal = false"
       @created="onInterviewCreated"
+      :open="showAdditionalModal"
     />
   </div>
 </template>

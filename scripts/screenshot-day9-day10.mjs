@@ -10,9 +10,6 @@ const CHROME =
 const CANDIDATE_EMAIL = `candidate-day10-${Date.now()}@test.com`
 const CANDIDATE_PASSWORD = '123456'
 
-/**
- *
- */
 async function main() {
   await mkdir(OUT_DIR, { recursive: true })
 

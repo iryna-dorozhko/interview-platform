@@ -1,8 +1,7 @@
 import type { ChatMessage } from '../llm/types'
 import { COMPANY_PROFILE_AGENT_SYSTEM_PROMPT_UK } from './prompts/company-profile-agent.uk'
 import { HR_COMPANY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from './prompts/hr-company-profile-extraction.uk'
-import type { PrepHistoryItem } from './company-agent'
-import { ProfileExtractionError } from './company-agent'
+import { ProfileExtractionError, type PrepHistoryItem } from './company-agent'
 import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 
 export type { PrepHistoryItem } from './company-agent'
@@ -39,6 +38,7 @@ export interface HrCompanyProfileExtracted {
   onboardingApproach: string[]
 }
 
+
 function toNonEmptyTrimmedString(value: unknown, field: string): string {
   if (typeof value !== 'string') {
     throw new ProfileExtractionError(`missing or invalid field: ${field}`)
@@ -50,11 +50,12 @@ function toNonEmptyTrimmedString(value: unknown, field: string): string {
   return trimmed
 }
 
+
 function toStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new ProfileExtractionError(`missing or invalid field: ${field}`)
   }
-  return value.map(item => String(item))
+  return value.map(String)
 }
 
 // Парсить HrCompanyProfileExtraction з JSON-відповіді LLM.

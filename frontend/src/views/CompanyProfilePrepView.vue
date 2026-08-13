@@ -10,6 +10,7 @@ import {
 } from '../api/company-prep'
 import { usePrepChat } from '../composables/usePrepChat'
 import PrepChatPanel from '../components/PrepChatPanel.vue'
+import { runFireAndForget } from '../utils/run-async'
 
 const router = useRouter()
 
@@ -58,6 +59,7 @@ function resetEditingSections(): void {
     editingSections[section.field] = false
   }
 }
+
 
 function toggleSectionEdit(field: ArrayField): void {
   editingSections[field] = !editingSections[field]
@@ -113,19 +115,23 @@ const {
   isUserMessage
 } = chat
 
+
 function syncEditableProfile(next: HrCompanyProfile | null): void {
   profile.value = next
   editableProfile.value = next ? { ...next } : null
   resetEditingSections()
 }
 
+
 function setMessagesEl(el: HTMLElement | null): void {
   messagesEl.value = el
 }
 
+
 function setInput(value: string): void {
   input.value = value
 }
+
 
 function textToArray(text: string): string[] {
   return text
@@ -134,15 +140,18 @@ function textToArray(text: string): string[] {
     .filter(item => item.length > 0)
 }
 
+
 function getArrayField(field: ArrayField): string {
   return editableProfile.value?.[field].join('\n') ?? ''
 }
+
 
 function onArrayFieldInput(field: ArrayField, event: Event): void {
   if (!editableProfile.value) return
   const target = event.target as HTMLTextAreaElement
   editableProfile.value[field] = textToArray(target.value)
 }
+
 
 function onCompanyNameInput(event: Event): void {
   if (!editableProfile.value) return
@@ -188,7 +197,7 @@ function goHome(): void {
 }
 
 onMounted(() => {
-  void load()
+  runFireAndForget(load())
 })
 </script>
 
@@ -196,7 +205,7 @@ onMounted(() => {
   <main class="page">
     <header class="header">
       <h1>Профіль компанії</h1>
-      <button type="button" class="btn-secondary" @click="goHome">До списку вакансій</button>
+      <button @click="goHome" type="button" class="btn-secondary">До списку вакансій</button>
     </header>
 
     <p class="page-hint">
@@ -213,18 +222,18 @@ onMounted(() => {
           <div class="company-hero">
             <p class="eyebrow">Компанія</p>
             <input
+              @input="onCompanyNameInput"
               class="name-input"
               type="text"
               :value="editableProfile.companyName ?? ''"
               aria-label="Назва компанії"
-              @input="onCompanyNameInput"
             />
           </div>
 
           <article v-for="section in profileSections" :key="section.field" class="section">
             <div class="section-head">
               <h3>{{ section.title }}</h3>
-              <button type="button" class="btn-ghost" @click="toggleSectionEdit(section.field)">
+              <button @click="toggleSectionEdit(section.field)" type="button" class="btn-ghost">
                 {{ editingSections[section.field] ? 'Готово' : 'Редагувати' }}
               </button>
             </div>
@@ -235,10 +244,10 @@ onMounted(() => {
             </ul>
             <textarea
               v-else
+              @input="onArrayFieldInput(section.field, $event)"
               class="section-input"
               rows="4"
               :value="getArrayField(section.field)"
-              @input="onArrayFieldInput(section.field, $event)"
             />
           </article>
         </template>
@@ -262,9 +271,9 @@ onMounted(() => {
         <p v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</p>
 
         <div class="actions">
-          <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
-          <button type="button" class="btn-secondary" @click="deleteChat">Видалити чат</button>
-          <button type="button" class="btn-primary" :disabled="saving || !editableProfile" @click="onSaveProfileEdits">
+          <button @click="backToChat" type="button" class="btn-secondary">← Назад до чату</button>
+          <button @click="deleteChat" type="button" class="btn-secondary">Видалити чат</button>
+          <button @click="onSaveProfileEdits" type="button" class="btn-primary" :disabled="saving || !editableProfile">
             {{ saving ? 'Збереження…' : 'Зберегти зміни' }}
           </button>
         </div>
@@ -272,6 +281,12 @@ onMounted(() => {
 
       <PrepChatPanel
         v-else
+        @update:input="setInput"
+        @send="send"
+        @retry="retry"
+        @finish="finish"
+        @delete="deleteChat"
+        @keydown="onKeydown"
         title="Чат з Company Agent"
         :load-state="loadState"
         :messages="messages"
@@ -282,19 +297,13 @@ onMounted(() => {
         :last-failed-action="lastFailedAction"
         :is-user-message="isUserMessage"
         :set-messages-el="setMessagesEl"
-        @update:input="setInput"
-        @send="send"
-        @retry="retry"
-        @finish="finish"
-        @delete="deleteChat"
-        @keydown="onKeydown"
       >
         <template #actions>
-          <button type="button" class="btn-secondary" :disabled="sending" @click="deleteChat">Видалити чат</button>
-          <button v-if="!isClosed" type="button" class="btn-primary" :disabled="sending" @click="finish">
+          <button @click="deleteChat" type="button" class="btn-secondary" :disabled="sending">Видалити чат</button>
+          <button v-if="!isClosed" @click="finish" type="button" class="btn-primary" :disabled="sending">
             Завершити чат
           </button>
-          <button v-else type="button" class="btn-secondary" @click="backToProfile">Показати профіль</button>
+          <button v-else @click="backToProfile" type="button" class="btn-secondary">Показати профіль</button>
         </template>
       </PrepChatPanel>
     </template>

@@ -30,6 +30,7 @@ export type DialogDetail = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -49,6 +50,7 @@ export type BackendDialogMessage = {
   createdAt: string
   decision?: { type: InterviewDecisionType } | null
 }
+
 
 export function mapDialogMessage(message: BackendDialogMessage): DialogMessage {
   return {
@@ -82,6 +84,7 @@ export async function fetchDialogUnreadCount(): Promise<number> {
   return body.unreadCount
 }
 
+
 export async function markDialogRead(id: string): Promise<void> {
   const response = await fetchWithAuth(`/api/dialogs/${id}/read`, {
     method: 'POST'
@@ -90,6 +93,7 @@ export async function markDialogRead(id: string): Promise<void> {
     throw await parseError(response, 'Не вдалося позначити діалог прочитаним')
   }
 }
+
 
 export async function createDialog(candidateUserId: string): Promise<{ id: string }> {
   const response = await fetchWithAuth('/api/dialogs', {
@@ -104,6 +108,7 @@ export async function createDialog(candidateUserId: string): Promise<{ id: strin
   }
   return { id: body.dialog.id }
 }
+
 
 export async function fetchDialog(id: string): Promise<{
   dialog: DialogDetail
@@ -123,6 +128,7 @@ export async function fetchDialog(id: string): Promise<{
   }
 }
 
+
 export async function sendDialogMessage(id: string, body: string): Promise<DialogMessage> {
   const response = await fetchWithAuth(`/api/dialogs/${id}/messages`, {
     method: 'POST',
@@ -134,6 +140,7 @@ export async function sendDialogMessage(id: string, body: string): Promise<Dialo
   const payload = (await response.json()) as { message: BackendDialogMessage }
   return mapDialogMessage(payload.message)
 }
+
 
 export async function deleteDialog(id: string): Promise<void> {
   const response = await fetchWithAuth(`/api/dialogs/${id}`, {

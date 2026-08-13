@@ -12,6 +12,7 @@ const password = ref('')
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
+
 function sanitizeRedirect(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : fallback
 }
@@ -51,7 +52,7 @@ async function onSubmit(): Promise<void> {
 <template>
   <main class="page">
     <h1>Вхід кандидата</h1>
-    <form class="form" @submit.prevent="onSubmit">
+    <form @submit.prevent="onSubmit" class="form">
       <label>
         Email
         <input v-model="email" type="email" autocomplete="username" required />

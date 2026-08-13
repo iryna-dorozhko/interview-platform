@@ -50,13 +50,16 @@ const renderedMarkdown = computed(() => {
   return DOMPurify.sanitize(html)
 })
 
+
 function recommendationLabel(value: string): string {
   return RECOMMENDATION_LABELS[value] ?? value
 }
 
+
 function overrideKindLabel(value: string): string {
   return OVERRIDE_KIND_LABELS[value] ?? value
 }
+
 
 function badgeClass(value: string): string {
   if (value === 'HIRE') return 'badge-hire'
@@ -64,6 +67,7 @@ function badgeClass(value: string): string {
   if (value === 'REJECT') return 'badge-reject'
   return 'badge-neutral'
 }
+
 
 async function openDecision(type: InterviewDecisionType): Promise<void> {
   modalType.value = type
@@ -162,13 +166,13 @@ onMounted(loadReport)
           <strong>{{ DECISION_LABELS[report.latestDecision.type] }}</strong>
         </p>
         <div class="decision-actions">
-          <button type="button" class="btn-primary" @click="openDecision('ACCEPT')">
+          <button @click="openDecision('ACCEPT')" type="button" class="btn-primary">
             {{ DECISION_LABELS.ACCEPT }}
           </button>
-          <button type="button" class="btn-secondary" @click="openDecision('ADDITIONAL_MEETING')">
+          <button @click="openDecision('ADDITIONAL_MEETING')" type="button" class="btn-secondary">
             {{ DECISION_LABELS.ADDITIONAL_MEETING }}
           </button>
-          <button type="button" class="btn-danger" @click="openDecision('REJECT')">
+          <button @click="openDecision('REJECT')" type="button" class="btn-danger">
             {{ DECISION_LABELS.REJECT }}
           </button>
         </div>
@@ -192,7 +196,7 @@ onMounted(loadReport)
       <section class="report-body" v-html="renderedMarkdown" />
     </template>
 
-    <div v-if="modalOpen" class="modal-overlay" @click.self="closeModal">
+    <div v-if="modalOpen" @click.self="closeModal" class="modal-overlay">
       <div class="modal" role="dialog" aria-labelledby="decision-modal-title">
         <h2 id="decision-modal-title">
           {{ modalType ? DECISION_LABELS[modalType] : 'Рішення' }}
@@ -203,17 +207,17 @@ onMounted(loadReport)
         <template v-else-if="modalState === 'error'">
           <p class="error-banner">{{ modalError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeModal">Закрити</button>
+            <button @click="closeModal" type="button" class="btn-secondary">Закрити</button>
           </div>
         </template>
 
         <template v-else-if="modalState === 'sent'">
           <p class="success-message">Рішення надіслано кандидату.</p>
-          <RouterLink v-if="sentDialogId" :to="'/dialogs/' + sentDialogId" class="dialog-link" @click="closeModal">
+          <RouterLink v-if="sentDialogId" @click="closeModal" :to="'/dialogs/' + sentDialogId" class="dialog-link">
             Відкрити діалог
           </RouterLink>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeModal">Закрити</button>
+            <button @click="closeModal" type="button" class="btn-secondary">Закрити</button>
           </div>
         </template>
 
@@ -224,8 +228,8 @@ onMounted(loadReport)
           </label>
           <p v-if="modalError" class="error-banner">{{ modalError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeModal">Скасувати</button>
-            <button type="button" class="btn-primary" :disabled="!draftBody.trim()" @click="submitDecision">
+            <button @click="closeModal" type="button" class="btn-secondary">Скасувати</button>
+            <button @click="submitDecision" type="button" class="btn-primary" :disabled="!draftBody.trim()">
               Надіслати
             </button>
           </div>

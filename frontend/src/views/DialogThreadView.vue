@@ -4,6 +4,7 @@ import { deleteDialog, fetchDialogs, type DialogMessage, type InterviewDecisionT
 import { useDialogThread } from '../composables/useDialogThread'
 import { useDialogUnread } from '../composables/useDialogUnread'
 import { useAuthStore } from '../stores/auth'
+import { confirmDestructiveAction } from '../utils/confirm-action'
 
 const DECISION_BADGES: Record<InterviewDecisionType, string> = {
   ACCEPT: 'Прийнято',
@@ -52,14 +53,17 @@ watch(draft, value => {
   notifyTypingInput(value)
 })
 
+
 function isOwn(message: DialogMessage): boolean {
   return currentUserId.value != null && message.senderUserId === currentUserId.value
 }
+
 
 function decisionBadge(type: InterviewDecisionType | null): string | null {
   if (!type) return null
   return DECISION_BADGES[type] ?? type
 }
+
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('uk-UA', {
@@ -73,7 +77,7 @@ function formatTime(iso: string): string {
 
 async function onDelete(): Promise<void> {
   if (deleting.value) return
-  const ok = window.confirm(
+  const ok = confirmDestructiveAction(
     'Видалити цей діалог зі свого списку? Він знову з’явиться, якщо співрозмовник напише нове повідомлення.'
   )
   if (!ok) return
@@ -98,7 +102,7 @@ async function onDelete(): Promise<void> {
       <RouterLink :to="basePath" class="back-link">← До діалогів</RouterLink>
       <div class="header-row">
         <h1>{{ peerLabel }}</h1>
-        <button v-if="loadState === 'ready'" type="button" class="btn-danger" :disabled="deleting" @click="onDelete">
+        <button v-if="loadState === 'ready'" @click="onDelete" type="button" class="btn-danger" :disabled="deleting">
           Видалити
         </button>
       </div>
@@ -135,7 +139,7 @@ async function onDelete(): Promise<void> {
         <p v-if="peerTypingLabel" class="typing">{{ peerTypingLabel }}</p>
       </div>
 
-      <form class="composer" @submit.prevent="send">
+      <form @submit.prevent="send" class="composer">
         <label class="field">
           <span class="sr-only">Повідомлення</span>
           <textarea v-model="draft" rows="3" placeholder="Напишіть повідомлення…" :disabled="sending" />

@@ -1,6 +1,8 @@
+
 export function typingLabelFor(role: 'HR' | 'CANDIDATE'): string {
   return role === 'HR' ? 'Рекрутер друкує' : 'Кандидат друкує'
 }
+
 
 export function createTypingEmitter(options: {
   emit: (isTyping: boolean) => void

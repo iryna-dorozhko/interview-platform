@@ -89,27 +89,21 @@ const results = {
   ok: true
 }
 
-/**
- *
- */
+
 function log(step, detail = '') {
   const line = detail ? `[${step}] ${detail}` : `[${step}]`
   console.log(line)
   results.steps.push({ step, detail, at: new Date().toISOString() })
 }
 
-/**
- *
- */
+
 function fail(step, detail) {
   results.ok = false
   log(`FAIL:${step}`, detail)
   throw new Error(`${step}: ${detail}`)
 }
 
-/**
- *
- */
+
 async function api(method, path, { token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
@@ -128,17 +122,13 @@ async function api(method, path, { token, body } = {}) {
   return { status: res.status, data, ok: res.ok }
 }
 
-/**
- *
- */
+
 function isRateLimited(res) {
   const detail = String(res.data?.detail ?? res.data?.error ?? '')
   return res.status === 429 || /ліміт|rate limit|quota|RESOURCE_EXHAUSTED/i.test(detail)
 }
 
-/**
- *
- */
+
 async function apiWithRetry(method, path, opts = {}, { retries = 5, label = path } = {}) {
   let last
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -152,16 +142,12 @@ async function apiWithRetry(method, path, opts = {}, { retries = 5, label = path
   return last
 }
 
-/**
- *
- */
+
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
-/**
- *
- */
+
 async function seedHrProfileFallback(vacancyId) {
   const { prisma } = getPrisma()
   try {
@@ -183,9 +169,7 @@ async function seedHrProfileFallback(vacancyId) {
   }
 }
 
-/**
- *
- */
+
 async function seedCandidateProfileFallback(interviewId) {
   const { prisma } = getPrisma()
   try {
@@ -207,9 +191,7 @@ async function seedCandidateProfileFallback(interviewId) {
   }
 }
 
-/**
- *
- */
+
 async function seedFinalReportFallback(interviewId) {
   const { prisma } = getPrisma()
   try {
@@ -238,9 +220,7 @@ async function seedFinalReportFallback(interviewId) {
   }
 }
 
-/**
- *
- */
+
 function connectSocket(token) {
   return io(SOCKET_URL, {
     auth: { token },
@@ -249,18 +229,15 @@ function connectSocket(token) {
   })
 }
 
-/**
- *
- */
+
 function waitForEvent(socket, event, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => {
       socket.off(event, onEvent)
       reject(new Error(`timeout waiting for ${event}`))
     }, timeoutMs)
-    /**
-     *
-     */
+
+    
     function onEvent(payload) {
       clearTimeout(t)
       socket.off(event, onEvent)
@@ -270,9 +247,7 @@ function waitForEvent(socket, event, timeoutMs = 30000) {
   })
 }
 
-/**
- *
- */
+
 async function waitForAgentActivity(collector, { minAgents = 1, timeoutMs = 45000, settleMs = 8000 } = {}) {
   const start = Date.now()
   const before = collector.messages.length
@@ -302,9 +277,7 @@ async function waitForAgentActivity(collector, { minAgents = 1, timeoutMs = 4500
   return collector.messages.slice(before).filter(m => String(m.authorType || '').startsWith('AGENT_'))
 }
 
-/**
- *
- */
+
 function attachCollector(socket, label) {
   const state = { messages: [], status: null, thinking: [], thinkingActive: false, errors: [] }
   socket.on('room:messages', payload => {
@@ -333,9 +306,7 @@ function attachCollector(socket, label) {
   return state
 }
 
-/**
- *
- */
+
 async function runPrepChat({ token, basePath, answers, label, entityId, seedFallback }) {
   log(`${label}:greeting`)
   let res = await apiWithRetry('POST', `${basePath}/message`, { token, body: {} }, { label: `${label}:greeting` })
@@ -407,9 +378,6 @@ async function runPrepChat({ token, basePath, answers, label, entityId, seedFall
   return res.data.profile ?? res.data
 }
 
-/**
- *
- */
 async function main() {
   const started = Date.now()
   log('start', `API=${API}`)

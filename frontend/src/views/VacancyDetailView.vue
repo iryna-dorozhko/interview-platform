@@ -15,9 +15,11 @@ const STATUS_LABELS: Record<string, string> = {
   CONFIRMED: 'Підтверджена'
 }
 
+
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
+
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA')
@@ -99,13 +101,13 @@ onMounted(loadVacancy)
 
       <section v-else class="empty-profile">
         <p>Профіль ще не сформовано.</p>
-        <button v-if="vacancy.status === 'DRAFT'" type="button" class="btn-primary" @click="goToPrep">
+        <button v-if="vacancy.status === 'DRAFT'" @click="goToPrep" type="button" class="btn-primary">
           Пройти анкету
         </button>
       </section>
 
       <div v-if="vacancy.status === 'DRAFT'" class="actions">
-        <button type="button" class="btn-secondary" @click="goToPrep">Редагувати анкету</button>
+        <button @click="goToPrep" type="button" class="btn-secondary">Редагувати анкету</button>
       </div>
     </template>
   </main>

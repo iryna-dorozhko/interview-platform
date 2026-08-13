@@ -26,6 +26,7 @@ export type FinalReport = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -57,6 +58,7 @@ export type ReportListFilters = {
   dateTo?: string
 }
 
+
 export async function fetchReport(id: string): Promise<FinalReport> {
   const response = await fetchWithAuth(`/api/reports/${id}`)
   if (!response.ok) {
@@ -65,6 +67,7 @@ export async function fetchReport(id: string): Promise<FinalReport> {
   const body = (await response.json()) as { report: FinalReport }
   return body.report
 }
+
 
 export async function fetchReports(filters: ReportListFilters = {}): Promise<ReportSummary[]> {
   const params = new URLSearchParams()
@@ -82,6 +85,7 @@ export async function fetchReports(filters: ReportListFilters = {}): Promise<Rep
   return body.reports
 }
 
+
 export async function draftDecisionLetter(
   reportId: string,
   type: InterviewDecisionType
@@ -95,6 +99,7 @@ export async function draftDecisionLetter(
   }
   return (await response.json()) as { type: InterviewDecisionType; body: string }
 }
+
 
 export async function sendDecision(
   reportId: string,

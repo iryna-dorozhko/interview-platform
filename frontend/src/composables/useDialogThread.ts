@@ -1,10 +1,18 @@
 import type { Ref } from 'vue'
-import { fetchDialog, mapDialogMessage, sendDialogMessage } from '../api/dialogs'
-import type { BackendDialogMessage, DialogDetail, DialogMessage } from '../api/dialogs'
+import {
+  fetchDialog,
+  mapDialogMessage,
+  sendDialogMessage,
+  type BackendDialogMessage,
+  type DialogDetail,
+  type DialogMessage
+} from '../api/dialogs'
 import { connectSocket } from '../api/socket'
 import { createTypingEmitter, typingLabelFor } from '../utils/typing-indicator'
+import { runFireAndForget } from '../utils/run-async'
 
 export type DialogThreadLoadState = 'loading' | 'ready' | 'error'
+
 
 export function useDialogThread(
   dialogId: Ref<string>,
@@ -43,6 +51,7 @@ export function useDialogThread(
     }
   })
 
+  
   function mergeMessage(incoming: DialogMessage): void {
     const byId = new Map(messages.value.map(item => [item.id, item]))
     byId.set(incoming.id, incoming)
@@ -51,12 +60,14 @@ export function useDialogThread(
     )
   }
 
+  
   function onSocketMessage(payload: { message?: BackendDialogMessage & { dialogId?: string } }): void {
     if (!payload?.message?.id) return
     mergeMessage(mapDialogMessage(payload.message))
     peerTypingRole.value = null
   }
 
+  
   function onSocketTyping(payload: { role?: 'HR' | 'CANDIDATE'; isTyping?: boolean }): void {
     if (payload?.role !== 'HR' && payload?.role !== 'CANDIDATE') return
     if (typeof payload.isTyping !== 'boolean') return
@@ -64,6 +75,7 @@ export function useDialogThread(
     peerTypingRole.value = payload.isTyping ? payload.role : null
   }
 
+  
   function joinDialogRoom(id: string): void {
     socket.emit('dialog:join', { dialogId: id })
   }
@@ -94,6 +106,7 @@ export function useDialogThread(
     }
   }
 
+  
   function notifyTypingInput(text: string): void {
     typingEmitter.onInput(text)
   }
@@ -121,11 +134,11 @@ export function useDialogThread(
     if (!socket.connected) {
       socket.connect()
     }
-    void loadThread()
+    runFireAndForget(loadThread())
   })
 
   watch(dialogId, () => {
-    void loadThread()
+    runFireAndForget(loadThread())
   })
 
   onUnmounted(() => {

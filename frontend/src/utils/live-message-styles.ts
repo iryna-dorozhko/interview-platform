@@ -33,9 +33,11 @@ const STYLES: Record<LiveAuthorType, { label: string; accent: BubbleStyle; label
   }
 }
 
+
 export function labelFor(authorType: LiveAuthorType): string {
   return STYLES[authorType]?.label ?? 'Учасник'
 }
+
 
 export function isOwnMessage(authorType: LiveAuthorType, currentRole: 'HR' | 'CANDIDATE'): boolean {
   return (
@@ -43,6 +45,7 @@ export function isOwnMessage(authorType: LiveAuthorType, currentRole: 'HR' | 'CA
     (currentRole === 'CANDIDATE' && authorType === 'HUMAN_CANDIDATE')
   )
 }
+
 
 export function messageStyles(
   authorType: LiveAuthorType,
@@ -63,6 +66,7 @@ const CONFIDENCE_BADGES: Record<CandidateConfidence, { label: string; background
   INFERRED: { label: 'Висновок', background: '#fef3c7', color: '#d97706' },
   UNKNOWN: { label: 'Потрібна відповідь', background: '#ffedd5', color: '#c2410c' }
 }
+
 
 export function confidenceBadgeFor(
   authorType: LiveAuthorType,

@@ -6,9 +6,6 @@ import { createPrismaClient } from '../src/db/create-prisma-client.js'
 
 const prisma = createPrismaClient()
 
-/**
- *
- */
 async function main() {
   const hrUser = await seedHrUser(prisma, { UserRole })
   console.log(`Seeded HR user: ${hrUser.email}`)

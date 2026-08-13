@@ -16,6 +16,7 @@ import {
 import CandidatePrepChat from '../components/CandidatePrepChat.vue'
 import PrepChatPanel from '../components/PrepChatPanel.vue'
 import type { PrepChatMessage } from '../composables/usePrepChat'
+import { confirmDestructiveAction } from '../utils/confirm-action'
 
 const router = useRouter()
 
@@ -71,6 +72,7 @@ function resetEditingSections(): void {
   }
 }
 
+
 function toggleSectionEdit(id: CandidateSectionId): void {
   editingSections[id] = !editingSections[id]
 }
@@ -89,6 +91,7 @@ function syncEditableFromState(): void {
   resetEditingSections()
 }
 
+
 function textToArray(text: string): string[] {
   return text
     .split('\n')
@@ -100,6 +103,7 @@ function displayProfile(): CandidateProfile | null {
   return editableProfile.value ?? profile.value
 }
 
+
 function getSectionList(id: CandidateSectionId): string[] {
   const source = displayProfile()
   if (!source) return []
@@ -110,6 +114,7 @@ function getSectionList(id: CandidateSectionId): string[] {
   return []
 }
 
+
 function getSectionText(id: CandidateSectionId): string {
   const source = displayProfile()
   if (!source) return ''
@@ -118,31 +123,50 @@ function getSectionText(id: CandidateSectionId): string {
   return getSectionList(id).join('\n')
 }
 
+
 function onSectionListInput(id: CandidateSectionId, event: Event): void {
   if (!editableProfile.value) return
   const lines = textToArray((event.target as HTMLTextAreaElement).value)
-  if (id === 'experience') editableProfile.value.experience = lines
-  if (id === 'skillsStrong') editableProfile.value.skills.strong = lines
-  if (id === 'skillsGrowth') editableProfile.value.skills.growth = lines
-  if (id === 'goals') editableProfile.value.goals = lines
+  switch (id) {
+    case 'experience': {
+      editableProfile.value.experience = lines
+      break
+    }
+    case 'skillsStrong': {
+      editableProfile.value.skills.strong = lines
+      break
+    }
+    case 'skillsGrowth': {
+      editableProfile.value.skills.growth = lines
+      break
+    }
+    case 'goals': {
+      editableProfile.value.goals = lines
+      break
+    }
+  }
 }
+
 
 function onSectionTextInput(id: CandidateSectionId, event: Event): void {
   if (!editableProfile.value) return
   const value = (event.target as HTMLTextAreaElement | HTMLInputElement).value
   if (id === 'phone') editableProfile.value.phone = value || null
-  if (id === 'summary') editableProfile.value.summary = value
+  else if (id === 'summary') editableProfile.value.summary = value
 }
+
 
 function onFullNameInput(event: Event): void {
   if (!editableProfile.value) return
   editableProfile.value.fullName = (event.target as HTMLInputElement).value
 }
 
+
 function onEmailInput(event: Event): void {
   if (!editableProfile.value) return
   editableProfile.value.email = (event.target as HTMLInputElement).value
 }
+
 
 function formatConfirmedAt(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -222,7 +246,7 @@ async function onSaveProfileEdits(): Promise<void> {
 
 async function onConfirmProfile(): Promise<void> {
   if (!interview.value) return
-  if (!window.confirm('Профіль буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?')) {
+  if (!confirmDestructiveAction('Профіль буде зафіксовано. Подальше редагування стане неможливим. Підтвердити?')) {
     return
   }
   actionError.value = null
@@ -239,7 +263,7 @@ async function onConfirmProfile(): Promise<void> {
 
 async function onDeletePrep(): Promise<void> {
   if (!interview.value) return
-  if (!window.confirm('Видалити всю історію чату? Цю дію не можна скасувати.')) return
+  if (!confirmDestructiveAction('Видалити всю історію чату? Цю дію не можна скасувати.')) return
   actionError.value = null
   try {
     await deleteCandidatePrepChat(interview.value.id)
@@ -251,7 +275,7 @@ async function onDeletePrep(): Promise<void> {
 
 async function onRestartConfirmed(): Promise<void> {
   if (!interview.value) return
-  if (!window.confirm('Підтверджений профіль буде видалено. Доведеться пройти анкету заново. Продовжити?')) {
+  if (!confirmDestructiveAction('Підтверджений профіль буде видалено. Доведеться пройти анкету заново. Продовжити?')) {
     return
   }
   actionError.value = null
@@ -271,6 +295,7 @@ function backToChat(): void {
 function backToProfile(): void {
   viewingHistory.value = false
 }
+
 
 function isPrepUserMessage(msg: PrepChatMessage): boolean {
   return msg.authorType === 'HUMAN_CANDIDATE'
@@ -295,14 +320,14 @@ onMounted(loadProfile)
 
       <CandidatePrepChat
         v-if="showPrepChat && interview"
-        :interview-id="interview.id"
         @finished="onPrepFinished"
         @deleted="onPrepDeleted"
+        :interview-id="interview.id"
       />
 
       <template v-else-if="!interview">
         <p class="empty">Анкета ще не створена</p>
-        <button type="button" class="btn-primary" :disabled="starting" @click="startPrepChat">
+        <button @click="startPrepChat" type="button" class="btn-primary" :disabled="starting">
           {{ starting ? 'Створення…' : 'Створити анкету' }}
         </button>
       </template>
@@ -310,7 +335,7 @@ onMounted(loadProfile)
       <template v-else-if="!hasMessages">
         <section class="empty-profile">
           <p>Анкета ще не створена</p>
-          <button type="button" class="btn-primary" :disabled="starting" @click="startPrepChat">
+          <button @click="startPrepChat" type="button" class="btn-primary" :disabled="starting">
             {{ starting ? 'Створення…' : 'Створити анкету' }}
           </button>
         </section>
@@ -319,13 +344,19 @@ onMounted(loadProfile)
       <template v-else-if="!isClosed">
         <p class="status">Анкета в процесі ({{ messageCount }} повідомлень)</p>
         <div class="actions">
-          <button type="button" class="btn-primary" @click="startPrepChat">Продовжити анкету</button>
-          <button type="button" class="btn-secondary" @click="onDeletePrep">Видалити анкету</button>
+          <button @click="startPrepChat" type="button" class="btn-primary">Продовжити анкету</button>
+          <button @click="onDeletePrep" type="button" class="btn-secondary">Видалити анкету</button>
         </div>
       </template>
 
       <template v-else-if="viewingHistory && profile && prepState">
         <PrepChatPanel
+          @update:input="() => undefined"
+          @send="() => undefined"
+          @retry="() => undefined"
+          @finish="() => undefined"
+          @delete="() => undefined"
+          @keydown="() => undefined"
           title="Чат з Candidate Agent"
           load-state="ready"
           :messages="prepState.messages"
@@ -335,15 +366,9 @@ onMounted(loadProfile)
           :error-message="null"
           :last-failed-action="null"
           :is-user-message="isPrepUserMessage"
-          @update:input="() => undefined"
-          @send="() => undefined"
-          @retry="() => undefined"
-          @finish="() => undefined"
-          @delete="() => undefined"
-          @keydown="() => undefined"
         >
           <template #actions>
-            <button type="button" class="btn-secondary" @click="backToProfile">Показати анкету</button>
+            <button @click="backToProfile" type="button" class="btn-secondary">Показати анкету</button>
           </template>
         </PrepChatPanel>
       </template>
@@ -353,22 +378,22 @@ onMounted(loadProfile)
           <div class="company-hero">
             <p class="eyebrow">Кандидат</p>
             <input
+              @input="onFullNameInput"
               class="name-input"
               type="text"
               :value="editableProfile.fullName"
               aria-label="Ім'я"
-              @input="onFullNameInput"
             />
             <label class="contact-field">
               <span class="section-desc">Email</span>
-              <input class="contact-input" type="email" :value="editableProfile.email" @input="onEmailInput" />
+              <input @input="onEmailInput" class="contact-input" type="email" :value="editableProfile.email" />
             </label>
           </div>
 
           <article v-for="section in candidateSections" :key="section.id" class="section">
             <div class="section-head">
               <h3>{{ section.title }}</h3>
-              <button type="button" class="btn-ghost" @click="toggleSectionEdit(section.id)">
+              <button @click="toggleSectionEdit(section.id)" type="button" class="btn-ghost">
                 {{ editingSections[section.id] ? 'Готово' : 'Редагувати' }}
               </button>
             </div>
@@ -378,10 +403,10 @@ onMounted(loadProfile)
               </p>
               <textarea
                 v-else
+                @input="onSectionTextInput(section.id, $event)"
                 class="section-input"
                 rows="3"
                 :value="getSectionText(section.id)"
-                @input="onSectionTextInput(section.id, $event)"
               />
             </template>
             <template v-else>
@@ -391,23 +416,23 @@ onMounted(loadProfile)
               </ul>
               <textarea
                 v-else
+                @input="onSectionListInput(section.id, $event)"
                 class="section-input"
                 rows="4"
                 :value="getSectionText(section.id)"
-                @input="onSectionListInput(section.id, $event)"
               />
             </template>
           </article>
         </section>
         <div class="actions">
-          <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
-          <button type="button" class="btn-secondary" :disabled="saving" @click="onSaveProfileEdits">
+          <button @click="backToChat" type="button" class="btn-secondary">← Назад до чату</button>
+          <button @click="onSaveProfileEdits" type="button" class="btn-secondary" :disabled="saving">
             {{ saving ? 'Збереження…' : 'Зберегти зміни' }}
           </button>
-          <button type="button" class="btn-primary" :disabled="confirming || saving" @click="onConfirmProfile">
+          <button @click="onConfirmProfile" type="button" class="btn-primary" :disabled="confirming || saving">
             Підтвердити профіль
           </button>
-          <button type="button" class="btn-secondary" @click="onDeletePrep">Видалити анкету</button>
+          <button @click="onDeletePrep" type="button" class="btn-secondary">Видалити анкету</button>
         </div>
       </template>
 
@@ -433,9 +458,9 @@ onMounted(loadProfile)
           <p class="confirmed-banner">✓ Підтверджено {{ formatConfirmedAt(profile.confirmedAt) }}</p>
         </section>
         <div class="actions">
-          <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
-          <button type="button" class="btn-primary" @click="openMatches">Підібрати вакансію</button>
-          <button type="button" class="btn-secondary" @click="onRestartConfirmed">Почати заново</button>
+          <button @click="backToChat" type="button" class="btn-secondary">← Назад до чату</button>
+          <button @click="openMatches" type="button" class="btn-primary">Підібрати вакансію</button>
+          <button @click="onRestartConfirmed" type="button" class="btn-secondary">Почати заново</button>
         </div>
       </template>
     </template>

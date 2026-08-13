@@ -1,8 +1,14 @@
 import type { ChatMessage } from '../llm/types'
-import type { VacancyCompensation } from '../utils/vacancy-work-conditions'
-import { parseVacancyCompensation, parseWorkConditionsArray } from '../utils/vacancy-work-conditions'
-import { assertNonEmptyRequirements, normalizeVacancyRequirements } from '../utils/vacancy-requirements'
-import type { VacancyRequirements } from '../utils/vacancy-requirements'
+import {
+  parseVacancyCompensation,
+  parseWorkConditionsArray,
+  type VacancyCompensation
+} from '../utils/vacancy-work-conditions'
+import {
+  assertNonEmptyRequirements,
+  normalizeVacancyRequirements,
+  type VacancyRequirements
+} from '../utils/vacancy-requirements'
 import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 import { COMPANY_AGENT_SYSTEM_PROMPT_UK } from './prompts/company-agent.uk'
 import { VACANCY_PROFILE_EXTRACTION_SYSTEM_PROMPT_UK } from './prompts/vacancy-profile-extraction.uk'
@@ -89,11 +95,12 @@ export class ProfileExtractionError extends Error {
   }
 }
 
+
 function toStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new ProfileExtractionError(`missing or invalid field: ${field}`)
   }
-  return value.map(item => String(item))
+  return value.map(String)
 }
 
 // Парсить VacancyProfileExtraction з JSON-відповіді LLM.

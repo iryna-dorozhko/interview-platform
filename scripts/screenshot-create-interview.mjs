@@ -5,9 +5,6 @@ import path from 'node:path'
 const BASE_URL = 'http://localhost:5173'
 const OUT_DIR = path.resolve('reports/screenshots')
 
-/**
- *
- */
 async function main() {
   await mkdir(OUT_DIR, { recursive: true })
 

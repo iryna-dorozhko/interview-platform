@@ -2,6 +2,7 @@ import type { CandidateInterview } from '../api/candidate-interview'
 
 export const JOINED_BANNER_KEY = 'candidate-joined-banner'
 
+
 export function storeJoinedBanner(interview: CandidateInterview): void {
   sessionStorage.setItem(JOINED_BANNER_KEY, JSON.stringify(interview))
 }

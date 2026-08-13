@@ -6,6 +6,7 @@ const route = useRoute()
 const { unreadCount } = useDialogUnread()
 const dialogBadge = computed(() => (unreadCount.value > 0 ? formatUnreadBadge(unreadCount.value) : null))
 
+
 function isActive(prefix: string): boolean {
   return route.path === prefix || route.path.startsWith(`${prefix}/`)
 }

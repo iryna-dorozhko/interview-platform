@@ -4,6 +4,7 @@ import { createDialog, fetchDialogs, type DialogListItem } from '../api/dialogs'
 import { formatUnreadBadge } from '../composables/useDialogUnread'
 import { fetchHrApplication, fetchHrApplications } from '../api/hr-applications'
 import { fetchMyInterviews } from '../api/interviews'
+import { runFireAndForget } from '../utils/run-async'
 
 type ListState = 'loading' | 'ready' | 'error'
 
@@ -30,6 +31,7 @@ const selectedCandidateId = ref('')
 const creating = ref(false)
 const createError = ref<string | null>(null)
 
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('uk-UA', {
     day: '2-digit',
@@ -39,6 +41,7 @@ function formatDate(iso: string): string {
     minute: '2-digit'
   })
 }
+
 
 function previewText(dialog: DialogListItem): string {
   if (!dialog.lastMessage) return 'Немає повідомлень'
@@ -59,8 +62,9 @@ async function loadDialogs(): Promise<void> {
   }
 }
 
+
 function openDialog(id: string): void {
-  void router.push(`${basePath.value}/${id}`)
+  runFireAndForget(router.push(`${basePath.value}/${id}`))
 }
 
 async function openNewModal(): Promise<void> {
@@ -86,7 +90,7 @@ async function openNewModal(): Promise<void> {
       const email = application.candidate.email?.trim() || application.candidate.fullName?.trim() || id
       byId.set(id, email)
     }
-    eligible.value = Array.from(byId.entries(), ([id, email]) => ({ id, email }))
+    eligible.value = Array.from(byId, ([id, email]) => ({ id, email }))
     eligibleState.value = 'ready'
   } catch (error) {
     eligibleState.value = 'error'
@@ -121,7 +125,7 @@ onMounted(loadDialogs)
   <div class="dialog-list">
     <div class="list-header">
       <h1>Діалоги</h1>
-      <button v-if="!isCandidate" type="button" class="btn-primary" @click="openNewModal">Новий діалог</button>
+      <button v-if="!isCandidate" @click="openNewModal" type="button" class="btn-primary">Новий діалог</button>
     </div>
 
     <p v-if="listState === 'loading'">Завантаження…</p>
@@ -129,7 +133,7 @@ onMounted(loadDialogs)
     <p v-else-if="dialogs.length === 0" class="muted">Поки немає діалогів</p>
     <ul v-else class="rows" role="list">
       <li v-for="dialog in dialogs" :key="dialog.id">
-        <button type="button" class="row" :class="{ unread: dialog.unreadCount > 0 }" @click="openDialog(dialog.id)">
+        <button @click="openDialog(dialog.id)" type="button" class="row" :class="{ unread: dialog.unreadCount > 0 }">
           <span class="peer">{{ dialog.peer.email }}</span>
           <span class="preview">{{ previewText(dialog) }}</span>
           <span class="meta">
@@ -140,7 +144,7 @@ onMounted(loadDialogs)
       </li>
     </ul>
 
-    <div v-if="showNewModal" class="modal-overlay" @click.self="closeNewModal">
+    <div v-if="showNewModal" @click.self="closeNewModal" class="modal-overlay">
       <div class="modal" role="dialog" aria-labelledby="new-dialog-title">
         <h2 id="new-dialog-title">Новий діалог</h2>
         <p v-if="eligibleState === 'loading'">Завантаження кандидатів…</p>
@@ -158,12 +162,12 @@ onMounted(loadDialogs)
           </label>
           <p v-if="createError" class="fail" role="alert">{{ createError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeNewModal">Скасувати</button>
+            <button @click="closeNewModal" type="button" class="btn-secondary">Скасувати</button>
             <button
+              @click="submitNewDialog"
               type="button"
               class="btn-primary"
               :disabled="!selectedCandidateId || creating"
-              @click="submitNewDialog"
             >
               Створити
             </button>

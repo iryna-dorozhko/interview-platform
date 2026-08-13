@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import { maybeTransitionToReady } from '../utils/interview-readiness'
 import { createInterviewWithJoinCode, parseOptionalScheduledAt, serializeInvitation } from './interviews'
@@ -15,7 +15,7 @@ type CandidateRow = {
 export function createHrAdditionalInterviewsRouter(getPrisma: () => PrismaClient): Router {
   const router = Router()
 
-  router.get('/hr/additional-meeting-candidates', async (req: Request, res: Response) => {
+  router.get('/hr/additional-meeting-candidates', asyncHandler(async (req: Request, res: Response) => {
     if (req.user?.role !== 'HR') {
       res.status(403).json({ error: 'Forbidden' })
       return
@@ -55,9 +55,9 @@ export function createHrAdditionalInterviewsRouter(getPrisma: () => PrismaClient
     }
 
     res.status(200).json({ candidates: [...latestByCandidate.values()] })
-  })
+  }))
 
-  router.post('/hr/interviews/additional', async (req: Request, res: Response) => {
+  router.post('/hr/interviews/additional', asyncHandler(async (req: Request, res: Response) => {
     if (req.user?.role !== 'HR') {
       res.status(403).json({ error: 'Forbidden' })
       return
@@ -151,7 +151,7 @@ export function createHrAdditionalInterviewsRouter(getPrisma: () => PrismaClient
         invitation: serializeInvitation(result.invitation)
       }
     })
-  })
+  }))
 
   return router
 }

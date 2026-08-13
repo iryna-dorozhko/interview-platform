@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
 
-import { clearSession, fetchMe, loginCandidate as apiLoginCandidate, loginHr as apiLoginHr, registerCandidate as apiRegisterCandidate } from '../api/auth'
-import type { AuthUser } from '../api/auth'
+import {
+  clearSession,
+  fetchMe,
+  loginCandidate as apiLoginCandidate,
+  loginHr as apiLoginHr,
+  registerCandidate as apiRegisterCandidate,
+  type AuthUser
+} from '../api/auth'
 import { getStoredToken } from '../api/client'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -25,18 +31,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  
   async function loginHr(email: string, password: string): Promise<void> {
     const loggedInUser = await apiLoginHr(email, password)
     token.value = getStoredToken()
     user.value = loggedInUser
   }
 
+  
   async function registerCandidate(email: string, password: string): Promise<void> {
     const loggedInUser = await apiRegisterCandidate(email, password)
     token.value = getStoredToken()
     user.value = loggedInUser
   }
 
+  
   async function loginCandidate(email: string, password: string): Promise<void> {
     const loggedInUser = await apiLoginCandidate(email, password)
     token.value = getStoredToken()

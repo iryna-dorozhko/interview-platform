@@ -13,9 +13,7 @@ const CHROME =
 const HR_EMAIL = 'hr@test.com'
 const HR_PASSWORD = '123456'
 
-/**
- *
- */
+
 async function login(email, password) {
   const res = await fetch(`${API}/auth/login`, {
     method: 'POST',
@@ -27,9 +25,6 @@ async function login(email, password) {
   return data.token
 }
 
-/**
- *
- */
 async function ensureReadyInterview() {
   const { prisma } = getPrisma()
   try {
@@ -103,9 +98,7 @@ async function ensureReadyInterview() {
   }
 }
 
-/**
- *
- */
+
 async function loginHr(page) {
   await page.goto(`${BASE_URL}/login`)
   await page.fill('input[type="email"]', HR_EMAIL)
@@ -114,9 +107,7 @@ async function loginHr(page) {
   await page.waitForURL('**/', { timeout: 10_000 })
 }
 
-/**
- *
- */
+
 async function loginCandidate(page, email) {
   await page.goto(`${BASE_URL}/candidate/login`)
   await page.fill('input[type="email"]', email)
@@ -125,18 +116,13 @@ async function loginCandidate(page, email) {
   await page.waitForURL('**/candidate', { timeout: 10_000 })
 }
 
-/**
- *
- */
+
 async function save(page, filename) {
   const filePath = path.join(OUT_DIR, filename)
   await page.screenshot({ path: filePath, fullPage: true })
   console.log('Saved:', filePath)
 }
 
-/**
- *
- */
 async function main() {
   await mkdir(OUT_DIR, { recursive: true })
   await login(HR_EMAIL, HR_PASSWORD)

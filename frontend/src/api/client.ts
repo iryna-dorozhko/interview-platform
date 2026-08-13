@@ -4,6 +4,7 @@ export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
 
+
 export function setStoredToken(token: string | null): void {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token)
@@ -22,7 +23,8 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Response> {
+
+export function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Response> {
   const token = getStoredToken()
   const headers = new Headers(init.headers)
   if (token) {

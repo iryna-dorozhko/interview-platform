@@ -13,9 +13,6 @@ const CHROME =
 const CANDIDATE_EMAIL = `candidate-day14-${Date.now()}@test.com`
 const CANDIDATE_PASSWORD = '123456'
 
-/**
- *
- */
 async function registerCandidateViaApi() {
   const res = await fetch(`${API}/auth/candidate/register`, {
     method: 'POST',
@@ -31,9 +28,7 @@ async function registerCandidateViaApi() {
   return data.token
 }
 
-/**
- *
- */
+
 async function finishCandidatePrepViaApi(candidateToken, interviewId) {
   await api(candidateToken, 'POST', `/candidate-prep/${interviewId}/finish`)
 }
@@ -45,9 +40,7 @@ const CANDIDATE_ANSWERS = [
 
 const CJK_PATTERN = /[\u4E00-\u9FFF\u3400-\u4DBF]/
 
-/**
- *
- */
+
 function isUkrainianAgentReply(text) {
   if (!text || CJK_PATTERN.test(text)) return false
   const letters = text.replaceAll(/[^a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g, '')
@@ -56,9 +49,7 @@ function isUkrainianAgentReply(text) {
   return cyrillicCount / letters.length >= 0.7
 }
 
-/**
- *
- */
+
 async function api(token, method, pathSuffix, body) {
   const res = await fetch(`${API}${pathSuffix}`, {
     method,
@@ -73,9 +64,7 @@ async function api(token, method, pathSuffix, body) {
   return data
 }
 
-/**
- *
- */
+
 async function login(email, password) {
   const res = await fetch(`${API}/auth/login`, {
     method: 'POST',
@@ -87,9 +76,6 @@ async function login(email, password) {
   return data.token
 }
 
-/**
- *
- */
 async function findTestInterview() {
   return withPrisma(async prisma => {
     const interview = await prisma.interview.findUnique({ where: { joinCode: JOIN_CODE } })
@@ -98,9 +84,7 @@ async function findTestInterview() {
   })
 }
 
-/**
- *
- */
+
 async function resetTestInterviewCandidate(hrToken, interview) {
   await withPrisma(async prisma => {
     const session = await prisma.prepSessionCandidate.findUnique({
@@ -119,9 +103,7 @@ async function resetTestInterviewCandidate(hrToken, interview) {
   await api(hrToken, 'DELETE', `/prep/${interview.vacancyId}`).catch(() => {})
 }
 
-/**
- *
- */
+
 async function ensureHrProfileConfirmed(vacancyId) {
   await withPrisma(async prisma => {
     await prisma.companyProfile.upsert({
@@ -143,9 +125,7 @@ async function ensureHrProfileConfirmed(vacancyId) {
   })
 }
 
-/**
- *
- */
+
 async function captureScreenshots(interviewId, candidateToken) {
   await mkdir(OUT_DIR, { recursive: true })
 
@@ -236,9 +216,6 @@ async function captureScreenshots(interviewId, candidateToken) {
   console.log('Candidate test account:', CANDIDATE_EMAIL, CANDIDATE_PASSWORD)
 }
 
-/**
- *
- */
 async function main() {
   const hrToken = await login('hr@test.com', '123456')
   void hrToken

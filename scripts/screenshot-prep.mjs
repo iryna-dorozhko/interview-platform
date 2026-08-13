@@ -18,9 +18,7 @@ const ANSWERS = [
 const CJK_PATTERN = /[\u4E00-\u9FFF\u3400-\u4DBF]/
 const CYRILLIC_PATTERN = /[а-яА-ЯіїєґІЇЄҐ]/
 
-/**
- *
- */
+
 function isUkrainianAgentReply(text) {
   if (!text || CJK_PATTERN.test(text)) return false
   const letters = text.replaceAll(/[^a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g, '')
@@ -29,9 +27,6 @@ function isUkrainianAgentReply(text) {
   return cyrillicCount / letters.length >= 0.7
 }
 
-/**
- *
- */
 async function login() {
   const res = await fetch(`${API}/auth/login`, {
     method: 'POST',
@@ -43,9 +38,7 @@ async function login() {
   return data.token
 }
 
-/**
- *
- */
+
 async function api(token, method, pathSuffix, body) {
   const res = await fetch(`${API}${pathSuffix}`, {
     method,
@@ -60,17 +53,13 @@ async function api(token, method, pathSuffix, body) {
   return data
 }
 
-/**
- *
- */
+
 async function sendMessage(token, message) {
   const body = message === undefined ? {} : { message }
   return api(token, 'POST', `/prep/${INTERVIEW_ID}/message`, body)
 }
 
-/**
- *
- */
+
 async function runConversation(token) {
   await api(token, 'DELETE', `/prep/${INTERVIEW_ID}`)
 
@@ -89,9 +78,7 @@ async function runConversation(token) {
   return api(token, 'POST', `/prep/${INTERVIEW_ID}/finish`)
 }
 
-/**
- *
- */
+
 async function completePrepViaApi(maxAttempts = 5) {
   const token = await login()
 
@@ -112,9 +99,6 @@ async function completePrepViaApi(maxAttempts = 5) {
   throw new Error('Unreachable')
 }
 
-/**
- *
- */
 async function captureScreenshots() {
   await mkdir(OUT_DIR, { recursive: true })
 
@@ -176,9 +160,6 @@ async function captureScreenshots() {
   await browser.close()
 }
 
-/**
- *
- */
 async function main() {
   if (process.env.SKIP_PREP_CONVERSATION !== '1') {
     await completePrepViaApi()

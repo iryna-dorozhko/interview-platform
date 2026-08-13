@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import type { Server } from 'socket.io'
 import { extractVacancyOffer, generateDecisionLetter } from '../agents/decision-letter-agent'
@@ -17,6 +17,27 @@ function parseDecisionType(raw: unknown): DecisionType | null {
   return typeof raw === 'string' && DECISION_TYPES.has(raw) ? (raw as DecisionType) : null
 }
 
+function loadReportForDecision(prisma: PrismaClient, reportId: string) {
+  return prisma.finalReport.findUnique({
+    where: { id: reportId },
+    include: {
+      interview: {
+        select: {
+          hrUserId: true,
+          candidateUserId: true,
+          vacancy: {
+            select: {
+              title: true,
+              companyProfile: true
+            }
+          },
+          candidateProfile: true
+        }
+      }
+    }
+  })
+}
+
 // Створює ReportsRouter.
 export function createReportsRouter(
   getPrisma: () => PrismaClient,
@@ -25,7 +46,7 @@ export function createReportsRouter(
 ): Router {
   const router = Router()
 
-  router.get('/reports', async (req: Request, res: Response) => {
+  router.get('/reports', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const hrUserId = req.user!.id
 
@@ -101,9 +122,9 @@ export function createReportsRouter(
         createdAt: report.createdAt
       }))
     })
-  })
+  }))
 
-  router.get('/reports/:id', async (req: Request, res: Response) => {
+  router.get('/reports/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const report = await prisma.finalReport.findUnique({
       where: { id: req.params.id },
@@ -142,30 +163,9 @@ export function createReportsRouter(
         latestDecision
       }
     })
-  })
+  }))
 
-  async function loadReportForDecision(prisma: PrismaClient, reportId: string) {
-    return prisma.finalReport.findUnique({
-      where: { id: reportId },
-      include: {
-        interview: {
-          select: {
-            hrUserId: true,
-            candidateUserId: true,
-            vacancy: {
-              select: {
-                title: true,
-                companyProfile: true
-              }
-            },
-            candidateProfile: true
-          }
-        }
-      }
-    })
-  }
-
-  router.post('/reports/:id/decisions/draft', async (req: Request, res: Response) => {
+  router.post('/reports/:id/decisions/draft', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const report = await loadReportForDecision(prisma, req.params.id)
 
@@ -207,9 +207,9 @@ export function createReportsRouter(
     } catch {
       res.status(502).json({ error: 'Failed to generate letter' })
     }
-  })
+  }))
 
-  router.post('/reports/:id/decisions', async (req: Request, res: Response) => {
+  router.post('/reports/:id/decisions', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const hrUserId = req.user!.id
     const report = await loadReportForDecision(prisma, req.params.id)
@@ -323,7 +323,7 @@ export function createReportsRouter(
       },
       dialogId: result.dialogId
     })
-  })
+  }))
 
   return router
 }

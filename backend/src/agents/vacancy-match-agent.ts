@@ -37,6 +37,7 @@ export class VacancyMatchExtractionError extends Error {
 
 const VALID_STATUSES = new Set<RequirementStatus>(['met', 'unknown', 'unmet'])
 
+
 function expectedRequirements(requirements: VacancyRequirements): Map<string, 'critical' | 'desired'> {
   const map = new Map<string, 'critical' | 'desired'>()
   for (const requirement of requirements.critical) {

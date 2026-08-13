@@ -13,9 +13,7 @@ const CHROME =
 const HR_EMAIL = 'hr@test.com'
 const HR_PASSWORD = '123456'
 
-/**
- *
- */
+
 async function login(email, password) {
   const res = await fetch(`${API}/auth/login`, {
     method: 'POST',
@@ -27,9 +25,7 @@ async function login(email, password) {
   return data.token
 }
 
-/**
- *
- */
+
 async function api(token, method, pathSuffix, body) {
   const res = await fetch(`${API}${pathSuffix}`, {
     method,
@@ -44,9 +40,6 @@ async function api(token, method, pathSuffix, body) {
   return data
 }
 
-/**
- *
- */
 async function ensureReadyInterview() {
   const { prisma } = getPrisma()
   try {
@@ -115,9 +108,7 @@ async function ensureReadyInterview() {
   }
 }
 
-/**
- *
- */
+
 async function captureHrScreenshots(page, interviewId) {
   await page.goto(`${BASE_URL}/login`)
   await page.fill('input[type="email"]', HR_EMAIL)
@@ -145,9 +136,7 @@ async function captureHrScreenshots(page, interviewId) {
   console.log('Saved:', hrRoomPath)
 }
 
-/**
- *
- */
+
 async function captureLiveWithArbiter(hrPage, candidatePage, interviewId, candidateEmail) {
   await candidatePage.goto(`${BASE_URL}/candidate/login`)
   await candidatePage.fill('input[type="email"]', candidateEmail)
@@ -191,9 +180,6 @@ async function captureLiveWithArbiter(hrPage, candidatePage, interviewId, candid
   console.log('Saved:', candidateReplyPath)
 }
 
-/**
- *
- */
 async function main() {
   await mkdir(OUT_DIR, { recursive: true })
   const hrToken = await login(HR_EMAIL, HR_PASSWORD)

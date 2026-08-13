@@ -1,7 +1,9 @@
 import type { Ref } from 'vue'
 import { fetchDialogUnreadCount, markDialogRead as apiMarkDialogRead } from '../api/dialogs'
+import { runFireAndForget } from '../utils/run-async'
 
 const DEFAULT_POLL_MS = 45_000
+
 
 export function formatUnreadBadge(count: number): string {
   if (count > 99) return '99+'
@@ -12,6 +14,7 @@ export type DialogUnreadAdapters = {
   fetchUnreadCount: () => Promise<number>
   markDialogRead: (id: string) => Promise<void>
 }
+
 
 export function createDialogUnreadController(adapters: DialogUnreadAdapters, pollMs: number = DEFAULT_POLL_MS) {
   const unreadCount = ref(0)
@@ -25,6 +28,7 @@ export function createDialogUnreadController(adapters: DialogUnreadAdapters, pol
     }
   }
 
+  
   async function markRead(dialogId: string): Promise<void> {
     await adapters.markDialogRead(dialogId)
     await refresh()
@@ -32,9 +36,9 @@ export function createDialogUnreadController(adapters: DialogUnreadAdapters, pol
 
   function startPolling(): void {
     stopPolling()
-    void refresh()
+    runFireAndForget(refresh())
     timer = setInterval(() => {
-      void refresh()
+      runFireAndForget(refresh())
     }, pollMs)
   }
 

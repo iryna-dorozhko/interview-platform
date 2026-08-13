@@ -100,16 +100,12 @@ const CANDIDATES = [
   }
 ]
 
-/**
- *
- */
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-/**
- *
- */
+
 async function api(method, path, { token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
@@ -122,17 +118,13 @@ async function api(method, path, { token, body } = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
-/**
- *
- */
+
 function isRateLimited(res) {
   const detail = String(res.data?.detail ?? res.data?.error ?? '')
   return res.status === 429 || /rate limit|quota|resource_exhausted|ліміт/i.test(detail)
 }
 
-/**
- *
- */
+
 async function apiWithRetry(method, path, opts = {}, retries = 5) {
   let last
   for (let attempt = 1; attempt <= retries; attempt += 1) {
@@ -145,9 +137,7 @@ async function apiWithRetry(method, path, opts = {}, retries = 5) {
   return last
 }
 
-/**
- *
- */
+
 function short(text, max = 120) {
   return String(text ?? '')
     .replaceAll(/\s+/g, ' ')
@@ -155,9 +145,7 @@ function short(text, max = 120) {
     .slice(0, max)
 }
 
-/**
- *
- */
+
 async function runCandidatePrep(token, interviewId, answers, label) {
   let res = await apiWithRetry('POST', `/candidate-prep/${interviewId}/message`, {
     token,
@@ -196,9 +184,6 @@ async function runCandidatePrep(token, interviewId, answers, label) {
   return res.data.profile
 }
 
-/**
- *
- */
 async function main() {
   const created = []
 

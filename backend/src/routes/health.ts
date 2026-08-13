@@ -1,8 +1,7 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import { checkDatabaseHealth } from '../db/healthcheck'
-import { checkHrSeedUser } from '../db/seed-check'
-import type { SeedCheckResult } from '../db/seed-check'
+import { checkHrSeedUser, type SeedCheckResult } from '../db/seed-check'
 
 type DatabaseHealthResult = {
   ok: boolean
@@ -39,10 +38,10 @@ export async function getHealthStatus(client: PrismaLike): Promise<HealthPayload
 export function createHealthRouter(getClient: () => PrismaLike): Router {
   const router = Router()
 
-  router.get('/health', async (_req: Request, res: Response) => {
+  router.get('/health', asyncHandler(async (_req: Request, res: Response) => {
     const payload = await getHealthStatus(getClient())
     res.status(200).json(payload)
-  })
+  }))
 
   return router
 }

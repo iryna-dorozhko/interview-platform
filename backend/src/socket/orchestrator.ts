@@ -1,15 +1,18 @@
 import type { Server } from 'socket.io'
 import type { CandidateConfidence, LiveAuthorType, LiveMessage, PrismaClient } from '@prisma/client'
 import type { ParsedPostReply } from '../agents/agent-post-reply'
-import { runArbiterTurn as defaultRunArbiterTurn } from '../agents/arbiter-agent'
-import type { ParsedArbiterCommand } from '../agents/arbiter-agent'
+import { runArbiterTurn as defaultRunArbiterTurn, type ParsedArbiterCommand } from '../agents/arbiter-agent'
 import { runCompanyLiveTurn as defaultRunCompanyLiveTurn } from '../agents/company-live-agent'
-import { runCandidateLiveTurn as defaultRunCandidateLiveTurn, toPrismaCandidateConfidence } from '../agents/candidate-live-agent'
-import type { ParsedCandidateLiveReply } from '../agents/candidate-live-agent'
+import {
+  runCandidateLiveTurn as defaultRunCandidateLiveTurn,
+  toPrismaCandidateConfidence,
+  type ParsedCandidateLiveReply
+} from '../agents/candidate-live-agent'
 import type { LiveAgentTurnContext } from '../agents/live-agent-turn-context'
 import { SAFE_LLM_ERROR_UK, toSafeLlmErrorMessage } from '../llm/retry'
 import type { LlmProvider } from '../llm/types'
 import type { LiveMessageDto, RoomAgentThinkingEvent, RoomArbiterProcessEvent } from './types'
+import { runFireAndForget } from '../utils/run-async'
 
 export const AGENT_DEBOUNCE_MS = 1000
 // One human nudge can cover a full autonomous interview (arbiter+agents per Q&A).
@@ -31,7 +34,13 @@ type ConductorInitial = {
   companyPostedThisTurn: boolean
   candidatePostedThisTurn: boolean
   startAt: ConductorStartAt
-  command?: ParsedArbiterCommand
+}
+
+const DEFAULT_CONDUCTOR_INITIAL: ConductorInitial = {
+  stepsUsed: 0,
+  companyPostedThisTurn: false,
+  candidatePostedThisTurn: false,
+  startAt: 'arbiter'
 }
 
 type RoomState = {
@@ -78,11 +87,12 @@ export interface RoomOrchestrator {
   close(): void
 }
 
-const silentCompany: RunCompanyLiveTurnFn = async () => ({ post: false })
-const silentCandidate: RunCandidateLiveTurnFn = async () => ({
-  post: false,
-  needsHuman: false
-})
+const silentCompany: RunCompanyLiveTurnFn = () => Promise.resolve({ post: false })
+const silentCandidate: RunCandidateLiveTurnFn = () =>
+  Promise.resolve({
+    post: false,
+    needsHuman: false
+  })
 
 // Модуль roomName.
 function roomName(interviewId: string): string {
@@ -176,6 +186,7 @@ export function createRoomOrchestrator(
   const rooms = new Map<string, RoomState>()
   let closed = false
 
+  
   function getState(interviewId: string): RoomState {
     let state = rooms.get(interviewId)
     if (!state) {
@@ -227,6 +238,7 @@ export function createRoomOrchestrator(
     runCandidate = silentCandidate
   }
 
+  
   async function saveAndEmit(
     io: Server,
     prisma: PrismaClient,
@@ -250,17 +262,13 @@ export function createRoomOrchestrator(
     return saved
   }
 
+  
   async function runConductorLoop(
     io: Server,
     interviewId: string,
     sessionId: string,
     capturedGeneration: number,
-    initial: ConductorInitial = {
-      stepsUsed: 0,
-      companyPostedThisTurn: false,
-      candidatePostedThisTurn: false,
-      startAt: 'arbiter'
-    }
+    initial: ConductorInitial = DEFAULT_CONDUCTOR_INITIAL
   ): Promise<void> {
     if (closed) return
     const state = getState(interviewId)
@@ -474,6 +482,7 @@ export function createRoomOrchestrator(
     }
   }
 
+  
   async function executeTurn(
     io: Server,
     interviewId: string,
@@ -483,6 +492,7 @@ export function createRoomOrchestrator(
     await runConductorLoop(io, interviewId, sessionId, capturedGeneration)
   }
 
+  
   async function resumeFromFailedTurn(
     io: Server,
     interviewId: string,
@@ -505,6 +515,7 @@ export function createRoomOrchestrator(
     })
   }
 
+  
   function scheduleTurn(io: Server, interviewId: string, sessionId: string): void {
     if (closed) return
     const state = getState(interviewId)
@@ -520,14 +531,14 @@ export function createRoomOrchestrator(
     const capturedGeneration = state.generation
     state.debounceTimer = setTimeout(() => {
       state.debounceTimer = null
-      void executeTurn(io, interviewId, sessionId, capturedGeneration)
+      runFireAndForget(executeTurn(io, interviewId, sessionId, capturedGeneration))
     }, debounceMs)
   }
 
   return {
     onHumanMessage(io: Server, interviewId: string, sessionId: string): void {
       if (closed) return
-      void (async () => {
+      runFireAndForget((async () => {
         if (closed) return
         const interview = await getPrisma().interview.findUnique({
           where: { id: interviewId },
@@ -538,7 +549,7 @@ export function createRoomOrchestrator(
         }
 
         scheduleTurn(io, interviewId, sessionId)
-      })()
+      })())
     },
 
     onLiveStart(_io: Server, _interviewId: string, _sessionId: string): void {
@@ -568,7 +579,7 @@ export function createRoomOrchestrator(
       }
       state.generation += 1
       const capturedGeneration = state.generation
-      void resumeFromFailedTurn(io, interviewId, sessionId, capturedGeneration, failed)
+      runFireAndForget(resumeFromFailedTurn(io, interviewId, sessionId, capturedGeneration, failed))
     },
 
     onAgentStop(io: Server, interviewId: string): void {

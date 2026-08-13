@@ -12,6 +12,8 @@ import {
 } from '../api/prep'
 import { usePrepChat } from '../composables/usePrepChat'
 import PrepChatPanel from '../components/PrepChatPanel.vue'
+import { confirmDestructiveAction } from '../utils/confirm-action'
+import { runFireAndForget } from '../utils/run-async'
 
 const route = useRoute()
 const router = useRouter()
@@ -93,9 +95,11 @@ function resetEditingSections(): void {
   }
 }
 
+
 function toggleSectionEdit(id: VacancySectionId): void {
   editingSections[id] = !editingSections[id]
 }
+
 
 function textToArray(text: string): string[] {
   return text
@@ -103,6 +107,7 @@ function textToArray(text: string): string[] {
     .map(line => line.trim())
     .filter(Boolean)
 }
+
 
 function syncEditableProfile(next: CompanyProfile | null): void {
   if (!next) {
@@ -175,13 +180,16 @@ const {
   isUserMessage
 } = chat
 
+
 function setMessagesEl(el: HTMLElement | null): void {
   messagesEl.value = el
 }
 
+
 function setInput(value: string): void {
   input.value = value
 }
+
 
 function setCompensationDisplayText(text: string): void {
   if (!editableProfile.value) return
@@ -192,6 +200,7 @@ function displayProfile(): CompanyProfile | null {
   return isProfileEditable.value ? editableProfile.value : profile.value
 }
 
+
 function getSectionList(id: VacancySectionId): string[] {
   const source = displayProfile()
   if (!source) return []
@@ -200,6 +209,7 @@ function getSectionList(id: VacancySectionId): string[] {
   if (id === 'compensation') return []
   return source[id]
 }
+
 
 function getSectionText(id: VacancySectionId): string {
   const source = displayProfile()
@@ -210,6 +220,7 @@ function getSectionText(id: VacancySectionId): string {
   return source[id].join('\n')
 }
 
+
 function onRequirementsInput(kind: 'critical' | 'desired', event: Event): void {
   if (!editableProfile.value) return
   const lines = textToArray((event.target as HTMLTextAreaElement).value)
@@ -219,14 +230,15 @@ function onRequirementsInput(kind: 'critical' | 'desired', event: Event): void {
   }
 }
 
+
 function setArrayField(field: ArrayProfileField, text: string): void {
   if (!editableProfile.value) return
   editableProfile.value[field] = textToArray(text)
 }
 
+
 function onSectionListInput(id: VacancySectionId, event: Event): void {
   if (!editableProfile.value) return
-  const text = (event.target as HTMLTextAreaElement).value
   if (id === 'critical') {
     onRequirementsInput('critical', event)
     return
@@ -236,14 +248,17 @@ function onSectionListInput(id: VacancySectionId, event: Event): void {
     return
   }
   if (id === 'compensation') return
+  const text = (event.target as HTMLTextAreaElement).value
   setArrayField(id, text)
 }
+
 
 function onSectionTextInput(id: VacancySectionId, event: Event): void {
   if (id === 'compensation') {
     setCompensationDisplayText((event.target as HTMLInputElement | HTMLTextAreaElement).value)
   }
 }
+
 
 function onRoleInput(event: Event): void {
   if (!editableProfile.value) return
@@ -306,7 +321,7 @@ async function onSaveProfileEdits(): Promise<void> {
 }
 
 async function onConfirmProfile(): Promise<void> {
-  if (!window.confirm('Профіль буде опубліковано для співбесід і матчінгу. Підтвердити?')) {
+  if (!confirmDestructiveAction('Профіль буде опубліковано для співбесід і матчінгу. Підтвердити?')) {
     return
   }
 
@@ -339,7 +354,7 @@ function goHome(): void {
 }
 
 onMounted(() => {
-  void load()
+  runFireAndForget(load())
 })
 </script>
 
@@ -347,7 +362,7 @@ onMounted(() => {
   <main class="page">
     <header class="header">
       <h1>Анкета: {{ title || '…' }}</h1>
-      <button type="button" class="btn-secondary" @click="goHome">← До списку анкет</button>
+      <button @click="goHome" type="button" class="btn-secondary">← До списку анкет</button>
     </header>
 
     <p v-if="loadState === 'loading'">Завантаження…</p>
@@ -364,11 +379,11 @@ onMounted(() => {
           <p class="eyebrow">Посада</p>
           <input
             v-if="isProfileEditable && editableProfile"
+            @input="onRoleInput"
             class="name-input"
             type="text"
             :value="editableProfile.role"
             aria-label="Посада"
-            @input="onRoleInput"
           />
           <p v-else class="name">{{ profile.role }}</p>
         </div>
@@ -376,7 +391,7 @@ onMounted(() => {
         <article v-for="section in vacancySections" :key="section.id" class="section">
           <div class="section-head">
             <h3>{{ section.title }}</h3>
-            <button v-if="isProfileEditable" type="button" class="btn-ghost" @click="toggleSectionEdit(section.id)">
+            <button v-if="isProfileEditable" @click="toggleSectionEdit(section.id)" type="button" class="btn-ghost">
               {{ editingSections[section.id] ? 'Готово' : 'Редагувати' }}
             </button>
           </div>
@@ -388,10 +403,10 @@ onMounted(() => {
             </p>
             <textarea
               v-else
+              @input="onSectionTextInput(section.id, $event)"
               class="section-input"
               rows="2"
               :value="getSectionText(section.id)"
-              @input="onSectionTextInput(section.id, $event)"
             />
           </template>
           <template v-else>
@@ -401,10 +416,10 @@ onMounted(() => {
             </ul>
             <textarea
               v-else
+              @input="onSectionListInput(section.id, $event)"
               class="section-input"
               rows="4"
               :value="getSectionText(section.id)"
-              @input="onSectionListInput(section.id, $event)"
             />
           </template>
         </article>
@@ -420,49 +435,49 @@ onMounted(() => {
         </p>
 
         <div class="actions">
-          <button type="button" class="btn-secondary" @click="backToChat">← Назад до чату</button>
+          <button @click="backToChat" type="button" class="btn-secondary">← Назад до чату</button>
           <button
+            @click="deleteChat"
             type="button"
             class="btn-secondary"
             :disabled="!!profile.confirmedAt"
             :title="profile.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
-            @click="deleteChat"
           >
             Видалити чат
           </button>
           <button
             v-if="!profile.confirmedAt"
+            @click="onSaveProfileEdits"
             type="button"
             class="btn-secondary"
             :disabled="saving"
-            @click="onSaveProfileEdits"
           >
             {{ saving ? 'Збереження…' : 'Зберегти зміни' }}
           </button>
           <button
             v-if="!profile.confirmedAt"
+            @click="onConfirmProfile"
             type="button"
             class="btn-primary"
             :disabled="confirming"
-            @click="onConfirmProfile"
           >
             Підтвердити профіль
           </button>
           <template v-else-if="editingConfirmed">
-            <button type="button" class="btn-secondary" :disabled="saving" @click="cancelEditingConfirmed">
+            <button @click="cancelEditingConfirmed" type="button" class="btn-secondary" :disabled="saving">
               Скасувати
             </button>
-            <button type="button" class="btn-primary" :disabled="saving" @click="onSaveProfileEdits">
+            <button @click="onSaveProfileEdits" type="button" class="btn-primary" :disabled="saving">
               {{ saving ? 'Збереження…' : 'Зберегти зміни' }}
             </button>
           </template>
           <button
             v-else
+            @click="startEditingConfirmed"
             type="button"
             class="btn-secondary"
             :disabled="!canEditProfile"
             :title="canEditProfile ? '' : 'Неможливо змінити анкету: є активна співбесіда (READY/LIVE).'"
-            @click="startEditingConfirmed"
           >
             Змінити
           </button>
@@ -474,6 +489,12 @@ onMounted(() => {
 
       <PrepChatPanel
         v-else
+        @update:input="setInput"
+        @send="send"
+        @retry="retry"
+        @finish="finish"
+        @delete="deleteChat"
+        @keydown="onKeydown"
         title="Чат з Company Agent"
         :load-state="loadState"
         :messages="messages"
@@ -484,19 +505,13 @@ onMounted(() => {
         :last-failed-action="lastFailedAction"
         :is-user-message="isUserMessage"
         :set-messages-el="setMessagesEl"
-        @update:input="setInput"
-        @send="send"
-        @retry="retry"
-        @finish="finish"
-        @delete="deleteChat"
-        @keydown="onKeydown"
       >
         <template #actions>
-          <button type="button" class="btn-secondary" :disabled="sending" @click="deleteChat">Видалити чат</button>
-          <button v-if="!isClosed" type="button" class="btn-primary" :disabled="sending" @click="finish">
+          <button @click="deleteChat" type="button" class="btn-secondary" :disabled="sending">Видалити чат</button>
+          <button v-if="!isClosed" @click="finish" type="button" class="btn-primary" :disabled="sending">
             Завершити чат
           </button>
-          <button v-else type="button" class="btn-secondary" @click="backToProfile">Показати профіль</button>
+          <button v-else @click="backToProfile" type="button" class="btn-secondary">Показати профіль</button>
         </template>
       </PrepChatPanel>
     </template>

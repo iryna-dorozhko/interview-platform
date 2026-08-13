@@ -1,10 +1,8 @@
 import type { LiveAuthorType, PrismaClient } from '@prisma/client'
 import { withLlmRetry } from '../llm/retry'
 import type { ChatMessage, LlmProvider } from '../llm/types'
-import { parseVacancyCompensation, parseWorkConditionsArray } from '../utils/vacancy-work-conditions'
-import type { VacancyCompensation } from '../utils/vacancy-work-conditions'
-import { AgentPostReplyParseError, parsePostReply } from './agent-post-reply'
-import type { ParsedPostReply } from './agent-post-reply'
+import { parseVacancyCompensation, parseWorkConditionsArray, type VacancyCompensation } from '../utils/vacancy-work-conditions'
+import { AgentPostReplyParseError, parsePostReply, type ParsedPostReply } from './agent-post-reply'
 import type { LiveAgentTurnContext } from './live-agent-turn-context'
 import { COMPANY_LIVE_AGENT_SYSTEM_PROMPT_UK } from './prompts/company-live-agent.uk'
 

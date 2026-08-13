@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import { requireAuth, requireCandidate } from '../auth/middleware'
 import { SELF_SERVICE_QUESTIONNAIRE_DISPLAY_NAME } from '../utils/candidate-interview-kind'
@@ -47,7 +47,7 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
   const router = Router()
   router.use(requireAuth, requireCandidate)
 
-  router.get('/interview', async (req: Request, res: Response) => {
+  router.get('/interview', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user?.id as string
 
@@ -68,9 +68,9 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
     res.status(200).json({
       interview: interviewPayload(interview)
     })
-  })
+  }))
 
-  router.get('/questionnaire', async (req: Request, res: Response) => {
+  router.get('/questionnaire', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user?.id as string
 
@@ -91,9 +91,9 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
     res.status(200).json({
       interview: interviewPayload(interview)
     })
-  })
+  }))
 
-  router.post('/interview/start', async (req: Request, res: Response) => {
+  router.post('/interview/start', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user?.id as string
 
@@ -144,9 +144,9 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
         return
       }
     }
-  })
+  }))
 
-  router.post('/interview/join', async (req: Request, res: Response) => {
+  router.post('/interview/join', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user?.id as string
     const body = (req.body ?? {}) as JoinBody
@@ -201,7 +201,7 @@ export function createCandidateInterviewRouter(getPrisma: () => PrismaClient): R
     res.status(200).json({
       interview: interviewPayload(finalInterview)
     })
-  })
+  }))
 
   return router
 }

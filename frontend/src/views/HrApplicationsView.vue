@@ -12,6 +12,7 @@ import {
   type HrApplicationDetail,
   type MatchBreakdown
 } from '../api/hr-applications'
+import { runFireAndForget } from '../utils/run-async'
 
 type ListState = 'loading' | 'ready' | 'error'
 type DetailState = 'idle' | 'loading' | 'ready' | 'error'
@@ -53,6 +54,7 @@ const canCreateInterview = computed(
   () => detail.value?.status === 'PENDING' && !creating.value && !declining.value && !deleting.value
 )
 
+
 function isMatchBreakdown(value: unknown): value is MatchBreakdown {
   return value != null && typeof value === 'object' && Array.isArray((value as MatchBreakdown).assessments)
 }
@@ -68,9 +70,11 @@ const criticalAssessments = computed(
 
 const desiredAssessments = computed(() => matchBreakdown.value?.assessments.filter(a => a.priority === 'desired') ?? [])
 
+
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
+
 
 function statusLabelUk(status: string): string {
   if (status === 'met') return 'Відповідає'
@@ -78,13 +82,16 @@ function statusLabelUk(status: string): string {
   return 'Не відповідає'
 }
 
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA')
 }
 
+
 function candidateName(app: HrApplicationDetail): string {
   return app.candidate.fullName?.trim() || '—'
 }
+
 
 function candidateEmail(app: HrApplicationDetail): string {
   return app.candidate.email?.trim() || '—'
@@ -102,7 +109,7 @@ async function loadList(): Promise<void> {
     } else if (selectedId.value) {
       const stillExists = applications.value.some(item => item.id === selectedId.value)
       if (stillExists) {
-        void loadDetail(selectedId.value)
+        runFireAndForget(loadDetail(selectedId.value))
       } else {
         selectedId.value = applications.value[0]?.id ?? null
       }
@@ -112,6 +119,7 @@ async function loadList(): Promise<void> {
     listError.value = error instanceof Error ? error.message : 'Не вдалося завантажити заявки'
   }
 }
+
 
 async function loadDetail(id: string): Promise<void> {
   const cached = applications.value.find(item => item.id === id) ?? null
@@ -140,6 +148,7 @@ async function loadDetail(id: string): Promise<void> {
   }
 }
 
+
 function selectApplication(id: string): void {
   if (selectedId.value === id) return
   selectedId.value = id
@@ -165,22 +174,24 @@ async function onCreateInterview(): Promise<void> {
   } catch (error) {
     createError.value = error instanceof Error ? error.message : 'Не вдалося створити співбесіду'
     // #region agent log
-    fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '66c73a' },
-      body: JSON.stringify({
-        sessionId: '66c73a',
-        runId: 'post-fix',
-        hypothesisId: 'D',
-        location: 'HrApplicationsView.vue:onCreateInterview:catch',
-        message: 'UI create interview error shown to HR',
-        data: {
-          applicationIdSuffix: detail.value?.id?.slice(-6) ?? null,
-          errorMessage: createError.value
-        },
-        timestamp: Date.now()
+    runFireAndForget(
+      fetch('http://127.0.0.1:7331/ingest/5a344c29-d415-4068-bc43-0bba69a8eb6b', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '66c73a' },
+        body: JSON.stringify({
+          sessionId: '66c73a',
+          runId: 'post-fix',
+          hypothesisId: 'D',
+          location: 'HrApplicationsView.vue:onCreateInterview:catch',
+          message: 'UI create interview error shown to HR',
+          data: {
+            applicationIdSuffix: detail.value?.id?.slice(-6) ?? null,
+            errorMessage: createError.value
+          },
+          timestamp: Date.now()
+        })
       })
-    }).catch(() => {})
+    )
     // #endregion
   } finally {
     creating.value = false
@@ -276,7 +287,7 @@ async function markUnreadNotifications(): Promise<void> {
 }
 
 watch(selectedId, id => {
-  if (id) void loadDetail(id)
+  if (id) runFireAndForget(loadDetail(id))
   else {
     detailState.value = 'idle'
     detail.value = null
@@ -284,8 +295,8 @@ watch(selectedId, id => {
 })
 
 onMounted(() => {
-  void loadList()
-  void markUnreadNotifications()
+  runFireAndForget(loadList())
+  runFireAndForget(markUnreadNotifications())
 })
 </script>
 
@@ -315,8 +326,8 @@ onMounted(() => {
             <tr
               v-for="app in applications"
               :key="app.id"
-              :class="{ selected: app.id === selectedId }"
               @click="selectApplication(app.id)"
+              :class="{ selected: app.id === selectedId }"
             >
               <td>{{ candidateName(app) }}</td>
               <td>{{ candidateEmail(app) }}</td>
@@ -388,7 +399,7 @@ onMounted(() => {
           </div>
           <p v-else class="muted breakdown-fallback">Деталізація недоступна</p>
 
-          <form v-if="detail.status === 'PENDING'" class="create-form" @submit.prevent="onCreateInterview">
+          <form v-if="detail.status === 'PENDING'" @submit.prevent="onCreateInterview" class="create-form">
             <label class="field">
               <span>Запланований час (необовʼязково)</span>
               <input v-model="scheduledAtLocal" type="datetime-local" :disabled="creating" />
@@ -398,14 +409,14 @@ onMounted(() => {
               <button type="submit" class="btn-primary" :disabled="!canCreateInterview">
                 {{ creating ? 'Створення…' : 'Створити співбесіду' }}
               </button>
-              <button type="button" class="btn-secondary" :disabled="creating || declining" @click="openDeclineModal">
+              <button @click="openDeclineModal" type="button" class="btn-secondary" :disabled="creating || declining">
                 Відхилити
               </button>
               <button
+                @click="onDeleteApplication"
                 type="button"
                 class="btn-danger"
                 :disabled="creating || declining || deleting"
-                @click="onDeleteApplication"
               >
                 {{ deleting ? 'Видалення…' : 'Видалити заявку' }}
               </button>
@@ -418,10 +429,10 @@ onMounted(() => {
               Заявку відхилено. Лист надіслано кандидату в «Діалоги».
             </p>
             <p v-else-if="detail.interviewId" class="muted">Співбесіду вже створено з цієї заявки.</p>
-            <button v-if="detail.interviewId" type="button" class="btn-secondary" @click="goToInterview">
+            <button v-if="detail.interviewId" @click="goToInterview" type="button" class="btn-secondary">
               Відкрити співбесіду
             </button>
-            <button v-else type="button" class="btn-danger" :disabled="deleting" @click="onDeleteApplication">
+            <button v-else @click="onDeleteApplication" type="button" class="btn-danger" :disabled="deleting">
               {{ deleting ? 'Видалення…' : 'Видалити заявку' }}
             </button>
           </div>
@@ -429,7 +440,7 @@ onMounted(() => {
       </section>
     </div>
 
-    <div v-if="declineModalOpen" class="modal-overlay" @click.self="closeDeclineModal">
+    <div v-if="declineModalOpen" @click.self="closeDeclineModal" class="modal-overlay">
       <div class="modal" role="dialog" aria-labelledby="decline-modal-title">
         <h2 id="decline-modal-title">Відхилити заявку</h2>
 
@@ -438,7 +449,7 @@ onMounted(() => {
         <template v-else-if="declineModalState === 'error'">
           <p class="fail" role="alert">{{ declineModalError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeDeclineModal">Закрити</button>
+            <button @click="closeDeclineModal" type="button" class="btn-secondary">Закрити</button>
           </div>
         </template>
 
@@ -446,14 +457,14 @@ onMounted(() => {
           <p class="success-message">Відмову надіслано кандидату.</p>
           <RouterLink
             v-if="declineSentDialogId"
+            @click="closeDeclineModal"
             :to="'/dialogs/' + declineSentDialogId"
             class="dialog-link"
-            @click="closeDeclineModal"
           >
             Відкрити діалог
           </RouterLink>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeDeclineModal">Закрити</button>
+            <button @click="closeDeclineModal" type="button" class="btn-secondary">Закрити</button>
           </div>
         </template>
 
@@ -464,12 +475,12 @@ onMounted(() => {
           </label>
           <p v-if="declineModalError" class="fail" role="alert">{{ declineModalError }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" @click="closeDeclineModal">Скасувати</button>
+            <button @click="closeDeclineModal" type="button" class="btn-secondary">Скасувати</button>
             <button
+              @click="submitDecline"
               type="button"
               class="btn-primary"
               :disabled="!declineDraftBody.trim() || declining"
-              @click="submitDecline"
             >
               Надіслати
             </button>

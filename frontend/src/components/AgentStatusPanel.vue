@@ -20,6 +20,7 @@ const visibleAgents = computed(() =>
   props.interviewKind === 'ADDITIONAL_MEETING' ? AGENTS.filter(a => a.key !== 'AGENT_CANDIDATE') : AGENTS
 )
 
+
 function statusFor(agentType: AgentKey): 'thinking' | 'idle' {
   if (props.agentThinking?.active && props.agentThinking.agentType === agentType) {
     return 'thinking'
@@ -30,6 +31,7 @@ function statusFor(agentType: AgentKey): 'thinking' | 'idle' {
 const activeAgent = computed(() => props.agentThinking?.agentType as LiveAuthorType | undefined)
 
 const processEntries = computed(() => props.processLog ?? [])
+
 
 function formatTime(iso: string): string {
   try {

@@ -11,10 +11,10 @@ const props = defineProps<{
   input: string
   errorMessage: string | null
   lastFailedAction: PrepFailedAction | null
-  isUserMessage: (msg: PrepChatMessage) => boolean
+  isUserMessage: (_msg: PrepChatMessage) => boolean
   deleteDisabled?: boolean
   deleteTitle?: string
-  setMessagesEl?: (el: HTMLElement | null) => void
+  setMessagesEl?: (_el: HTMLElement | null) => void
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +34,7 @@ function resizeComposer(): void {
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
 }
+
 
 function onComposerInput(event: Event): void {
   emit('update:input', (event.target as HTMLTextAreaElement).value)
@@ -61,15 +62,15 @@ watch(
         <div class="chat-actions">
           <slot name="actions">
             <button
+              @click="emit('delete')"
               type="button"
               class="btn-secondary"
               :disabled="sending || deleteDisabled"
               :title="deleteTitle || ''"
-              @click="emit('delete')"
             >
               Видалити чат
             </button>
-            <button v-if="!isClosed" type="button" class="btn-primary" :disabled="sending" @click="emit('finish')">
+            <button v-if="!isClosed" @click="emit('finish')" type="button" class="btn-primary" :disabled="sending">
               Завершити чат
             </button>
           </slot>
@@ -93,21 +94,21 @@ watch(
 
       <p v-if="errorMessage && lastFailedAction" class="error-banner" role="alert">
         {{ errorMessage }}
-        <button type="button" class="btn-secondary" :disabled="sending || !lastFailedAction" @click="emit('retry')">
+        <button @click="emit('retry')" type="button" class="btn-secondary" :disabled="sending || !lastFailedAction">
           Спробувати ще раз
         </button>
       </p>
 
-      <form v-if="!isClosed" class="composer" @submit.prevent="emit('send')">
+      <form v-if="!isClosed" @submit.prevent="emit('send')" class="composer">
         <textarea
           ref="composerInputEl"
+          @input="onComposerInput"
+          @keydown="emit('keydown', $event)"
           class="composer-input"
           rows="2"
           placeholder="Напишіть відповідь…"
           :value="input"
           :disabled="sending"
-          @input="onComposerInput"
-          @keydown="emit('keydown', $event)"
         />
         <button type="submit" class="btn-primary" :disabled="sending || !input.trim()">Надіслати</button>
       </form>

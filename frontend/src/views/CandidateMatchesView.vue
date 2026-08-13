@@ -9,6 +9,7 @@ import {
   type ActiveApplication,
   type CandidateMatchOffer
 } from '../api/candidate-matches'
+import { runFireAndForget } from '../utils/run-async'
 
 type ViewState = 'loading' | 'pending' | 'offer' | 'empty' | 'needsQuestionnaire' | 'error'
 
@@ -18,6 +19,7 @@ const application = ref<ActiveApplication | null>(null)
 const offers = ref<CandidateMatchOffer[]>([])
 const actionBusy = ref(false)
 const rejectingVacancyId = ref<string | null>(null)
+
 
 function applyOffers(next: CandidateMatchOffer[]): void {
   offers.value = next
@@ -50,6 +52,7 @@ async function loadMatches(): Promise<void> {
   }
 }
 
+
 async function onReject(vacancyId: string): Promise<void> {
   if (actionBusy.value) return
   actionBusy.value = true
@@ -66,6 +69,7 @@ async function onReject(vacancyId: string): Promise<void> {
     rejectingVacancyId.value = null
   }
 }
+
 
 async function onAccept(vacancyId: string): Promise<void> {
   if (actionBusy.value) return
@@ -85,7 +89,7 @@ async function onAccept(vacancyId: string): Promise<void> {
 }
 
 onMounted(() => {
-  void loadMatches()
+  runFireAndForget(loadMatches())
 })
 </script>
 
@@ -121,10 +125,10 @@ onMounted(() => {
           <span class="offer-score-badge">{{ item.matchScore }}%</span>
         </div>
         <div class="actions">
-          <button type="button" class="btn-secondary" :disabled="actionBusy" @click="onReject(item.vacancyId)">
+          <button @click="onReject(item.vacancyId)" type="button" class="btn-secondary" :disabled="actionBusy">
             {{ rejectingVacancyId === item.vacancyId ? 'Зачекайте…' : 'Відхилити' }}
           </button>
-          <button type="button" class="btn-primary" :disabled="actionBusy" @click="onAccept(item.vacancyId)">
+          <button @click="onAccept(item.vacancyId)" type="button" class="btn-primary" :disabled="actionBusy">
             {{ actionBusy ? 'Зачекайте…' : 'Подати заявку' }}
           </button>
         </div>

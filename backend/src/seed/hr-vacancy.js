@@ -2,6 +2,7 @@ export const SEED_VACANCY = {
   title: 'Test Position'
 }
 
+
 export async function seedHrVacancy(prisma, hrUserId) {
   const existing = await prisma.vacancy.findFirst({
     where: { hrUserId, title: SEED_VACANCY.title }

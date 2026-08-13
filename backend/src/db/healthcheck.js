@@ -1,3 +1,4 @@
+
 export async function checkDatabaseHealth(client, options = {}) {
   try {
     let databaseClient = client

@@ -59,9 +59,7 @@ const VACANCIES = [
   }
 ]
 
-/**
- *
- */
+
 async function api(method, path, { token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
@@ -74,9 +72,7 @@ async function api(method, path, { token, body } = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
-/**
- *
- */
+
 function short(text, max = 140) {
   return String(text ?? '')
     .replaceAll(/\s+/g, ' ')
@@ -84,12 +80,8 @@ function short(text, max = 140) {
     .slice(0, max)
 }
 
-/**
- *
- */
-/**
- *
- */
+
+
 async function purgeVacancyRelations(vacancyId) {
   const { prisma } = getPrisma()
   try {
@@ -145,9 +137,7 @@ async function purgeVacancyRelations(vacancyId) {
   }
 }
 
-/**
- *
- */
+
 async function ensureDeepCompanyProfile(token) {
   const state = await api('GET', '/company-prep', { token })
   if (!state.ok) {
@@ -195,9 +185,7 @@ async function ensureDeepCompanyProfile(token) {
   console.log('company-prep: confirmed')
 }
 
-/**
- *
- */
+
 async function deleteAllInterviews(token) {
   const list = await api('GET', '/interviews/mine', { token })
   if (!list.ok) throw new Error(`GET /interviews/mine failed: ${JSON.stringify(list.data)}`)
@@ -211,9 +199,7 @@ async function deleteAllInterviews(token) {
   }
 }
 
-/**
- *
- */
+
 async function deleteAllVacancies(token) {
   const list = await api('GET', '/vacancies/mine', { token })
   if (!list.ok) throw new Error(`GET /vacancies/mine failed: ${JSON.stringify(list.data)}`)
@@ -232,9 +218,7 @@ async function deleteAllVacancies(token) {
   }
 }
 
-/**
- *
- */
+
 async function runVacancyPrep(token, vacancyId, answers) {
   let first = await api('POST', `/prep/${vacancyId}/message`, { token, body: {} })
   if (!first.ok) throw new Error(`prep greeting failed: ${JSON.stringify(first.data)}`)
@@ -269,9 +253,6 @@ async function runVacancyPrep(token, vacancyId, answers) {
   if (!confirm.ok) throw new Error(`prep confirm failed: ${JSON.stringify(confirm.data)}`)
 }
 
-/**
- *
- */
 async function main() {
   const login = await api('POST', '/auth/login', {
     body: { email: HR_EMAIL, password: HR_PASSWORD }

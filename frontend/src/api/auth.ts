@@ -17,6 +17,7 @@ type MeResponse = {
 
 type ErrorBody = { error?: string }
 
+
 async function parseError(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as ErrorBody
@@ -25,6 +26,7 @@ async function parseError(response: Response): Promise<string> {
     return 'Помилка запиту'
   }
 }
+
 
 export async function loginHr(email: string, password: string): Promise<AuthUser> {
   const response = await fetch('/api/auth/hr/login', {
@@ -43,6 +45,7 @@ export async function loginHr(email: string, password: string): Promise<AuthUser
   return data.user
 }
 
+
 export async function registerCandidate(email: string, password: string): Promise<AuthUser> {
   const response = await fetch('/api/auth/candidate/register', {
     method: 'POST',
@@ -59,6 +62,7 @@ export async function registerCandidate(email: string, password: string): Promis
   setStoredToken(data.token)
   return data.user
 }
+
 
 export async function loginCandidate(email: string, password: string): Promise<AuthUser> {
   const response = await fetch('/api/auth/candidate/login', {

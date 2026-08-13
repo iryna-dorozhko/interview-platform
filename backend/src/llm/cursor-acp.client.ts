@@ -1,10 +1,25 @@
 import { spawn as spawnChild } from 'node:child_process'
 import { chmod, mkdir } from 'node:fs/promises'
 import type { Readable, Writable } from 'node:stream'
-import { assertNoConfiguredMcp } from './cursor-acp.config'
-import type { CursorAcpConfig } from './cursor-acp.config'
-import { AcpProtocolError, NdjsonDecoder, methodNotFoundError, parseInitializeResult, parseJsonRpcMessage, parsePromptResult, parseSessionNewResult, parseSessionUpdate, rejectedPlanResult, selectPermissionRejection, skippedQuestionResult } from './cursor-acp.protocol'
-import type { AcpInitializeResult, AcpPermissionOption, AcpSessionNewResult, JsonRpcId, JsonRpcMessage } from './cursor-acp.protocol'
+import { assertNoConfiguredMcp, type CursorAcpConfig } from './cursor-acp.config'
+import {
+  AcpProtocolError,
+  NdjsonDecoder,
+  methodNotFoundError,
+  parseInitializeResult,
+  parseJsonRpcMessage,
+  parsePromptResult,
+  parseSessionNewResult,
+  parseSessionUpdate,
+  rejectedPlanResult,
+  selectPermissionRejection,
+  skippedQuestionResult,
+  type AcpInitializeResult,
+  type AcpPermissionOption,
+  type AcpSessionNewResult,
+  type JsonRpcId,
+  type JsonRpcMessage
+} from './cursor-acp.protocol'
 
 type ProcessState = 'idle' | 'starting' | 'ready' | 'stopping' | 'closed'
 

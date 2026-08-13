@@ -18,7 +18,7 @@
     "npm/types/**",
     "demo/node/rules-demo.js",
     "**/schema.graphql",
-    "**/auto-imports.d.ts"
+    "scripts/fix-*.mjs"
   ],
   "overrides": [
     {
@@ -45,7 +45,95 @@
         "@typescript-eslint/no-explicit-any": "off",
         "eslint/no-unused-vars": "off",
         "eslint/no-underscore-dangle": "off",
-        "e18e/prefer-static-regex": "off"
+        "e18e/prefer-static-regex": "off",
+        "eslint/no-duplicate-imports": "off",
+        "eslint/require-await": "off",
+        "promise/avoid-new": "off",
+        "promise/param-names": "off",
+        "eslint/no-empty-function": "off",
+        "eslint/no-void": "off",
+        "e18e/ban-dependencies": "off",
+        "e18e/prefer-array-to-sorted": "off",
+        "unicorn/no-await-expression-member": "off",
+        "unicorn/no-lonely-if": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "e18e/prefer-array-from-map": "off",
+        "unicorn/prefer-event-target": "off",
+        "jsdoc/require-param": "off",
+        "jsdoc/require-returns": "off",
+        "jsdoc/require-param-description": "off",
+        "jsdoc/require-returns-description": "off"
+      }
+    },
+    {
+      "files": [
+        "scripts/**/*.{js,mjs}",
+        "backend/scripts/**/*.{js,mjs,ts}"
+      ],
+      "rules": {
+        "unicorn/no-process-exit": "off",
+        "promise/avoid-new": "off",
+        "unicorn/no-array-reduce": "off",
+        "jsdoc/require-param": "off",
+        "jsdoc/require-returns": "off",
+        "jsdoc/require-param-description": "off",
+        "jsdoc/require-returns-description": "off",
+        "eslint/require-await": "off",
+        "eslint/no-empty-function": "off",
+        "eslint/no-void": "off",
+        "e18e/prefer-static-regex": "off",
+        "eslint/no-unused-vars": "off",
+        "promise/param-names": "off",
+        "unicorn/no-await-expression-member": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    },
+    {
+      "files": [
+        "backend/src/llm/errors.ts",
+        "backend/src/llm/cursor-acp.protocol.ts",
+        "backend/src/llm/cursor-acp.client.ts",
+        "backend/src/agents/arbiter-agent.ts"
+      ],
+      "rules": {
+        "eslint/max-classes-per-file": "off"
+      }
+    },
+    {
+      "files": [
+        "backend/src/llm/cursor-acp.client.ts"
+      ],
+      "rules": {
+        "eslint/no-void": "off",
+        "eslint/require-await": "off",
+        "promise/catch-or-return": "off",
+        "promise/no-promise-in-callback": "off",
+        "eslint/no-empty-function": "off"
+      }
+    },
+    {
+      "files": [
+        "**/auto-imports.d.ts"
+      ],
+      "rules": {
+        "unicorn/no-abusive-eslint-disable": "off"
+      }
+    },
+    {
+      "files": [
+        "backend/src/utils/async-handler.ts"
+      ],
+      "rules": {
+        "promise/no-callback-in-promise": "off"
+      }
+    },
+    {
+      "files": [
+        "backend/src/llm/cursor-acp.client.ts",
+        "backend/src/server.ts"
+      ],
+      "rules": {
+        "promise/avoid-new": "off"
       }
     }
   ],
@@ -65,7 +153,9 @@
       "deny",
       {
         "allowed": [
-          "globby"
+          "globby",
+          "express",
+          "jsonwebtoken"
         ]
       }
     ],

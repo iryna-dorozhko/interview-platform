@@ -1,7 +1,6 @@
 import type { CandidateConfidence, LiveAuthorType } from '@prisma/client'
 import type { ChatMessage } from '../llm/types'
-import type { RequirementAssessment, RequirementStatus } from '../services/match-score'
-import { computeMatchScore } from '../services/match-score'
+import { computeMatchScore, type RequirementAssessment, type RequirementStatus } from '../services/match-score'
 import type { VacancyRequirements } from '../utils/vacancy-requirements'
 import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 import { FINAL_REPORT_SYSTEM_PROMPT_UK } from './prompts/final-report.uk'
@@ -117,12 +116,14 @@ function validateAssessments(assessments: unknown, requirements: VacancyRequirem
   return validated
 }
 
+
 function toStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new FinalReportExtractionError(`missing or invalid field: ${field}`)
   }
-  return value.map(item => String(item))
+  return value.map(String)
 }
+
 
 function baselineRecommendation(
   assessments: RequirementAssessment[],

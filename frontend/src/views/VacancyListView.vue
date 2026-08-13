@@ -1,6 +1,8 @@
 <script setup lang="ts">
 
 import CreateVacancyModal from '../components/CreateVacancyModal.vue'
+import { runFireAndForget } from '../utils/run-async'
+import { confirmDestructiveAction } from '../utils/confirm-action'
 import { deleteVacancy, fetchMyVacancies, hideVacancy, unhideVacancy, type VacancySummary } from '../api/vacancies'
 
 type ListState = 'loading' | 'ready' | 'error'
@@ -31,31 +33,38 @@ async function loadVacancies(): Promise<void> {
   }
 }
 
+
 function setVisibility(next: 'active' | 'hidden'): void {
   visibility.value = next
-  void loadVacancies()
+  runFireAndForget(loadVacancies())
 }
+
 
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
 
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA')
 }
+
 
 function goToPrep(id: string): void {
   router.push({ name: 'vacancy-prep', params: { id } })
 }
 
+
 function goToDetail(id: string): void {
   router.push({ name: 'vacancy-detail', params: { id } })
 }
+
 
 function onVacancyCreated(vacancyId: string): void {
   showVacancyModal.value = false
   router.push({ name: 'vacancy-prep', params: { id: vacancyId } })
 }
+
 
 async function onHide(vacancy: VacancySummary): Promise<void> {
   actionError.value = null
@@ -67,6 +76,7 @@ async function onHide(vacancy: VacancySummary): Promise<void> {
   }
 }
 
+
 async function onUnhide(vacancy: VacancySummary): Promise<void> {
   actionError.value = null
   try {
@@ -77,9 +87,10 @@ async function onUnhide(vacancy: VacancySummary): Promise<void> {
   }
 }
 
+
 async function onDelete(vacancy: VacancySummary): Promise<void> {
   actionError.value = null
-  if (!window.confirm(`Видалити анкету «${vacancy.title}»? Цю дію не можна скасувати.`)) {
+  if (!confirmDestructiveAction(`Видалити анкету «${vacancy.title}»? Цю дію не можна скасувати.`)) {
     return
   }
 
@@ -98,25 +109,25 @@ onMounted(loadVacancies)
   <div class="vacancy-list">
     <div class="list-header">
       <h1>Вакансії</h1>
-      <button type="button" class="btn-primary" @click="showVacancyModal = true">Створити вакансію</button>
+      <button @click="showVacancyModal = true" type="button" class="btn-primary">Створити вакансію</button>
     </div>
 
     <div class="visibility-tabs" role="tablist" aria-label="Видимість вакансій">
       <button
+        @click="setVisibility('active')"
         type="button"
         role="tab"
         :aria-selected="visibility === 'active'"
         :class="{ active: visibility === 'active' }"
-        @click="setVisibility('active')"
       >
         Активні
       </button>
       <button
+        @click="setVisibility('hidden')"
         type="button"
         role="tab"
         :aria-selected="visibility === 'hidden'"
         :class="{ active: visibility === 'hidden' }"
-        @click="setVisibility('hidden')"
       >
         Приховані
       </button>
@@ -145,37 +156,37 @@ onMounted(loadVacancies)
             <td>{{ formatDate(vacancy.createdAt) }}</td>
             <td>{{ statusLabel(vacancy.status) }}</td>
             <td class="actions-cell">
-              <button v-if="vacancy.status === 'DRAFT'" type="button" class="btn-primary" @click="goToPrep(vacancy.id)">
+              <button v-if="vacancy.status === 'DRAFT'" @click="goToPrep(vacancy.id)" type="button" class="btn-primary">
                 Пройти анкету
               </button>
               <button
                 v-else-if="vacancy.status === 'CONFIRMED'"
+                @click="goToDetail(vacancy.id)"
                 type="button"
                 class="btn-primary"
-                @click="goToDetail(vacancy.id)"
               >
                 Переглянути
               </button>
               <button
                 v-if="vacancy.status === 'CONFIRMED'"
+                @click="goToPrep(vacancy.id)"
                 type="button"
                 class="btn-secondary"
-                @click="goToPrep(vacancy.id)"
               >
                 Редагувати
               </button>
-              <button v-if="visibility === 'active'" type="button" class="btn-secondary" @click="onHide(vacancy)">
+              <button v-if="visibility === 'active'" @click="onHide(vacancy)" type="button" class="btn-secondary">
                 Приховати
               </button>
-              <button v-else type="button" class="btn-secondary" @click="onUnhide(vacancy)">Показати</button>
-              <button type="button" class="btn-danger" @click="onDelete(vacancy)">Видалити</button>
+              <button v-else @click="onUnhide(vacancy)" type="button" class="btn-secondary">Показати</button>
+              <button @click="onDelete(vacancy)" type="button" class="btn-danger">Видалити</button>
             </td>
           </tr>
         </tbody>
       </table>
     </template>
 
-    <CreateVacancyModal :open="showVacancyModal" @close="showVacancyModal = false" @created="onVacancyCreated" />
+    <CreateVacancyModal @close="showVacancyModal = false" @created="onVacancyCreated" :open="showVacancyModal" />
   </div>
 </template>
 

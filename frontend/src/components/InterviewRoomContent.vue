@@ -4,6 +4,7 @@ import LiveChatPanel from './LiveChatPanel.vue'
 import AgentStatusPanel from './AgentStatusPanel.vue'
 import { endInterview } from '../api/interviews'
 import { useInterviewRoom } from '../composables/useInterviewRoom'
+import { confirmDestructiveAction } from '../utils/confirm-action'
 
 const props = defineProps<{
   interviewId: string
@@ -59,7 +60,7 @@ const phaseBanner = computed(() => {
 })
 
 async function onEndInterview(): Promise<void> {
-  if (!window.confirm('Завершити співбесіду? Буде згенеровано фінальний звіт.')) return
+  if (!confirmDestructiveAction('Завершити співбесіду? Буде згенеровано фінальний звіт.')) return
   ending.value = true
   endError.value = null
   endSuccess.value = null
@@ -78,24 +79,24 @@ async function onEndInterview(): Promise<void> {
 <template>
   <div v-if="showHrToolbar" class="room-toolbar">
     <button
+      @click="retryAgent"
       type="button"
       class="btn-secondary"
       :disabled="!canRetryAgent"
       :title="canRetryAgent ? 'Повторити останній невдалий хід агента' : 'Кнопка активна лише після помилки агента'"
-      @click="retryAgent"
     >
       Спробувати ще раз
     </button>
     <button
+      @click="stopAgents"
       type="button"
       class="btn-secondary"
       :disabled="!canStopAgents"
       :title="canStopAgents ? 'Зупинити поточні процеси агентів' : 'Немає зʼєднання з кімнатою'"
-      @click="stopAgents"
     >
       Зупинити
     </button>
-    <button type="button" class="btn-danger" :disabled="ending" @click="onEndInterview">
+    <button @click="onEndInterview" type="button" class="btn-danger" :disabled="ending">
       {{ ending ? 'Завершення…' : 'Завершити співбесіду' }}
     </button>
   </div>
@@ -114,6 +115,8 @@ async function onEndInterview(): Promise<void> {
   </p>
   <div class="room-body" :class="{ 'room-body--with-sidebar': currentRole === 'HR' }">
     <LiveChatPanel
+      @send="sendMessage"
+      @typing-input="notifyTypingInput"
       :messages="messages"
       :current-role="currentRole"
       :connection-state="connectionState"
@@ -121,8 +124,6 @@ async function onEndInterview(): Promise<void> {
       :error-message="errorMessage"
       :agent-thinking="agentThinking"
       :peer-typing-label="peerTypingLabel"
-      @send="sendMessage"
-      @typing-input="notifyTypingInput"
     />
     <AgentStatusPanel
       v-if="currentRole === 'HR'"

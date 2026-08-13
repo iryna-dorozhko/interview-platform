@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import type { Server } from 'socket.io'
 import { emitDialogMessage } from '../socket/dialogs'
@@ -35,7 +35,7 @@ function hiddenAtFieldForUser(dialog: { hrUserId: string }, userId: string): 'hr
 }
 
 // Модуль countUnreadMessages.
-async function countUnreadMessages(
+function countUnreadMessages(
   prisma: PrismaClient,
   dialogId: string,
   currentUserId: string,
@@ -72,7 +72,7 @@ async function isCandidateEligible(prisma: PrismaClient, hrUserId: string, candi
 export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => Server): Router {
   const router = Router()
 
-  router.get('/dialogs', async (req: Request, res: Response) => {
+  router.get('/dialogs', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const where =
       req.user!.role === 'HR'
@@ -123,9 +123,9 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
         })
       )
     })
-  })
+  }))
 
-  router.post('/dialogs', async (req: Request, res: Response) => {
+  router.post('/dialogs', asyncHandler(async (req: Request, res: Response) => {
     if (req.user!.role !== 'HR') {
       res.status(403).json({ error: 'Forbidden' })
       return
@@ -177,9 +177,9 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
         candidateUserId: created.candidateUserId
       }
     })
-  })
+  }))
 
-  router.get('/dialogs/unread-count', async (req: Request, res: Response) => {
+  router.get('/dialogs/unread-count', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const where =
       req.user!.role === 'HR'
@@ -202,9 +202,9 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
     }
 
     res.status(200).json({ unreadCount })
-  })
+  }))
 
-  router.post('/dialogs/:id/read', async (req: Request, res: Response) => {
+  router.post('/dialogs/:id/read', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const dialog = await prisma.dialog.findUnique({ where: { id: req.params.id } })
     if (!dialog || !isParticipant(dialog, req.user!.id)) {
@@ -217,9 +217,9 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
 
     await prisma.dialog.update({ where: { id: dialog.id }, data })
     res.status(200).json({ ok: true })
-  })
+  }))
 
-  router.delete('/dialogs/:id', async (req: Request, res: Response) => {
+  router.delete('/dialogs/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const dialog = await prisma.dialog.findUnique({ where: { id: req.params.id } })
     if (!dialog || !isParticipant(dialog, req.user!.id)) {
@@ -233,9 +233,9 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
       data: { [field]: new Date() }
     })
     res.status(204).send()
-  })
+  }))
 
-  router.get('/dialogs/:id', async (req: Request, res: Response) => {
+  router.get('/dialogs/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const dialog = await prisma.dialog.findUnique({
       where: { id: req.params.id },
@@ -271,9 +271,9 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
         decision: message.decision ? { type: message.decision.type } : null
       }))
     })
-  })
+  }))
 
-  router.post('/dialogs/:id/messages', async (req: Request, res: Response) => {
+  router.post('/dialogs/:id/messages', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const dialog = await prisma.dialog.findUnique({
       where: { id: req.params.id }
@@ -317,7 +317,7 @@ export function createDialogsRouter(getPrisma: () => PrismaClient, getIo: () => 
     }
     emitDialogMessage(getIo(), dialog.id, messageDto)
     res.status(201).json({ message: messageDto })
-  })
+  }))
 
   return router
 }

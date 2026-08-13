@@ -41,6 +41,9 @@ const CHILD_ENV_NAMES = [
   'CURSOR_AUTH_TOKEN'
 ] as const
 
+const DEFAULT_RUNTIME = { tmpdir: os.tmpdir }
+const DEFAULT_FILE_READER: FileReader = { readFile: defaultReadFile }
+
 // Модуль readPositiveInteger.
 function readPositiveInteger(name: string, raw: string | undefined, fallback: number): number {
   if (raw === undefined) return fallback
@@ -73,7 +76,7 @@ function buildChildEnv(env: EnvSource): Record<string, string> {
 // Модуль readCursorAcpConfig.
 export function readCursorAcpConfig(
   env: EnvSource = process.env,
-  runtime: { tmpdir(): string } = { tmpdir: os.tmpdir }
+  runtime: { tmpdir(): string } = DEFAULT_RUNTIME
 ): CursorAcpConfig {
   const executableRaw = env.CURSOR_ACP_EXECUTABLE
   const executable = executableRaw === undefined ? 'agent' : executableRaw.trim()
@@ -137,7 +140,7 @@ function parseMcpServers(content: string, configPath: string): Record<string, un
 // Перевіряє NoConfiguredMcp.
 export async function assertNoConfiguredMcp(
   config: CursorAcpConfig,
-  io: FileReader = { readFile: defaultReadFile }
+  io: FileReader = DEFAULT_FILE_READER
 ): Promise<void> {
   const configPaths = [
     path.join(config.cwd, '.cursor', 'mcp.json'),

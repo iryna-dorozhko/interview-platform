@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import { hashPassword } from '../auth/password'
 import { signToken } from '../auth/jwt'
@@ -10,22 +10,26 @@ type LoginBody = {
   password?: unknown
 }
 
+function respondWithToken(res: Response, user: { id: string; email: string; role: 'HR' | 'CANDIDATE' }) {
+  const token = signToken({
+    sub: user.id,
+    email: user.email,
+    role: user.role
+  })
+
+  res.status(200).json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    }
+  })
+}
+
 // Створює AuthRouter.
 export function createAuthRouter(getPrisma: () => PrismaClient): Router {
   const router = Router()
-
-  const respondWithToken = (res: Response, user: { id: string; email: string; role: 'HR' | 'CANDIDATE' }) => {
-    const token = signToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role
-    })
-
-    res.status(200).json({
-      token,
-      user: { id: user.id, email: user.email, role: user.role }
-    })
-  }
 
   const loginWithExpectedRole = async (req: Request, res: Response, expectedRole: 'HR' | 'CANDIDATE') => {
     const body = (req.body ?? {}) as LoginBody
@@ -53,16 +57,16 @@ export function createAuthRouter(getPrisma: () => PrismaClient): Router {
     respondWithToken(res, { id: user.id, email: user.email, role: user.role })
   }
 
-  router.post('/auth/hr/login', async (req: Request, res: Response) => {
+  router.post('/auth/hr/login', asyncHandler(async (req: Request, res: Response) => {
     await loginWithExpectedRole(req, res, 'HR')
-  })
+  }))
 
   // Backward-compatibility alias while clients migrate to /auth/hr/login.
-  router.post('/auth/login', async (req: Request, res: Response) => {
+  router.post('/auth/login', asyncHandler(async (req: Request, res: Response) => {
     await loginWithExpectedRole(req, res, 'HR')
-  })
+  }))
 
-  router.post('/auth/candidate/register', async (req: Request, res: Response) => {
+  router.post('/auth/candidate/register', asyncHandler(async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as LoginBody
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
     const password = typeof body.password === 'string' ? body.password : ''
@@ -97,11 +101,11 @@ export function createAuthRouter(getPrisma: () => PrismaClient): Router {
       token,
       user: { id: user.id, email: user.email, role: user.role }
     })
-  })
+  }))
 
-  router.post('/auth/candidate/login', async (req: Request, res: Response) => {
+  router.post('/auth/candidate/login', asyncHandler(async (req: Request, res: Response) => {
     await loginWithExpectedRole(req, res, 'CANDIDATE')
-  })
+  }))
 
   router.get('/auth/me', requireAuth, (req: Request, res: Response) => {
     res.status(200).json({ user: req.user })

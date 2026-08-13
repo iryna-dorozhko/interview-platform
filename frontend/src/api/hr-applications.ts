@@ -59,6 +59,7 @@ export type CreateInterviewFromApplicationResult = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -78,6 +79,7 @@ export async function fetchHrNotifications(): Promise<HrNotification[]> {
   const body = (await response.json()) as { notifications: HrNotification[] }
   return body.notifications
 }
+
 
 export async function markNotificationRead(id: string): Promise<HrNotification> {
   const response = await fetchWithAuth(`/api/hr/notifications/${id}/read`, {
@@ -99,6 +101,7 @@ export async function fetchHrApplications(): Promise<HrApplicationSummary[]> {
   return body.applications
 }
 
+
 export async function fetchHrApplication(id: string): Promise<HrApplicationDetail> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}`)
   if (!response.ok) {
@@ -107,6 +110,7 @@ export async function fetchHrApplication(id: string): Promise<HrApplicationDetai
   const body = (await response.json()) as { application: HrApplicationDetail }
   return body.application
 }
+
 
 export async function deleteHrApplication(id: string): Promise<void> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}`, { method: 'DELETE' })
@@ -117,6 +121,7 @@ export async function deleteHrApplication(id: string): Promise<void> {
     throw await parseError(response, 'Не вдалося видалити заявку')
   }
 }
+
 
 export async function createInterviewFromApplication(
   id: string,
@@ -146,6 +151,7 @@ export async function createInterviewFromApplication(
   return (await response.json()) as CreateInterviewFromApplicationResult
 }
 
+
 export async function draftApplicationDecline(id: string): Promise<{ body: string }> {
   const response = await fetchWithAuth(`/api/hr/applications/${id}/decline/draft`, {
     method: 'POST',
@@ -156,6 +162,7 @@ export async function draftApplicationDecline(id: string): Promise<{ body: strin
   }
   return (await response.json()) as { body: string }
 }
+
 
 export async function sendApplicationDecline(
   id: string,

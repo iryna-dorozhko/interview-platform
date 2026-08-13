@@ -92,12 +92,12 @@ async function onSubmit(): Promise<void> {
   try {
     const interview = await createAdditionalInterview({
       candidateUserId: selectedCandidateUserId.value,
-      ...(scheduledAtLocal.value ? { scheduledAt: new Date(scheduledAtLocal.value).toISOString() } : {})
+      ...(scheduledAtLocal.value && { scheduledAt: new Date(scheduledAtLocal.value).toISOString() })
     })
     createdInterview.value = interview
     step.value = 'code'
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Не вдалося створити додаткову зустріч'
+  } catch (error) {
+    error.value = error instanceof Error ? error.message : 'Не вдалося створити додаткову зустріч'
   } finally {
     submitting.value = false
   }
@@ -105,7 +105,7 @@ async function onSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div v-if="open" class="modal-overlay" @click.self="onClose">
+  <div v-if="open" @click.self="onClose" class="modal-overlay">
     <div class="modal" role="dialog" aria-labelledby="create-additional-interview-title">
       <template v-if="step === 'code' && createdInterview">
         <h2 id="create-additional-interview-title">Код для кандидата</h2>
@@ -121,8 +121,8 @@ async function onSubmit(): Promise<void> {
           Запрошення: {{ createdInterview.invitation.email }} · очікує
         </p>
         <div class="actions">
-          <button type="button" class="btn-secondary" @click="finishCreated">Закрити</button>
-          <button type="button" class="btn-primary" @click="onContinue">Далі</button>
+          <button @click="finishCreated" type="button" class="btn-secondary">Закрити</button>
+          <button @click="onContinue" type="button" class="btn-primary">Далі</button>
         </div>
       </template>
 
@@ -154,7 +154,7 @@ async function onSubmit(): Promise<void> {
           </label>
           <p v-if="error" class="fail">{{ error }}</p>
           <div class="actions">
-            <button type="button" class="btn-secondary" :disabled="submitting" @click="onClose">Скасувати</button>
+            <button @click="onClose" type="button" class="btn-secondary" :disabled="submitting">Скасувати</button>
             <button type="submit" class="btn-primary" :disabled="!selectedCandidateUserId || submitting">
               {{ submitting ? 'Створення…' : 'Створити додаткову зустріч' }}
             </button>
@@ -162,7 +162,7 @@ async function onSubmit(): Promise<void> {
         </form>
 
         <div v-if="!loading && (loadError || candidates.length === 0)" class="actions">
-          <button type="button" class="btn-secondary" @click="onClose">Закрити</button>
+          <button @click="onClose" type="button" class="btn-secondary">Закрити</button>
         </div>
       </template>
     </div>

@@ -32,9 +32,7 @@ const MOCK_APP = {
   }
 }
 
-/**
- *
- */
+
 async function loginApi(email, password) {
   const res = await fetch(`${API}/auth/login`, {
     method: 'POST',
@@ -46,18 +44,14 @@ async function loginApi(email, password) {
   return data
 }
 
-/**
- *
- */
+
 async function shot(page, name) {
   const file = path.join(OUT_DIR, name)
   await page.screenshot({ path: file, fullPage: true })
   console.log('Saved', name)
 }
 
-/**
- *
- */
+
 async function uiLogin(page, base, pathSuffix, email, password, waitUrl) {
   await page.goto(`${base}${pathSuffix}`)
   await page.fill('input[type="email"]', email)
@@ -66,9 +60,6 @@ async function uiLogin(page, base, pathSuffix, email, password, waitUrl) {
   await page.waitForURL(waitUrl, { timeout: 20_000 })
 }
 
-/**
- *
- */
 async function main() {
   await mkdir(OUT_DIR, { recursive: true })
 

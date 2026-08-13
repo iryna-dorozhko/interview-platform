@@ -8,6 +8,9 @@ import {
   type InterviewDetail
 } from '../api/interviews'
 import { formatScheduledAtUk } from '../utils/invite-message'
+import { confirmDestructiveAction } from '../utils/confirm-action'
+
+const padDatetimeLocal = (n: number) => String(n).padStart(2, '0')
 
 const route = useRoute()
 const interviewId = computed(() => String(route.params.id))
@@ -40,17 +43,19 @@ const canManageInvitation = computed(
 
 const formattedScheduledAt = computed(() => (interview.value ? formatScheduledAtUk(interview.value.scheduledAt) : null))
 
+
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
+
 
 function toDatetimeLocal(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${d.getFullYear()}-${padDatetimeLocal(d.getMonth() + 1)}-${padDatetimeLocal(d.getDate())}T${padDatetimeLocal(d.getHours())}:${padDatetimeLocal(d.getMinutes())}`
 }
+
 
 function syncFormFromInterview(data: InterviewDetail): void {
   scheduledAtLocal.value = toDatetimeLocal(data.scheduledAt)
@@ -112,7 +117,7 @@ async function onSaveInvitation(): Promise<void> {
 
 async function onCancelInvitation(): Promise<void> {
   if (!interview.value) return
-  if (!window.confirm('Скасувати запрошення для цього кандидата?')) return
+  if (!confirmDestructiveAction('Скасувати запрошення для цього кандидата?')) return
 
   actionError.value = null
   invitationSaving.value = true
@@ -178,10 +183,10 @@ onMounted(loadInterview)
           <input v-model="scheduledAtLocal" type="datetime-local" :disabled="scheduleSaving" />
         </label>
         <div class="actions">
-          <button type="button" class="btn-secondary" :disabled="scheduleSaving" @click="scheduledAtLocal = ''">
+          <button @click="scheduledAtLocal = ''" type="button" class="btn-secondary" :disabled="scheduleSaving">
             Очистити
           </button>
-          <button type="button" class="btn-primary" :disabled="scheduleSaving" @click="onSaveSchedule">
+          <button @click="onSaveSchedule" type="button" class="btn-primary" :disabled="scheduleSaving">
             {{ scheduleSaving ? 'Збереження…' : 'Зберегти' }}
           </button>
         </div>
@@ -203,10 +208,10 @@ onMounted(loadInterview)
             Запрошення: <strong>{{ interview.invitation.email }}</strong> · очікує
           </p>
           <div class="actions">
-            <button type="button" class="btn-secondary" :disabled="invitationSaving" @click="onStartReplaceInvitation">
+            <button @click="onStartReplaceInvitation" type="button" class="btn-secondary" :disabled="invitationSaving">
               Замінити
             </button>
-            <button type="button" class="btn-danger" :disabled="invitationSaving" @click="onCancelInvitation">
+            <button @click="onCancelInvitation" type="button" class="btn-danger" :disabled="invitationSaving">
               {{ invitationSaving ? 'Скасування…' : 'Скасувати' }}
             </button>
           </div>
@@ -220,14 +225,14 @@ onMounted(loadInterview)
           <div class="actions">
             <button
               v-if="interview.invitation && replacingInvitation"
+              @click="onCancelReplaceInvitation"
               type="button"
               class="btn-secondary"
               :disabled="invitationSaving"
-              @click="onCancelReplaceInvitation"
             >
               Назад
             </button>
-            <button type="button" class="btn-primary" :disabled="invitationSaving" @click="onSaveInvitation">
+            <button @click="onSaveInvitation" type="button" class="btn-primary" :disabled="invitationSaving">
               {{ invitationSaving ? 'Збереження…' : 'Надіслати запрошення' }}
             </button>
           </div>

@@ -1,4 +1,7 @@
 import type { Ref } from 'vue'
+import { confirmDestructiveAction } from '../utils/confirm-action'
+import { runFireAndForget } from '../utils/run-async'
+
 export type PrepFailedAction = 'greeting' | 'message' | 'finish'
 
 export type PrepChatMessage = {
@@ -40,6 +43,7 @@ export type UsePrepChatOptions<TProfile> = {
 
 const DEFAULT_DELETE_MSG = 'Видалити всю історію чату? Цю дію не можна скасувати.'
 const DEFAULT_FINISH_MSG = 'Даних може бути недостатньо. Все одно завершити й сформувати профіль?'
+
 
 export function usePrepChat<TProfile>(options: UsePrepChatOptions<TProfile>) {
   const { adapters } = options
@@ -169,16 +173,17 @@ export function usePrepChat<TProfile>(options: UsePrepChatOptions<TProfile>) {
     }
   }
 
+  
   function onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      void send()
+      runFireAndForget(send())
     }
   }
 
   async function deleteChat(): Promise<void> {
     const msg = options.confirmDeleteMessage ?? DEFAULT_DELETE_MSG
-    if (!globalThis.confirm(msg)) return
+    if (!confirmDestructiveAction(msg)) return
 
     errorMessage.value = null
     try {
@@ -205,7 +210,7 @@ export function usePrepChat<TProfile>(options: UsePrepChatOptions<TProfile>) {
   async function finish(): Promise<void> {
     if (!lastReadyForConfirmation.value) {
       const msg = options.confirmFinishWhenNotReadyMessage ?? DEFAULT_FINISH_MSG
-      if (!globalThis.confirm(msg)) return
+      if (!confirmDestructiveAction(msg)) return
     }
 
     errorMessage.value = null

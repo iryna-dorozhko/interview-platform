@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { CompanyProfile, PrismaClient } from '@prisma/client'
 import { ACTIVE_CANDIDATE_INTERVIEW_STATUSES } from '../utils/interview-readiness'
 import { normalizeVacancyRequirements } from '../utils/vacancy-requirements'
@@ -43,7 +43,7 @@ type PatchBody = { title?: unknown }
 export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
   const router = Router()
 
-  router.get('/vacancies/mine', async (req: Request, res: Response) => {
+  router.get('/vacancies/mine', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const visibility = req.query.visibility === 'hidden' ? 'hidden' : 'active'
     const vacancies = await prisma.vacancy.findMany({
@@ -57,9 +57,9 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
     res.status(200).json({
       vacancies: vacancies.map(serializeVacancySummary)
     })
-  })
+  }))
 
-  router.post('/vacancies', async (req: Request, res: Response) => {
+  router.post('/vacancies', asyncHandler(async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as CreateBody
     const title = typeof body.title === 'string' ? body.title.trim() : ''
     if (title.length < 2) {
@@ -75,9 +75,9 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
     res.status(201).json({
       vacancy: serializeVacancySummary(vacancy)
     })
-  })
+  }))
 
-  router.post('/vacancies/:id/hide', async (req: Request, res: Response) => {
+  router.post('/vacancies/:id/hide', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const vacancy = await prisma.vacancy.findUnique({ where: { id: req.params.id } })
     if (!vacancy) {
@@ -111,9 +111,9 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
       data: { hiddenAt: new Date() }
     })
     res.status(200).json({ vacancy: serializeVacancySummary(updated) })
-  })
+  }))
 
-  router.post('/vacancies/:id/unhide', async (req: Request, res: Response) => {
+  router.post('/vacancies/:id/unhide', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const vacancy = await prisma.vacancy.findUnique({ where: { id: req.params.id } })
     if (!vacancy) {
@@ -133,9 +133,9 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
       data: { hiddenAt: null }
     })
     res.status(200).json({ vacancy: serializeVacancySummary(updated) })
-  })
+  }))
 
-  router.get('/vacancies/:id', async (req: Request, res: Response) => {
+  router.get('/vacancies/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const vacancy = await prisma.vacancy.findUnique({
       where: { id: req.params.id },
@@ -157,9 +157,9 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
         profile: vacancy.companyProfile ? serializeVacancyProfile(vacancy.companyProfile) : null
       }
     })
-  })
+  }))
 
-  router.patch('/vacancies/:id', async (req: Request, res: Response) => {
+  router.patch('/vacancies/:id', asyncHandler(async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as PatchBody
     const title = typeof body.title === 'string' ? body.title.trim() : ''
     if (title.length < 2) {
@@ -186,9 +186,9 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
     res.status(200).json({
       vacancy: serializeVacancySummary(updated)
     })
-  })
+  }))
 
-  router.delete('/vacancies/:id', async (req: Request, res: Response) => {
+  router.delete('/vacancies/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const vacancy = await prisma.vacancy.findUnique({ where: { id: req.params.id } })
     if (!vacancy) {
@@ -228,7 +228,7 @@ export function createVacanciesRouter(getPrisma: () => PrismaClient): Router {
       console.error('[vacancies:delete] failed:', detail)
       res.status(500).json({ error: 'Internal error', detail })
     }
-  })
+  }))
 
   return router
 }

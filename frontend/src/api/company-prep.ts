@@ -32,6 +32,7 @@ export type SendMessageResponse = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -51,6 +52,7 @@ export async function fetchCompanyPrepState(): Promise<CompanyPrepState> {
   return response.json() as Promise<CompanyPrepState>
 }
 
+
 export async function sendCompanyPrepMessage(message?: string): Promise<SendMessageResponse> {
   const response = await fetchWithAuth('/api/company-prep/message', {
     method: 'POST',
@@ -69,6 +71,7 @@ export async function finishCompanyPrepChat(): Promise<{ profile: HrCompanyProfi
   }
   return response.json() as Promise<{ profile: HrCompanyProfile }>
 }
+
 
 export async function updateCompanyPrepProfile(
   payload: Partial<Omit<HrCompanyProfile, 'confirmedAt'>>

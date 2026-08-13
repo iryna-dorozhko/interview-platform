@@ -38,24 +38,18 @@ const LIVE_STEPS = [
 
 const results = { applications: [], ok: true }
 
-/**
- *
- */
+
 function log(tag, detail = '') {
   const line = detail ? `[${tag}] ${detail}` : `[${tag}]`
   console.log(line)
 }
 
-/**
- *
- */
+
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
-/**
- *
- */
+
 async function api(method, pathName, { token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
@@ -74,17 +68,13 @@ async function api(method, pathName, { token, body } = {}) {
   return { status: res.status, data, ok: res.ok }
 }
 
-/**
- *
- */
+
 function isRateLimited(res) {
   const detail = String(res.data?.detail ?? res.data?.error ?? '')
   return res.status === 429 || /ліміт|rate limit|quota|RESOURCE_EXHAUSTED/i.test(detail)
 }
 
-/**
- *
- */
+
 async function apiWithRetry(method, pathName, opts = {}, { retries = 5, label = pathName } = {}) {
   let last
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -98,9 +88,7 @@ async function apiWithRetry(method, pathName, opts = {}, { retries = 5, label = 
   return last
 }
 
-/**
- *
- */
+
 async function seedFinalReportFallback(interviewId) {
   const { prisma } = getPrisma()
   try {
@@ -126,9 +114,7 @@ async function seedFinalReportFallback(interviewId) {
   }
 }
 
-/**
- *
- */
+
 function connectSocket(token) {
   return io(SOCKET_URL, {
     auth: { token },
@@ -137,18 +123,15 @@ function connectSocket(token) {
   })
 }
 
-/**
- *
- */
+
 function waitForEvent(socket, event, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => {
       socket.off(event, onEvent)
       reject(new Error(`timeout waiting for ${event}`))
     }, timeoutMs)
-    /**
-     *
-     */
+
+    
     function onEvent(payload) {
       clearTimeout(t)
       socket.off(event, onEvent)
@@ -158,9 +141,7 @@ function waitForEvent(socket, event, timeoutMs = 30000) {
   })
 }
 
-/**
- *
- */
+
 async function waitForAgentActivity(collector, { minAgents = 1, timeoutMs = 45000, settleMs = 8000 } = {}) {
   const start = Date.now()
   const before = collector.messages.length
@@ -190,9 +171,7 @@ async function waitForAgentActivity(collector, { minAgents = 1, timeoutMs = 4500
   return collector.messages.slice(before).filter(m => String(m.authorType || '').startsWith('AGENT_'))
 }
 
-/**
- *
- */
+
 function attachCollector(socket, label) {
   const state = { messages: [], status: null, thinking: [], thinkingActive: false, errors: [] }
   socket.on('room:messages', payload => {
@@ -221,9 +200,7 @@ function attachCollector(socket, label) {
   return state
 }
 
-/**
- *
- */
+
 async function runLivePhase({ hrToken, candidateToken, interviewId, label }) {
   const hrSocket = connectSocket(hrToken)
   const candSocket = connectSocket(candidateToken)
@@ -304,9 +281,7 @@ async function runLivePhase({ hrToken, candidateToken, interviewId, label }) {
   return { byType, liveMessages: uniqueMsgs.length }
 }
 
-/**
- *
- */
+
 async function processApplication(app, hrToken) {
   const label = app.vacancyTitle
   const item = {
@@ -405,9 +380,6 @@ async function processApplication(app, hrToken) {
   return item
 }
 
-/**
- *
- */
 async function main() {
   const started = Date.now()
   log('start', API)

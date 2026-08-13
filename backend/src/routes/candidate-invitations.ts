@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import { requireAuth, requireCandidate } from '../auth/middleware'
 import { canCandidateJoinInterview, maybeTransitionToReady } from '../utils/interview-readiness'
@@ -19,7 +19,7 @@ export function createCandidateInvitationsRouter(getPrisma: () => PrismaClient):
   const router = Router()
   router.use(requireAuth, requireCandidate)
 
-  router.get('/invitations', async (req: Request, res: Response) => {
+  router.get('/invitations', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const email = normalizeEmail(req.user!.email)
 
@@ -38,9 +38,9 @@ export function createCandidateInvitationsRouter(getPrisma: () => PrismaClient):
         status: item.status
       }))
     })
-  })
+  }))
 
-  router.post('/invitations/:id/accept', async (req: Request, res: Response) => {
+  router.post('/invitations/:id/accept', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const candidateUserId = req.user!.id
     const email = normalizeEmail(req.user!.email)
@@ -95,9 +95,9 @@ export function createCandidateInvitationsRouter(getPrisma: () => PrismaClient):
     res.status(200).json({
       interview: interviewPayload(finalInterview!)
     })
-  })
+  }))
 
-  router.post('/invitations/:id/decline', async (req: Request, res: Response) => {
+  router.post('/invitations/:id/decline', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const email = normalizeEmail(req.user!.email)
 
@@ -118,7 +118,7 @@ export function createCandidateInvitationsRouter(getPrisma: () => PrismaClient):
     res.status(200).json({
       invitation: { id: updated.id, status: updated.status }
     })
-  })
+  }))
 
   return router
 }

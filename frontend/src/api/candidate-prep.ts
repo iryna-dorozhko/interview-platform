@@ -46,6 +46,7 @@ export type SendMessageResponse = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -57,6 +58,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
 
+
 export async function fetchCandidatePrepState(interviewId: string): Promise<CandidatePrepState> {
   const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}`)
   if (!response.ok) {
@@ -64,6 +66,7 @@ export async function fetchCandidatePrepState(interviewId: string): Promise<Cand
   }
   return response.json() as Promise<CandidatePrepState>
 }
+
 
 export async function sendCandidatePrepMessage(interviewId: string, message?: string): Promise<SendMessageResponse> {
   const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}/message`, {
@@ -76,6 +79,7 @@ export async function sendCandidatePrepMessage(interviewId: string, message?: st
   return response.json() as Promise<SendMessageResponse>
 }
 
+
 export async function deleteCandidatePrepChat(interviewId: string): Promise<void> {
   const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}`, {
     method: 'DELETE'
@@ -84,6 +88,7 @@ export async function deleteCandidatePrepChat(interviewId: string): Promise<void
     throw await parseError(response, 'Не вдалося видалити чат')
   }
 }
+
 
 export async function finishCandidatePrepChat(interviewId: string): Promise<{ profile: CandidateProfile }> {
   const response = await fetchWithAuth(`/api/candidate-prep/${interviewId}/finish`, {
@@ -94,6 +99,7 @@ export async function finishCandidatePrepChat(interviewId: string): Promise<{ pr
   }
   return response.json() as Promise<{ profile: CandidateProfile }>
 }
+
 
 export async function confirmCandidatePrepProfile(
   interviewId: string
@@ -106,6 +112,7 @@ export async function confirmCandidatePrepProfile(
   }
   return response.json() as Promise<{ profile: CandidateProfile; interviewStatus: string }>
 }
+
 
 export async function updateCandidatePrepProfile(
   interviewId: string,

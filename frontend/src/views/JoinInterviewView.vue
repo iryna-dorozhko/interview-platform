@@ -3,6 +3,7 @@
 import { joinInterviewByCode } from '../api/candidate-interview'
 import { useAuthStore } from '../stores/auth'
 import { storeJoinedBanner } from '../utils/join-banner'
+import { runFireAndForget } from '../utils/run-async'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -53,7 +54,7 @@ async function tryJoin(): Promise<void> {
 }
 
 onMounted(() => {
-  void tryJoin()
+  runFireAndForget(tryJoin())
 })
 </script>
 

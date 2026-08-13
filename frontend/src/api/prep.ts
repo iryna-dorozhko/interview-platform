@@ -51,6 +51,7 @@ export type SendMessageResponse = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -62,6 +63,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
 
+
 export async function fetchPrepState(vacancyId: string): Promise<PrepState> {
   const response = await fetchWithAuth(`/api/prep/${vacancyId}`)
   if (!response.ok) {
@@ -69,6 +71,7 @@ export async function fetchPrepState(vacancyId: string): Promise<PrepState> {
   }
   return response.json() as Promise<PrepState>
 }
+
 
 export async function sendPrepMessage(vacancyId: string, message?: string): Promise<SendMessageResponse> {
   const response = await fetchWithAuth(`/api/prep/${vacancyId}/message`, {
@@ -81,6 +84,7 @@ export async function sendPrepMessage(vacancyId: string, message?: string): Prom
   return response.json() as Promise<SendMessageResponse>
 }
 
+
 export async function finishPrepChat(vacancyId: string): Promise<{ profile: CompanyProfile }> {
   const response = await fetchWithAuth(`/api/prep/${vacancyId}/finish`, { method: 'POST' })
   if (!response.ok) {
@@ -88,6 +92,7 @@ export async function finishPrepChat(vacancyId: string): Promise<{ profile: Comp
   }
   return response.json() as Promise<{ profile: CompanyProfile }>
 }
+
 
 export async function confirmPrepProfile(
   vacancyId: string
@@ -99,12 +104,14 @@ export async function confirmPrepProfile(
   return response.json() as Promise<{ profile: CompanyProfile; vacancyStatus: string }>
 }
 
+
 export async function deletePrepChat(vacancyId: string): Promise<void> {
   const response = await fetchWithAuth(`/api/prep/${vacancyId}`, { method: 'DELETE' })
   if (!response.ok) {
     throw await parseError(response, 'Не вдалося видалити чат')
   }
 }
+
 
 export async function updatePrepProfile(
   vacancyId: string,

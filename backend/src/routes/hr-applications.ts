@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { PrismaClient } from '@prisma/client'
 import type { Server } from 'socket.io'
 import { generateApplicationDeclineLetter } from '../agents/application-decline-letter-agent'
@@ -18,6 +18,7 @@ import {
   parseOptionalScheduledAt,
   serializeInvitation
 } from './interviews'
+import { ignoreDebugLogFailure } from '../utils/ignore-debug-log'
 
 // Модуль mapApplicationListItem.
 function mapApplicationListItem(app: {
@@ -50,7 +51,7 @@ export function createHrApplicationsRouter(
 ): Router {
   const router = Router()
 
-  router.get('/hr/notifications', async (req: Request, res: Response) => {
+  router.get('/hr/notifications', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const notifications = await prisma.hrNotification.findMany({
       where: { hrUserId: req.user!.id },
@@ -73,9 +74,9 @@ export function createHrApplicationsRouter(
         createdAt: item.createdAt.toISOString()
       }))
     })
-  })
+  }))
 
-  router.post('/hr/notifications/:id/read', async (req: Request, res: Response) => {
+  router.post('/hr/notifications/:id/read', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const notification = await prisma.hrNotification.findUnique({
       where: { id: req.params.id }
@@ -103,9 +104,9 @@ export function createHrApplicationsRouter(
         createdAt: updated.createdAt.toISOString()
       }
     })
-  })
+  }))
 
-  router.get('/hr/applications', async (req: Request, res: Response) => {
+  router.get('/hr/applications', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const applications = await prisma.vacancyApplication.findMany({
       where: { vacancy: { hrUserId: req.user!.id } },
@@ -116,9 +117,9 @@ export function createHrApplicationsRouter(
     res.status(200).json({
       applications: applications.map(mapApplicationListItem)
     })
-  })
+  }))
 
-  router.get('/hr/applications/:id', async (req: Request, res: Response) => {
+  router.get('/hr/applications/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
@@ -153,9 +154,9 @@ export function createHrApplicationsRouter(
         }
       }
     })
-  })
+  }))
 
-  router.delete('/hr/applications/:id', async (req: Request, res: Response) => {
+  router.delete('/hr/applications/:id', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
@@ -175,9 +176,9 @@ export function createHrApplicationsRouter(
 
     await prisma.vacancyApplication.delete({ where: { id: application.id } })
     res.status(204).end()
-  })
+  }))
 
-  router.post('/hr/applications/:id/create-interview', async (req: Request, res: Response) => {
+  router.post('/hr/applications/:id/create-interview', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const hrUserId = req.user!.id
     const application = await prisma.vacancyApplication.findUnique({
@@ -244,7 +245,7 @@ export function createHrApplicationsRouter(
         },
         timestamp: Date.now()
       })
-    }).catch(() => {})
+    }).catch(ignoreDebugLogFailure)
     // #endregion
     if (blockingActive) {
       // #region agent log
@@ -264,7 +265,7 @@ export function createHrApplicationsRouter(
           },
           timestamp: Date.now()
         })
-      }).catch(() => {})
+      }).catch(ignoreDebugLogFailure)
       // #endregion
       res.status(409).json({ error: 'Candidate already has active interview' })
       return
@@ -325,7 +326,7 @@ export function createHrApplicationsRouter(
           },
           timestamp: Date.now()
         })
-      }).catch(() => {})
+      }).catch(ignoreDebugLogFailure)
       // #endregion
       console.error('[hr-applications:create-interview] failed:', detail)
       res.status(mappedStatus).json({ error: mappedResponse })
@@ -351,9 +352,9 @@ export function createHrApplicationsRouter(
         interviewId: result.interview.id
       }
     })
-  })
+  }))
 
-  router.post('/hr/applications/:id/decline/draft', async (req: Request, res: Response) => {
+  router.post('/hr/applications/:id/decline/draft', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const application = await prisma.vacancyApplication.findUnique({
       where: { id: req.params.id },
@@ -381,9 +382,9 @@ export function createHrApplicationsRouter(
     } catch {
       res.status(502).json({ error: 'Failed to generate letter' })
     }
-  })
+  }))
 
-  router.post('/hr/applications/:id/decline', async (req: Request, res: Response) => {
+  router.post('/hr/applications/:id/decline', asyncHandler(async (req: Request, res: Response) => {
     const prisma = getPrisma()
     const hrUserId = req.user!.id
     const application = await prisma.vacancyApplication.findUnique({
@@ -466,7 +467,7 @@ export function createHrApplicationsRouter(
       application: { id: application.id, status: 'DECLINED_BY_HR' },
       dialogId: result.dialogId
     })
-  })
+  }))
 
   return router
 }

@@ -1,8 +1,14 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { Prisma, PrismaClient } from '@prisma/client'
-import { buildCandidateAgentMessages, buildCandidateProfileExtractionMessages, extractContactPreviewFromHistory, parseCandidateProfileExtraction } from '../agents/candidate-agent'
-import type { CandidatePrepHistoryItem, ContactPreview } from '../agents/candidate-agent'
+import {
+  buildCandidateAgentMessages,
+  buildCandidateProfileExtractionMessages,
+  extractContactPreviewFromHistory,
+  parseCandidateProfileExtraction,
+  type CandidatePrepHistoryItem,
+  type ContactPreview
+} from '../agents/candidate-agent'
 import { parseAgentReply } from '../agents/agent-reply'
 import { LlmError } from '../llm/errors'
 import { toSafeLlmErrorMessage, withLlmRetry } from '../llm/retry'
@@ -179,7 +185,7 @@ function resolveContactPreview(
 export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProvider: () => LlmProvider): Router {
   const router = Router()
 
-  router.get('/:interviewId', async (req: Request, res: Response) => {
+  router.get('/:interviewId', asyncHandler(async (req: Request, res: Response) => {
     const { interviewId } = req.params
     const prisma = getPrisma()
 
@@ -224,9 +230,9 @@ export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProv
       profile: profile ? serializeCandidateProfile(profile) : null,
       contactPreview: serializeContactPreview(contactPreview)
     })
-  })
+  }))
 
-  router.post('/:interviewId/message', async (req: Request, res: Response) => {
+  router.post('/:interviewId/message', asyncHandler(async (req: Request, res: Response) => {
     const { interviewId } = req.params
     const body = (req.body ?? {}) as MessageBody
     const message = typeof body.message === 'string' ? body.message.trim() : ''
@@ -320,9 +326,9 @@ export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProv
       readyForConfirmation,
       contactPreview: serializeContactPreview(contactPreview)
     })
-  })
+  }))
 
-  router.post('/:interviewId/finish', async (req: Request, res: Response) => {
+  router.post('/:interviewId/finish', asyncHandler(async (req: Request, res: Response) => {
     const { interviewId } = req.params
     const prisma = getPrisma()
 
@@ -444,9 +450,9 @@ export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProv
     res.status(200).json({
       profile: serializeCandidateProfile(profile)
     })
-  })
+  }))
 
-  router.post('/:interviewId/confirm', async (req: Request, res: Response) => {
+  router.post('/:interviewId/confirm', asyncHandler(async (req: Request, res: Response) => {
     const { interviewId } = req.params
     const prisma = getPrisma()
 
@@ -486,9 +492,9 @@ export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProv
       profile: serializeCandidateProfile(updatedProfile),
       interviewStatus: finalInterview.status
     })
-  })
+  }))
 
-  router.patch('/:interviewId/profile', async (req: Request, res: Response) => {
+  router.patch('/:interviewId/profile', asyncHandler(async (req: Request, res: Response) => {
     const { interviewId } = req.params
     const prisma = getPrisma()
 
@@ -529,9 +535,9 @@ export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProv
     }
 
     res.status(200).json({ profile: serializeCandidateProfile(updatedProfile) })
-  })
+  }))
 
-  router.delete('/:interviewId', async (req: Request, res: Response) => {
+  router.delete('/:interviewId', asyncHandler(async (req: Request, res: Response) => {
     const { interviewId } = req.params
     const prisma = getPrisma()
 
@@ -556,7 +562,7 @@ export function createCandidatePrepRouter(getPrisma: () => PrismaClient, getProv
     }
 
     res.status(200).json({ ok: true })
-  })
+  }))
 
   return router
 }

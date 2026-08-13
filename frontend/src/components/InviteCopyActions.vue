@@ -12,7 +12,8 @@ const props = defineProps<{
 const copyError = ref<string | null>(null)
 const copied = ref<'code' | 'link' | 'text' | null>(null)
 
-const origin = window.location.origin
+const origin = location.origin
+
 
 async function copyText(text: string, kind: 'code' | 'link' | 'text'): Promise<void> {
   copyError.value = null
@@ -20,7 +21,7 @@ async function copyText(text: string, kind: 'code' | 'link' | 'text'): Promise<v
   try {
     await navigator.clipboard.writeText(text)
     copied.value = kind
-    window.setTimeout(() => {
+    setTimeout(() => {
       if (copied.value === kind) copied.value = null
     }, 2000)
   } catch {
@@ -52,9 +53,9 @@ function copyMessage(): Promise<void> {
 
 <template>
   <div class="copy-actions">
-    <button type="button" class="btn-secondary" @click="copyCode">Скопіювати код</button>
-    <button type="button" class="btn-secondary" @click="copyLink">Скопіювати посилання</button>
-    <button type="button" class="btn-secondary" @click="copyMessage">Скопіювати текст запрошення</button>
+    <button @click="copyCode" type="button" class="btn-secondary">Скопіювати код</button>
+    <button @click="copyLink" type="button" class="btn-secondary">Скопіювати посилання</button>
+    <button @click="copyMessage" type="button" class="btn-secondary">Скопіювати текст запрошення</button>
     <p v-if="copied === 'code'" class="success">Код скопійовано</p>
     <p v-else-if="copied === 'link'" class="success">Посилання скопійовано</p>
     <p v-else-if="copied === 'text'" class="success">Текст скопійовано</p>

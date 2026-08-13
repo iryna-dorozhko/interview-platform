@@ -1,3 +1,5 @@
+import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
+
 export interface ParsedPostReply {
   post: boolean
   message?: string
@@ -11,8 +13,6 @@ export class AgentPostReplyParseError extends Error {
     this.name = 'AgentPostReplyParseError'
   }
 }
-
-import { stripLlmJsonCodeFences } from '../utils/llm-json-fence'
 
 // Парсить PostReply з JSON-відповіді LLM.
 export function parsePostReply(rawText: string): ParsedPostReply {

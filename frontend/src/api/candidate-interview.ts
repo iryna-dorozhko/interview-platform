@@ -9,6 +9,7 @@ export type CandidateInterview = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -48,6 +49,7 @@ export async function startCandidateQuestionnaire(): Promise<CandidateInterview>
   const body = (await response.json()) as { interview: CandidateInterview }
   return body.interview
 }
+
 
 export async function joinInterviewByCode(joinCode: string): Promise<CandidateInterview> {
   const response = await fetchWithAuth('/api/candidate/interview/join', {

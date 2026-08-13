@@ -15,6 +15,7 @@ export type VacancyDetail = VacancySummary & {
 
 type ErrorBody = { error?: string; detail?: string; message?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -26,6 +27,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
 
+
 export async function fetchMyVacancies(visibility: 'active' | 'hidden' = 'active'): Promise<VacancySummary[]> {
   const params = new URLSearchParams({ visibility })
   const response = await fetchWithAuth(`/api/vacancies/mine?${params}`)
@@ -36,6 +38,7 @@ export async function fetchMyVacancies(visibility: 'active' | 'hidden' = 'active
   return body.vacancies
 }
 
+
 export async function fetchVacancy(id: string): Promise<VacancyDetail> {
   const response = await fetchWithAuth(`/api/vacancies/${id}`)
   if (!response.ok) {
@@ -44,6 +47,7 @@ export async function fetchVacancy(id: string): Promise<VacancyDetail> {
   const body = (await response.json()) as { vacancy: VacancyDetail }
   return body.vacancy
 }
+
 
 export async function createVacancy(title: string): Promise<VacancySummary> {
   const response = await fetchWithAuth('/api/vacancies', {
@@ -57,6 +61,7 @@ export async function createVacancy(title: string): Promise<VacancySummary> {
   return body.vacancy
 }
 
+
 export async function updateVacancyTitle(id: string, title: string): Promise<VacancySummary> {
   const response = await fetchWithAuth(`/api/vacancies/${id}`, {
     method: 'PATCH',
@@ -68,6 +73,7 @@ export async function updateVacancyTitle(id: string, title: string): Promise<Vac
   const body = (await response.json()) as { vacancy: VacancySummary }
   return body.vacancy
 }
+
 
 export async function hideVacancy(id: string): Promise<VacancySummary> {
   const response = await fetchWithAuth(`/api/vacancies/${id}/hide`, { method: 'POST' })
@@ -87,6 +93,7 @@ export async function hideVacancy(id: string): Promise<VacancySummary> {
   return body.vacancy
 }
 
+
 export async function unhideVacancy(id: string): Promise<VacancySummary> {
   const response = await fetchWithAuth(`/api/vacancies/${id}/unhide`, { method: 'POST' })
   if (!response.ok) {
@@ -95,6 +102,7 @@ export async function unhideVacancy(id: string): Promise<VacancySummary> {
   const body = (await response.json()) as { vacancy: VacancySummary }
   return body.vacancy
 }
+
 
 export async function deleteVacancy(id: string): Promise<void> {
   const response = await fetchWithAuth(`/api/vacancies/${id}`, { method: 'DELETE' })

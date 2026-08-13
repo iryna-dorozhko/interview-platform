@@ -11,17 +11,12 @@ const PAUSE_MS = 2500
 const CHROME =
   '/Users/iruna/interview-platform-1/node_modules/playwright-core/.local-browsers/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 
-/**
- *
- */
+
 async function pause(page, label) {
   console.log(`→ ${label}`)
   await page.waitForTimeout(PAUSE_MS)
 }
 
-/**
- *
- */
 async function main() {
   const browser = await chromium.launch({
     headless: false,

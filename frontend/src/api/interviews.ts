@@ -43,6 +43,7 @@ export type CreatedInterview = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -53,6 +54,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   const detail = body.detail ?? body.error
   return new Error(detail ? `${fallback}: ${detail}` : fallback)
 }
+
 
 export async function fetchInterview(id: string): Promise<InterviewDetail> {
   const response = await fetchWithAuth(`/api/interviews/${id}`)
@@ -71,6 +73,7 @@ export async function fetchMyInterviews(): Promise<InterviewSummary[]> {
   const body = (await response.json()) as { interviews: InterviewSummary[] }
   return body.interviews
 }
+
 
 export async function createInterview(
   vacancyId: string,
@@ -107,6 +110,7 @@ export async function fetchAdditionalMeetingCandidates(): Promise<AdditionalMeet
   return body.candidates
 }
 
+
 export async function createAdditionalInterview(input: {
   candidateUserId: string
   scheduledAt?: string | null
@@ -125,6 +129,7 @@ export async function createAdditionalInterview(input: {
   return body.interview
 }
 
+
 export async function updateInterviewSchedule(id: string, scheduledAt: string | null): Promise<InterviewDetail> {
   const response = await fetchWithAuth(`/api/interviews/${id}`, {
     method: 'PATCH',
@@ -136,6 +141,7 @@ export async function updateInterviewSchedule(id: string, scheduledAt: string | 
   const body = (await response.json()) as { interview: InterviewDetail }
   return body.interview
 }
+
 
 export async function updateInterviewInvitation(
   id: string,
@@ -151,6 +157,7 @@ export async function updateInterviewInvitation(
   return (await response.json()) as { invitation: InterviewInvitation | null }
 }
 
+
 export async function deleteInterview(id: string): Promise<void> {
   const response = await fetchWithAuth(`/api/interviews/${id}`, { method: 'DELETE' })
   if (!response.ok) {
@@ -163,6 +170,7 @@ export type EndInterviewResult = {
   recommendation: 'HIRE' | 'MAYBE' | 'REJECT'
   matchScore: number
 }
+
 
 export async function endInterview(id: string): Promise<EndInterviewResult> {
   const response = await fetchWithAuth(`/api/interviews/${id}/end`, { method: 'POST' })

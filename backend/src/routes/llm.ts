@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import { LlmError, LlmUnavailableError } from '../llm/errors'
 import type { ChatMessage, LlmProvider } from '../llm/types'
 
@@ -42,7 +42,7 @@ export function normalizeLlmMessages(body: CompleteBody): ChatMessage[] | null {
 export function createLlmRouter(getProvider: () => LlmProvider): Router {
   const router = Router()
 
-  router.post('/llm/complete', async (req: Request, res: Response) => {
+  router.post('/llm/complete', asyncHandler(async (req: Request, res: Response) => {
     const messages = normalizeLlmMessages(req.body ?? {})
 
     if (!messages) {
@@ -80,7 +80,7 @@ export function createLlmRouter(getProvider: () => LlmProvider): Router {
       console.error(`[llm:${provider.name}] unexpected error:`, detail)
       res.status(503).json({ error: 'LLM unavailable', detail })
     }
-  })
+  }))
 
   return router
 }

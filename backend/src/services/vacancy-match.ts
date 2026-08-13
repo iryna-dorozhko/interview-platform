@@ -1,12 +1,10 @@
 import type { PrismaClient } from '@prisma/client'
-import { rankVacanciesWithLlm } from '../agents/vacancy-match-agent'
-import type { CandidateMatchInput, VacancyMatchInput } from '../agents/vacancy-match-agent'
+import { rankVacanciesWithLlm, type CandidateMatchInput, type VacancyMatchInput } from '../agents/vacancy-match-agent'
 import type { LlmProvider } from '../llm/types'
 import { getConfirmedQuestionnaireProfile } from '../utils/interview-readiness'
 import { assertNonEmptyRequirements, normalizeVacancyRequirements } from '../utils/vacancy-requirements'
 import { formatSalaryDisplay, formatWorkFormatDisplay } from '../utils/vacancy-work-conditions'
-import { computeMatchScore } from './match-score'
-import type { MatchBreakdown } from './match-score'
+import { computeMatchScore, type MatchBreakdown } from './match-score'
 
 export type CandidateMatchOffer = {
   vacancyId: string
@@ -43,7 +41,7 @@ type OfferBase = {
 
 // Сортує за matchScore спадаючим.
 export function sortScoresDesc<T extends { matchScore: number }>(items: T[]): T[] {
-  return [...items].sort((a, b) => b.matchScore - a.matchScore)
+  return items.toSorted((a, b) => b.matchScore - a.matchScore)
 }
 
 // Модуль pickNextOffer.

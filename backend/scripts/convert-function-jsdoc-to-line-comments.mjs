@@ -8,15 +8,18 @@ const EMPTY_BLOCK = /\/\*\*\n \*\n \*\/\n/g
 const FUNCTION_JSDOC =
   /\/\*\*([\s\S]*?)\*\/\n(\s*)(?=(?:export )?(?:async )?function |export (?:async )?function |export const |function |[a-zA-Z_$][\w$]*(?:\s*<[^>]*>)?\s*\()/g
 
+
 function isSourceFile(name) {
   return (name.endsWith('.ts') || name.endsWith('.js') || name.endsWith('.mjs')) && !name.endsWith('.d.ts')
 }
+
 
 function stripJsdocLinePrefix(line) {
   const trimmed = line.trimStart()
   if (!trimmed.startsWith('*')) return line.trim()
   return trimmed.slice(1).trimStart()
 }
+
 
 function collectFiles(dir) {
   const out = []
@@ -32,6 +35,7 @@ function collectFiles(dir) {
   return out
 }
 
+
 function jsdocBodyToLineComment(body, indent) {
   const text = body
     .split('\n')
@@ -46,8 +50,8 @@ for (const dir of TARGET_DIRS) {
     let content = readFileSync(file, 'utf8')
     const original = content
 
-    content = content.replace(EMPTY_BLOCK, '')
-    content = content.replace(FUNCTION_JSDOC, (_match, body, indent) => jsdocBodyToLineComment(body, indent))
+    content = content.replaceAll(EMPTY_BLOCK, '')
+    content = content.replaceAll(FUNCTION_JSDOC, (_match, body, indent) => jsdocBodyToLineComment(body, indent))
 
     if (content !== original) writeFileSync(file, content)
   }

@@ -23,6 +23,7 @@ export type ActiveApplication = {
 
 type ErrorBody = { error?: string; detail?: string }
 
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   let body: ErrorBody = {}
   try {
@@ -43,6 +44,7 @@ export async function fetchActiveApplication(): Promise<ActiveApplication | null
   return body.application
 }
 
+
 export function isQuestionnaireNotConfirmedError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 403
 }
@@ -61,6 +63,7 @@ export async function fetchNextMatch(): Promise<CandidateMatchOffersResponse> {
   return response.json() as Promise<CandidateMatchOffersResponse>
 }
 
+
 export async function rejectMatch(vacancyId: string): Promise<CandidateMatchOffersResponse> {
   const response = await fetchWithAuth(`/api/candidate/matches/${vacancyId}/reject`, {
     method: 'POST'
@@ -73,6 +76,7 @@ export async function rejectMatch(vacancyId: string): Promise<CandidateMatchOffe
   }
   return response.json() as Promise<CandidateMatchOffersResponse>
 }
+
 
 export async function acceptMatch(vacancyId: string): Promise<{ application: ActiveApplication }> {
   const response = await fetchWithAuth(`/api/candidate/matches/${vacancyId}/accept`, {

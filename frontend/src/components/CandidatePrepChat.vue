@@ -9,6 +9,7 @@ import {
 } from '../api/candidate-prep'
 import { usePrepChat } from '../composables/usePrepChat'
 import PrepChatPanel from './PrepChatPanel.vue'
+import { runFireAndForget } from '../utils/run-async'
 
 const props = defineProps<{ interviewId: string }>()
 const emit = defineEmits<{ finished: []; deleted: [] }>()
@@ -60,21 +61,29 @@ const {
   isUserMessage
 } = chat
 
+
 function setMessagesEl(el: HTMLElement | null): void {
   messagesEl.value = el
 }
+
 
 function setInput(value: string): void {
   input.value = value
 }
 
 onMounted(() => {
-  void load()
+  runFireAndForget(load())
 })
 </script>
 
 <template>
   <PrepChatPanel
+    @update:input="setInput"
+    @send="send"
+    @retry="retry"
+    @finish="finish"
+    @delete="deleteChat"
+    @keydown="onKeydown"
     title="Чат з Candidate Agent"
     :load-state="loadState"
     :messages="messages"
@@ -87,11 +96,5 @@ onMounted(() => {
     :delete-disabled="!!profile?.confirmedAt"
     :delete-title="profile?.confirmedAt ? 'Підтверджений профіль не можна видалити' : ''"
     :set-messages-el="setMessagesEl"
-    @update:input="setInput"
-    @send="send"
-    @retry="retry"
-    @finish="finish"
-    @delete="deleteChat"
-    @keydown="onKeydown"
   />
 </template>

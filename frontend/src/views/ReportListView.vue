@@ -2,6 +2,7 @@
 
 import { fetchReports, type ReportListFilters, type ReportSummary } from '../api/reports'
 import { fetchMyVacancies, type VacancySummary } from '../api/vacancies'
+import { runFireAndForget } from '../utils/run-async'
 
 type ListState = 'loading' | 'ready' | 'error'
 
@@ -31,9 +32,11 @@ const hasActiveFilters = computed(
     Boolean(dateTo.value)
 )
 
+
 function recommendationLabel(value: string): string {
   return RECOMMENDATION_LABELS[value] ?? value
 }
+
 
 function badgeClass(value: string): string {
   if (value === 'HIRE') return 'badge-hire'
@@ -41,6 +44,7 @@ function badgeClass(value: string): string {
   if (value === 'REJECT') return 'badge-reject'
   return ''
 }
+
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA')
@@ -82,13 +86,13 @@ function resetFilters(): void {
 let emailTimer: ReturnType<typeof setTimeout> | null = null
 
 watch([vacancyId, recommendation, dateFrom, dateTo], () => {
-  void loadReports()
+  runFireAndForget(loadReports())
 })
 
 watch(email, () => {
   if (emailTimer) clearTimeout(emailTimer)
   emailTimer = setTimeout(() => {
-    void loadReports()
+    runFireAndForget(loadReports())
   }, 300)
 })
 
@@ -106,7 +110,7 @@ onMounted(async () => {
   <div class="report-list">
     <div class="list-header">
       <h1>Звіти</h1>
-      <button v-if="hasActiveFilters" type="button" class="btn-reset" @click="resetFilters">Скинути фільтри</button>
+      <button v-if="hasActiveFilters" @click="resetFilters" type="button" class="btn-reset">Скинути фільтри</button>
     </div>
 
     <div class="filters" aria-label="Фільтри звітів">

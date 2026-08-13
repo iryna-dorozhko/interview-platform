@@ -1,5 +1,5 @@
-import { Router } from 'express'
-import type { Request, Response } from 'express'
+import { Router, type Request, type Response } from 'express'
+import { asyncHandler } from '../utils/async-handler'
 import type { CompanyProfile, HrCompanyProfile, Prisma, PrismaClient } from '@prisma/client'
 import {
   buildCompanyAgentMessages,
@@ -178,7 +178,7 @@ function parseProfilePatch(
 export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () => LlmProvider): Router {
   const router = Router()
 
-  router.get('/prep/:vacancyId', async (req: Request, res: Response) => {
+  router.get('/prep/:vacancyId', asyncHandler(async (req: Request, res: Response) => {
     const { vacancyId } = req.params
     const prisma = getPrisma()
 
@@ -231,9 +231,9 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
       missingCompanyProfile,
       canEditProfile
     })
-  })
+  }))
 
-  router.post('/prep/:vacancyId/finish', async (req: Request, res: Response) => {
+  router.post('/prep/:vacancyId/finish', asyncHandler(async (req: Request, res: Response) => {
     const { vacancyId } = req.params
     const prisma = getPrisma()
 
@@ -346,9 +346,9 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
     }
 
     res.status(200).json({ profile: serializeVacancyProfile(profile) })
-  })
+  }))
 
-  router.post('/prep/:vacancyId/confirm', async (req: Request, res: Response) => {
+  router.post('/prep/:vacancyId/confirm', asyncHandler(async (req: Request, res: Response) => {
     const { vacancyId } = req.params
     const prisma = getPrisma()
 
@@ -411,9 +411,9 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
       profile: serializeVacancyProfile(updatedProfile),
       vacancyStatus
     })
-  })
+  }))
 
-  router.patch('/prep/:vacancyId/profile', async (req: Request, res: Response) => {
+  router.patch('/prep/:vacancyId/profile', asyncHandler(async (req: Request, res: Response) => {
     const { vacancyId } = req.params
     const prisma = getPrisma()
 
@@ -434,11 +434,9 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
       return
     }
 
-    if (profile.confirmedAt) {
-      if (await vacancyHasBlockingInterviews(prisma, vacancyId)) {
-        res.status(409).json({ error: 'Vacancy has active interviews' })
-        return
-      }
+    if (profile.confirmedAt && (await vacancyHasBlockingInterviews(prisma, vacancyId))) {
+      res.status(409).json({ error: 'Vacancy has active interviews' })
+      return
     }
 
     const parsed = parseProfilePatch((req.body ?? {}) as ProfilePatchBody)
@@ -465,9 +463,9 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
     }
 
     res.status(200).json({ profile: serializeVacancyProfile(updatedProfile) })
-  })
+  }))
 
-  router.post('/prep/:vacancyId/message', async (req: Request, res: Response) => {
+  router.post('/prep/:vacancyId/message', asyncHandler(async (req: Request, res: Response) => {
     const { vacancyId } = req.params
     const body = (req.body ?? {}) as MessageBody
     const message = typeof body.message === 'string' ? body.message.trim() : ''
@@ -560,9 +558,9 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
     }
 
     res.status(200).json({ message: agentMessage, readyForConfirmation })
-  })
+  }))
 
-  router.delete('/prep/:vacancyId', async (req: Request, res: Response) => {
+  router.delete('/prep/:vacancyId', asyncHandler(async (req: Request, res: Response) => {
     const { vacancyId } = req.params
     const prisma = getPrisma()
 
@@ -598,7 +596,7 @@ export function createPrepRouter(getPrisma: () => PrismaClient, getProvider: () 
     }
 
     res.status(200).json({ ok: true })
-  })
+  }))
 
   return router
 }

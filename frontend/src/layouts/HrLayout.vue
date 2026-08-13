@@ -26,7 +26,7 @@ function logout(): void {
       </div>
       <div class="user-bar">
         <span>{{ auth.user?.email }}</span>
-        <button type="button" @click="logout">Вийти</button>
+        <button @click="logout" type="button">Вийти</button>
       </div>
     </header>
     <div class="body">

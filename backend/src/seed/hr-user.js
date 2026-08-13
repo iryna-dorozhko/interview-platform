@@ -6,9 +6,11 @@ export const SEED_HR_USER = {
   role: 'HR'
 }
 
+
 export function hashPassword(plainPassword) {
   return crypto.createHash('sha256').update(plainPassword).digest('hex')
 }
+
 
 export async function seedHrUser(prisma, { UserRole }) {
   const { email, password, role } = SEED_HR_USER

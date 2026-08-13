@@ -17,7 +17,7 @@ export type ResolvedCandidateProfile = {
 }
 
 // Модуль findQuestionnaireInterview.
-async function findQuestionnaireInterview(prisma: PrismaClient, candidateUserId: string) {
+function findQuestionnaireInterview(prisma: PrismaClient, candidateUserId: string) {
   return prisma.interview.findFirst({
     where: {
       candidateUserId,

@@ -42,8 +42,8 @@ async function onSubmit(): Promise<void> {
   try {
     const vacancy = await createVacancy(trimmed)
     emit('created', vacancy.id)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Не вдалося створити анкету'
+  } catch (error) {
+    error.value = error instanceof Error ? error.message : 'Не вдалося створити анкету'
   } finally {
     submitting.value = false
   }
@@ -51,7 +51,7 @@ async function onSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div v-if="open" class="modal-overlay" @click.self="onClose">
+  <div v-if="open" @click.self="onClose" class="modal-overlay">
     <div class="modal" role="dialog" aria-labelledby="create-vacancy-title">
       <h2 id="create-vacancy-title">Створити нову анкету</h2>
       <form @submit.prevent="onSubmit">
@@ -61,7 +61,7 @@ async function onSubmit(): Promise<void> {
         </label>
         <p v-if="error" class="fail">{{ error }}</p>
         <div class="actions">
-          <button type="button" class="btn-secondary" :disabled="submitting" @click="onClose">Скасувати</button>
+          <button @click="onClose" type="button" class="btn-secondary" :disabled="submitting">Скасувати</button>
           <button type="submit" class="btn-primary" :disabled="submitting">
             {{ submitting ? 'Створення…' : 'Створити' }}
           </button>

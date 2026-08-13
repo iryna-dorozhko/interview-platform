@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'vitest'
 import { usePrepChat } from './usePrepChat'
 import type { PrepChatAdapters, PrepChatMessage } from './usePrepChat'
+
 type Profile = { confirmedAt: string | null }
+
 
 function makeAdapters(overrides: Partial<PrepChatAdapters<Profile>> = {}): PrepChatAdapters<Profile> {
   return {
