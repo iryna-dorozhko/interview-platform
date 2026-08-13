@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
 import type { LiveAuthorType, PrismaClient } from '@prisma/client'
-import { LlmUnavailableError } from '../llm/errors'
-import type { LlmProvider } from '../llm/types'
+import { LlmUnavailableError } from '../llm/errors.js'
+import type { ChatMessage, LlmProvider } from '../llm/types.js'
 import {
   ANSWER_NUDGE_UK,
   buildCandidateLiveMessages,
@@ -15,8 +15,8 @@ import {
   formatCandidateTurnNudge,
   parseCandidateLiveReply,
   runCandidateLiveTurn
-} from './candidate-live-agent'
-import { CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK } from './prompts/candidate-live-agent.uk'
+} from './candidate-live-agent.js'
+import { CANDIDATE_LIVE_AGENT_SYSTEM_PROMPT_UK } from './prompts/candidate-live-agent.uk.js'
 
 test('parseCandidateLiveReply maps confidence to needsHuman', () => {
   const confirmed = parseCandidateLiveReply(
@@ -332,7 +332,7 @@ test('runCandidateLiveTurn loads profile, calls LLM, parses reply', async () => 
 
   const provider: LlmProvider = {
     name: 'test',
-    complete: async messages => {
+    complete: async (messages: ChatMessage[]) => {
       assert.match(messages.at(-1)!.content, /ANSWER/)
       return '{ "post": true, "message": "Кандидат має 5 років досвіду.", "confidence": "confirmed" }'
     }

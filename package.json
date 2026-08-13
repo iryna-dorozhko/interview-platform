@@ -17,7 +17,7 @@
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun run --filter backend test && bun run --filter frontend test",
     "coverage": "npx @7n/rules lint test --no-fix",
-    "ci:bootstrap": "npx @7n/rules lint --full && bun run build"
+    "ci:bootstrap": "npx @7n/rules lint --full --no-fix && bun run build"
   },
   "devDependencies": {
     "@7n/rules": "^1.92.0",
